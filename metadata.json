@@ -1,0 +1,6 @@
+{
+  "name": "Task Arena",
+  "description": "A gamified, Neo-Brutalist anti-procrastination task tracker and AI VC pitch roasting arena powered by Gemini 3.5 Flash.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
