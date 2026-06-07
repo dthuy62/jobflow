@@ -26,11 +26,17 @@ enum class ArenaFilter {
 // --- USER INTENTS ---
 sealed interface ArenaUiIntent {
     object LoadTasks : ArenaUiIntent
-    data class AddTask(val title: String, val description: String, val difficulty: Difficulty, val timeLimitMinutes: Int) : ArenaUiIntent
+    data class AddTask(
+        val title: String,
+        val description: String,
+        val difficulty: Difficulty,
+        val timeLimitMinutes: Int
+    ) : ArenaUiIntent
+
     data class ToggleComplete(val task: TaskDare) : ArenaUiIntent
     data class DeleteTask(val id: Long) : ArenaUiIntent
     data class TriggerRoast(val task: TaskDare) : ArenaUiIntent
-    
+
     // Form Inputs
     data class UpdateTitleInput(val title: String) : ArenaUiIntent
     data class UpdateDescInput(val desc: String) : ArenaUiIntent

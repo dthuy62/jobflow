@@ -122,7 +122,7 @@ class ArenaViewModel(
             try {
                 val willBeCompleted = !task.isCompleted
                 toggleCompleteTaskUseCase(task)
-                
+
                 if (willBeCompleted) {
                     val pointsGained = when (task.difficulty) {
                         Difficulty.EASY -> 10
