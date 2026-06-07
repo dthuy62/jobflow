@@ -1,21 +1,88 @@
+# 🛡️ Task Arena: Gamified Productivity System
+
 <div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
+  **"Defeat Procrastination • Play Hard • Level Up Your Life"**
+  
+  *A high-performance Android application built with Jetpack Compose, MVI Architecture, and Gemini AI integration.*
 </div>
 
-# Run and deploy your AI Studio app
+---
 
-This contains everything you need to run your app locally.
+## 🚀 The Vision
 
-View your app in AI Studio: https://ai.studio/apps/58673f5c-fe1a-4833-b2f4-642abe4ffeee
+**Task Arena** transforms the mundane ritual of task management into a high-stakes "Arena". Designed for developers and power users, it treats every task as a **"Dare"**. Complete challenges, earn XP, and face the brutal honesty of the **AI Venture Capitalist Board**—an integrated AI that reviews your technical dares and gives you a professional "reality check" or a "VC-style roast".
 
-## Run Locally
+### 🎨 Design Philosophy: Neo-Brutalism
+The app features a custom-built **Neo-Brutalism** design system. Unlike standard Material apps, Task Arena uses:
+- **Bold Strokes:** Thick black borders for high visibility and a unique "comic-book" aesthetic.
+- **Hard Shadows:** Pronounced, non-blurred shadows that create a strong 3D effect.
+- **Vibrant Palette:** A punchy mix of NeoBg, NeoOrange, and NeoCyan that demands focus and action.
 
-**Prerequisites:**  [Android Studio](https://developer.android.com/studio)
+---
 
+## 📸 Screen Showcase
 
-1. Open Android Studio
-2. Select **Open** and choose the directory containing this project
-3. Allow Android Studio to fix any incompatibilities as it imports the project.
-4. Create a file named `.env` in the project directory and set `GEMINI_API_KEY` in that file to your Gemini API key (see `.env.example` for an example)
-5. Remove this line from the app's `build.gradle.kts` file: `signingConfig = signingConfigs.getByName("debugConfig")`
-6. Run the app on an emulator or physical device
+<div align="center">
+  <img src="assets/hero-screenshot.png" width="400" alt="Main Arena Screen" />
+  <p><i>The Arena Dashboard: Tracking XP and conquering Dares with AI-powered feedback.</i></p>
+</div>
+
+---
+
+## 🛠️ Technical Excellence
+
+This project was developed to demonstrate proficiency in modern Android development standards:
+
+-   **Architecture**: **MVI (Model-View-Intent)** with Unidirectional Data Flow.
+    -   Predictable state management using `StateFlow` and `SharedFlow`.
+    -   Clean separation between Domain logic and UI presentation.
+-   **UI Layer**: 100% **Jetpack Compose**.
+    -   Custom Design System implementation (Colors, Shapes, Typography).
+    -   Advanced UI components: Custom cards, progress chips, and interactive bottom sheets.
+-   **AI Integration**: **Google Generative AI (Gemini)**.
+    -   Context-aware prompt engineering to analyze task feasibility and provide "VC-style" feedback.
+-   **Persistence & Networking**: 
+    -   **Room Database** for local persistence and offline-first reliability.
+    -   **Retrofit & Moshi** for robust API communication.
+-   **Modern Tooling**:
+    -   **Kotlin Coroutines & Flow** for reactive programming.
+    -   **Version Catalogs** (libs.versions.toml) for professional dependency management.
+    -   **Secrets Gradle Plugin** for secure API key management.
+
+---
+
+## 🏗️ Project Structure
+
+```text
+app/src/main/java/com/example/
+├── data/           # Repositories, Room DB, and AI Service implementations
+├── domain/         # Pure Business Logic, Interfaces, and Models
+├── presentation/   # UI Layer (MVI Pattern)
+│   ├── screen/     # Screen Composables and ViewModels
+│   └── component/  # Atomic UI components (The Neo-Brutalism core)
+└── ui/theme/       # Custom Theme & Styling (Color, Shape, Type)
+```
+
+---
+
+## ⚙️ Quick Start
+
+### Prerequisites
+- Android Studio Ladybug (2024.2.1) or newer.
+- A Gemini API Key from [Google AI Studio](https://aistudio.google.com/).
+
+### Installation
+1. Clone the repository.
+2. Create a `.env` file in the root directory.
+3. Add your key: `GEMINI_API_KEY=your_actual_key`
+4. Sync Gradle and hit **Run**.
+
+---
+
+<div align="center">
+  <p>Developed with ❤️ and technical rigor by <b>Dthuy</b></p>
+  <p>
+    <a href="https://github.com/dthuy"><img src="https://img.shields.io/badge/GitHub-100000?style=for-the-badge&logo=github&logoColor=white" /></a>
+    <a href="https://linkedin.com/in/dthuy"><img src="https://img.shields.io/badge/LinkedIn-0077B5?style=for-the-badge&logo=linkedin&logoColor=white" /></a>
+  </p>
+</div>
