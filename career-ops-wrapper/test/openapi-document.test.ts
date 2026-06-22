@@ -1,5 +1,10 @@
+import { readFile } from "node:fs/promises";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { buildOpenApiDocument } from "../src/openapi/openapi-document.js";
+
+const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 const unimplementedEndpointFamilies = [
   "/api/v1/cv",
@@ -13,6 +18,11 @@ const unimplementedEndpointFamilies = [
   "/api/v1/exec",
   "/api/v1/command"
 ];
+
+async function readJsonFixture<T>(relativePath: string): Promise<T> {
+  const raw = await readFile(resolve(packageRoot, relativePath), "utf8");
+  return JSON.parse(raw) as T;
+}
 
 describe("OpenAPI document", () => {
   it("documents the current implemented API surface only", () => {
@@ -60,14 +70,51 @@ describe("OpenAPI document", () => {
     });
   });
 
+  it("uses checked-in contract examples in OpenAPI responses and components", async () => {
+    const document = buildOpenApiDocument();
+    const healthReady = await readJsonFixture<unknown>("contracts/examples/health.ready.json");
+    const healthNotReady = await readJsonFixture<unknown>(
+      "contracts/examples/health.not-ready.json"
+    );
+    const validationError = await readJsonFixture<unknown>(
+      "contracts/examples/errors/validation.json"
+    );
+    const unauthorizedError = await readJsonFixture<unknown>(
+      "contracts/examples/errors/unauthorized.json"
+    );
+    const workspaceUnhealthyError = await readJsonFixture<unknown>(
+      "contracts/examples/errors/workspace-unhealthy.json"
+    );
+
+    expect(document.components.examples.HealthReady.value).toEqual(healthReady);
+    expect(document.components.examples.HealthNotReady.value).toEqual(healthNotReady);
+    expect(document.components.examples.ValidationError.value).toEqual(validationError);
+    expect(document.components.examples.UnauthorizedError.value).toEqual(unauthorizedError);
+    expect(document.components.examples.WorkspaceUnhealthyError.value).toEqual(
+      workspaceUnhealthyError
+    );
+    expect(
+      document.paths["/api/v1/health"].get.responses["200"].content["application/json"].examples
+    ).toMatchObject({
+      ready: {
+        $ref: "#/components/examples/HealthReady"
+      },
+      notReady: {
+        $ref: "#/components/examples/HealthNotReady"
+      }
+    });
+  });
+
   it("documents Local Pairing Token without applying it to public health", () => {
     const document = buildOpenApiDocument();
 
     expect(document.components.securitySchemes.LocalPairingToken).toMatchObject({
       type: "apiKey",
       in: "header",
-      name: "X-Career-Ops-Token"
+      name: "X-Career-Ops-Token",
+      description: expect.stringContaining("/docs")
     });
+    expect(document.info.description).toContain("/openapi.json");
     expect(document.paths["/api/v1/health"].get.security).toEqual([]);
   });
 });

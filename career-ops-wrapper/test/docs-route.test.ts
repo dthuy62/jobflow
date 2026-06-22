@@ -15,7 +15,10 @@ describe("API docs routes", () => {
     try {
       const response = await server.inject({
         method: "GET",
-        url: "/openapi.json"
+        url: "/openapi.json",
+        headers: {
+          host: "192.168.1.12:4317"
+        }
       });
 
       expect(response.statusCode).toBe(200);
@@ -24,7 +27,12 @@ describe("API docs routes", () => {
         openapi: "3.1.0",
         paths: {
           "/api/v1/health": expect.any(Object)
-        }
+        },
+        servers: [
+          {
+            url: "http://192.168.1.12:4317"
+          }
+        ]
       });
     } finally {
       await server.close();
@@ -44,6 +52,39 @@ describe("API docs routes", () => {
       expect(response.headers["content-type"]).toContain("text/html");
       expect(response.body).toContain("/openapi.json");
       expect(response.body).toContain("Career Ops Wrapper API");
+    } finally {
+      await server.close();
+    }
+  });
+
+  it("keeps Scalar plugin spec endpoints valid when serving local docs assets", async () => {
+    const server = await createServer({ config: privateConfig });
+
+    try {
+      const jsonResponse = await server.inject({
+        method: "GET",
+        url: "/docs-assets/openapi.json"
+      });
+      const yamlResponse = await server.inject({
+        method: "GET",
+        url: "/docs-assets/openapi.yaml"
+      });
+      const scriptResponse = await server.inject({
+        method: "GET",
+        url: "/docs-assets/js/scalar.js"
+      });
+
+      expect(jsonResponse.statusCode).toBe(200);
+      expect(jsonResponse.json()).toMatchObject({
+        openapi: "3.1.0",
+        paths: {
+          "/api/v1/health": expect.any(Object)
+        }
+      });
+      expect(yamlResponse.statusCode).toBe(200);
+      expect(yamlResponse.body).toContain("openapi: 3.1.0");
+      expect(scriptResponse.statusCode).toBe(200);
+      expect(scriptResponse.headers["content-type"]).toContain("application/javascript");
     } finally {
       await server.close();
     }

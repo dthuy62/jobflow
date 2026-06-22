@@ -7,7 +7,7 @@ baseline_commit: f52d54296ca205fef486f4213781ceabebdefa82
 
 # Story 1.7: Expose OpenAPI and API Docs for Wrapper Backend
 
-Status: review
+Status: done
 
 Owner: Codex
 
@@ -70,6 +70,13 @@ so that I can inspect and test available APIs visually while keeping Android and
   - [x] Run `npm test` in `career-ops-wrapper`.
   - [x] Run `npm run build` in `career-ops-wrapper`.
   - [x] Run repo-level `./gradlew test` to guard Android regression even though Android implementation is out of scope.
+
+### Review Findings
+
+- [x] [Review][Patch] OpenAPI server URL is hard-coded to localhost/3000 and can mislead LAN or custom-port docs usage. [career-ops-wrapper/src/openapi/openapi-document.ts:72]
+- [x] [Review][Patch] Scalar plugin registration exposes broken extra spec endpoints under `/docs-assets`. [career-ops-wrapper/src/api/docs-routes.ts:14]
+- [x] [Review][Patch] OpenAPI security description does not explicitly state that `/docs` and `/openapi.json` are public setup/developer endpoints. [career-ops-wrapper/src/openapi/openapi-document.ts:110]
+- [x] [Review][Patch] OpenAPI responses and tests do not prove consistency with checked-in health/error contract examples. [career-ops-wrapper/src/openapi/openapi-document.ts:93]
 
 ## Dev Notes
 
@@ -267,6 +274,7 @@ This is a backend-only story. Android source should remain untouched except for 
 
 - 2026-06-22: Created supplemental Epic 1 Story 1.7 for OpenAPI JSON and browser API docs.
 - 2026-06-22: Implemented OpenAPI JSON generation, browser docs route, Scalar docs assets, docs tests, README docs, and validation evidence.
+- 2026-06-22: Resolved code review findings for request-aware OpenAPI server URL, valid Scalar spec endpoints, public setup endpoint wording, and checked-in contract examples.
 
 ## Dev Agent Record
 
@@ -280,13 +288,17 @@ GPT-5 Codex
 - 2026-06-22: Installed `@scalar/fastify-api-reference` and implemented manual OpenAPI 3.1 document generation from existing Zod contracts.
 - 2026-06-22: Adjusted docs route to serve `/docs` directly while using local Scalar assets under `/docs-assets` to avoid redirect-only behavior.
 - 2026-06-22: Validation passed: `npm test` (13 files, 92 tests), `npm run build`, and repo-level `./gradlew test`.
+- 2026-06-22: Code review found four patch findings. Applied fixes and revalidated: targeted docs/OpenAPI tests (8 tests), `npm test` (13 files, 94 tests), `npm run build`, and repo-level `./gradlew test`.
 
 ### Completion Notes List
 
 - Story created as a supplemental backend developer-experience story after Hy requested visual API inspection similar to Swagger.
 - Story intentionally documents only currently implemented API routes and must not claim future endpoint families are callable.
 - `GET /openapi.json` now returns a deterministic OpenAPI 3.1 document with `HealthDto`, `ErrorResponseDto`, and `LocalPairingToken` security scheme.
+- `GET /openapi.json` now uses the request host as the documented server origin, so LAN/custom-port usage does not point developers back to localhost.
 - `GET /docs` now returns browser-viewable Scalar API docs backed by the local `/openapi.json` spec and remains public/secret-free in LAN mode.
+- Scalar's auxiliary `/docs-assets/openapi.json` and `/docs-assets/openapi.yaml` routes now return valid generated specs instead of broken responses.
+- OpenAPI components now include checked-in health/error contract examples and response examples.
 - No CV/Profile/Portal/Scan/Offer/Report/Artifact endpoints were added or documented in this story.
 
 ### File List

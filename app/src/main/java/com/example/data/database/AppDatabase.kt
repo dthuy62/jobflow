@@ -20,7 +20,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "task_arena_database"
                 )
-                    .fallbackToDestructiveMigration() // Simple migration strategy suitable for prototype/demo
+                    .fallbackToDestructiveMigration(dropAllTables = true)
                     .build()
                 INSTANCE = instance
                 instance

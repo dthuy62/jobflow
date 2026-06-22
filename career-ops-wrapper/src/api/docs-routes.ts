@@ -1,10 +1,12 @@
 import scalarApiReference from "@scalar/fastify-api-reference";
-import type { FastifyInstance } from "fastify";
+import type { FastifyInstance, FastifyRequest } from "fastify";
 import { buildOpenApiDocument } from "../openapi/openapi-document.js";
 
 export async function registerDocsRoutes(server: FastifyInstance): Promise<void> {
-  server.get("/openapi.json", async (_request, reply) => {
-    return reply.type("application/json").send(buildOpenApiDocument());
+  server.get("/openapi.json", async (request, reply) => {
+    return reply
+      .type("application/json")
+      .send(buildOpenApiDocument({ serverUrl: inferServerUrl(request) }));
   });
 
   server.get("/docs", async (_request, reply) => {
@@ -15,10 +17,30 @@ export async function registerDocsRoutes(server: FastifyInstance): Promise<void>
     routePrefix: "/docs-assets",
     configuration: {
       pageTitle: "Career Ops Wrapper API Docs",
-      url: "/openapi.json"
+      url: "/openapi.json",
+      content: () => buildOpenApiDocument()
     },
     logLevel: "silent"
   });
+}
+
+function inferServerUrl(request: FastifyRequest): string {
+  const host = request.headers.host;
+  const forwardedProto = request.headers["x-forwarded-proto"];
+
+  if (!host || Array.isArray(host)) {
+    return "/";
+  }
+
+  const protocol = Array.isArray(forwardedProto)
+    ? forwardedProto[0]
+    : forwardedProto ?? request.protocol;
+
+  try {
+    return new URL(`${protocol}://${host}`).origin;
+  } catch {
+    return "/";
+  }
 }
 
 function renderDocsHtml(): string {
