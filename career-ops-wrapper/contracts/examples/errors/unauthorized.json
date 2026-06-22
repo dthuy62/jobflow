@@ -1,0 +1,6 @@
+{
+  "error": {
+    "code": "UNAUTHORIZED",
+    "message": "A valid local pairing token is required."
+  }
+}

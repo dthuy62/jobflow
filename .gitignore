@@ -16,3 +16,9 @@
 local.properties
 .env
 debug.keystore
+.agents
+.claude
+.kiro
+.agent
+.github
+_bmad

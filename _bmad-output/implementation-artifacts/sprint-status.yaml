@@ -1,0 +1,141 @@
+# generated: 2026-06-20 23:08:54 +0700
+# last_updated: 2026-06-22 00:16:11 +0700
+# project: task-arena
+# project_key: NOKEY
+# tracking_system: file-system
+# story_location: /Users/dthuy/Workspace/task-arena/_bmad-output/implementation-artifacts
+#
+# STATUS DEFINITIONS:
+# ==================
+# Epic Status:
+#   - backlog: Epic not yet started
+#   - in-progress: Epic actively being worked on
+#   - done: All stories in epic completed
+#
+# Epic Status Transitions:
+#   - backlog -> in-progress: Automatically when first story is created (via create-story)
+#   - in-progress -> done: Manually when all stories reach 'done' status
+#
+# Story Status:
+#   - backlog: Story only exists in epic file
+#   - ready-for-dev: Story file created in stories folder
+#   - in-progress: Developer actively working on implementation
+#   - review: Ready for code review (via Dev's code-review workflow)
+#   - done: Story completed
+#
+# Retrospective Status:
+#   - optional: Can be completed but not required
+#   - done: Retrospective has been completed
+#
+# WORKFLOW NOTES:
+# ===============
+# - Epic transitions to 'in-progress' automatically when first story is created
+# - Stories can be worked in parallel if team capacity allows
+# - Developer typically creates next story after previous one is 'done' to incorporate learnings
+# - Dev moves story to 'review', then runs code-review
+# - Ownership comments are planning hints only; status values remain standard BMAD states
+# - Codex-owned: backend wrapper, contracts, fixtures, evidence, and shared backend handoff
+# - Hy-owned: Android implementation by default, with Codex as mentor and fallback executor on request
+# - Shared: cross-platform contract/evidence stories requiring coordination
+
+generated: "2026-06-20 23:08:54 +0700"
+last_updated: "2026-06-22 00:16:11 +0700"
+project: task-arena
+project_key: NOKEY
+tracking_system: file-system
+story_location: /Users/dthuy/Workspace/task-arena/_bmad-output/implementation-artifacts
+
+development_status:
+  epic-1: in-progress
+  # owner: Codex
+  1-1-scaffold-wrapper-backend-api-foundation: done
+  # owner: Codex
+  1-2-validate-wrapper-runtime-configuration-and-workspace-boundary: done
+  # owner: Codex
+  1-3-expose-health-and-workspace-readiness-api: done
+  # owner: Hy
+  1-4-configure-android-dev-and-prod-wrapper-connection: backlog
+  # owner: Hy
+  1-5-show-android-setup-and-health-screen: backlog
+  # owner: Shared
+  1-6-prove-api-contract-compatibility-with-tests-and-examples: backlog
+  # owner: Codex
+  1-7-expose-openapi-and-api-docs-for-wrapper-backend: review
+  epic-1-retrospective: optional
+
+  epic-2: backlog
+  # owner: Codex
+  2-1-read-cv-markdown-from-career-ops-workspace: backlog
+  # owner: Codex
+  2-2-save-cv-markdown-with-validation-and-backup: backlog
+  # owner: Codex
+  2-3-read-and-normalize-profile-config: backlog
+  # owner: Codex
+  2-4-save-profile-config-safely: backlog
+  # owner: Hy
+  2-5-build-android-cv-and-profile-editing-ui: backlog
+  # owner: Hy
+  2-6-preserve-cached-cv-profile-state-on-backend-errors: backlog
+  epic-2-retrospective: optional
+
+  epic-3: backlog
+  # owner: Codex
+  3-1-read-and-validate-portal-config: backlog
+  # owner: Codex
+  3-2-save-portal-config-safely: backlog
+  # owner: Hy
+  3-3-build-android-portal-config-editing-ui: backlog
+  # owner: Codex
+  3-4-compute-scan-readiness-from-workspace-inputs: backlog
+  # owner: Hy
+  3-5-display-scan-readiness-and-block-invalid-scan-starts: backlog
+  epic-3-retrospective: optional
+
+  epic-4: backlog
+  # owner: Codex
+  4-1-start-a-real-allowlisted-career-ops-scan-run: backlog
+  # owner: Codex
+  4-2-enforce-single-active-scan-run: backlog
+  # owner: Codex
+  4-3-track-and-persist-scan-run-lifecycle: backlog
+  # owner: Hy
+  4-4-poll-and-display-scan-run-status-on-android: backlog
+  # owner: Codex
+  4-5-preserve-sanitized-scan-logs-and-failure-details: backlog
+  # owner: Shared
+  4-6-capture-real-first-scan-evidence: backlog
+  epic-4-retrospective: optional
+
+  epic-5: backlog
+  # owner: Codex
+  5-1-discover-career-ops-offer-output-sources: backlog
+  # owner: Codex
+  5-2-parse-career-ops-outputs-into-offer-dtos: backlog
+  # owner: Codex
+  5-3-expose-offer-list-and-offer-detail-apis: backlog
+  # owner: Hy
+  5-4-cache-latest-offers-in-android-room-projection: backlog
+  # owner: Hy
+  5-5-build-android-offer-list-with-fresh-empty-and-stale-states: backlog
+  # owner: Hy
+  5-6-build-android-offer-detail-and-external-url-handling: backlog
+  # owner: Shared
+  5-7-prove-offer-projection-with-fixtures-and-real-first-evidence: backlog
+  epic-5-retrospective: optional
+
+  epic-6: backlog
+  # owner: Codex
+  6-1-discover-and-expose-reports-and-artifacts: backlog
+  # owner: Codex
+  6-2-serve-artifact-downloads-through-safe-opaque-ids: backlog
+  # owner: Hy
+  6-3-build-android-reports-and-artifacts-ui: backlog
+  # owner: Hy
+  6-4-render-markdown-reports-in-app: backlog
+  # owner: Hy
+  6-5-complete-mvp-navigation-across-career-ops-surfaces: backlog
+  # owner: Hy
+  6-6-finalize-neo-brutalist-visual-consistency: backlog
+  # owner: Shared
+  6-7-package-portfolio-evidence-and-implementation-notes: backlog
+  epic-6-retrospective: optional

@@ -1,0 +1,28 @@
+{
+  "name": "career-ops-wrapper",
+  "version": "1.0.0",
+  "description": "Local Career Ops wrapper API for Career Ops Mobile.",
+  "type": "module",
+  "main": "dist/server.js",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@scalar/fastify-api-reference": "^1.60.0",
+    "dotenv": "^17.4.2",
+    "fastify": "^5.8.5",
+    "js-yaml": "^4.2.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^26.0.0",
+    "tsx": "^4.22.4",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.9"
+  }
+}

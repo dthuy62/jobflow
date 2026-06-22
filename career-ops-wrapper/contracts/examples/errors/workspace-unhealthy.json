@@ -1,0 +1,9 @@
+{
+  "error": {
+    "code": "WORKSPACE_UNHEALTHY",
+    "message": "Career Ops workspace is not ready.",
+    "details": {
+      "missingRequirements": ["profile"]
+    }
+  }
+}

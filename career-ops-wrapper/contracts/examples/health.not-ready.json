@@ -1,0 +1,48 @@
+{
+  "status": "notReady",
+  "apiVersion": "v1",
+  "workspace": {
+    "status": "missing",
+    "detected": false,
+    "careerOpsVersion": null,
+    "missingRequirements": ["workspace"],
+    "messages": ["Career Ops workspace is missing."]
+  },
+  "careerOps": {
+    "status": "notReady",
+    "executionMode": "local-script-runner",
+    "providerApiKeyRequired": false,
+    "aiCliRequired": false,
+    "scanner": {
+      "status": "notReady",
+      "commandType": "local-script",
+      "missingRequirements": ["doctor-script", "scan-script", "portal-config"],
+      "checks": [
+        {
+          "name": "doctor-script",
+          "status": "missing"
+        },
+        {
+          "name": "scan-script",
+          "status": "missing"
+        },
+        {
+          "name": "portal-config",
+          "status": "missing"
+        }
+      ],
+      "messages": ["Local Career Ops scan script prerequisites are incomplete."]
+    }
+  },
+  "capabilities": {
+    "cv": false,
+    "profile": false,
+    "portals": false,
+    "scan": false,
+    "reports": false,
+    "artifacts": false,
+    "cvConversion": false,
+    "geminiEvaluation": false
+  },
+  "serverTime": "2026-06-15T10:30:00.000Z"
+}

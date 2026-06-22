@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>PRD Validation: Career Ops Mobile</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; background:#fafaf9; color:#1c1917; line-height:1.6; margin:0; }
+  .container { max-width: 960px; margin: 0 auto; padding: 32px 24px 64px; }
+  header { display:flex; justify-content:space-between; gap:24px; border-bottom:1px solid #e7e5e4; padding-bottom:16px; margin-bottom:24px; }
+  h1 { margin:0; font-size:22px; }
+  .subtitle { color:#78716c; font-size:13px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .grade { background:#65a30d; color:white; padding:10px 18px; border-radius:8px; font-weight:700; height:max-content; }
+  .synthesis, section, .mechanical { background:white; border:1px solid #e7e5e4; border-radius:8px; padding:18px 22px; margin-bottom:16px; }
+  .summary { display:grid; grid-template-columns: repeat(auto-fit, minmax(180px,1fr)); gap:10px; margin-bottom:24px; }
+  .card { background:white; border:1px solid #e7e5e4; border-radius:8px; padding:12px 14px; }
+  .muted { color:#78716c; font-size:13px; }
+  .strong { color:#16a34a; font-weight:700; }
+  .sev-medium { color:#ca8a04; font-weight:700; }
+  .sev-low { color:#64748b; font-weight:700; }
+  code { background:#f5f5f4; padding:2px 4px; border-radius:4px; }
+  footer { margin-top:32px; color:#78716c; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size:12px; border-top:1px solid #e7e4; padding-top:16px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <div>
+      <h1>Career Ops Mobile — Validation Report</h1>
+      <div class="subtitle">/Users/dthuy/Workspace/task-arena/_bmad-output/planning-artifacts/prds/prd-task-arena-2026-06-14/prd.md</div>
+    </div>
+    <div class="grade">Good</div>
+  </header>
+
+  <div class="synthesis">
+    <p>The updated PRD is phase-safe for architecture. The previous high findings have been resolved: MVP Profile Fields, MVP Portal Fields, Offer DTO, connection modes, scan concurrency, report rendering, CV Markdown-only scope, and open-question classification are now explicit. Remaining issues are polish-level or architecture follow-ups, not blockers for the next BMad phase.</p>
+  </div>
+
+  <div class="summary">
+    <div class="card"><div class="muted">Decision-readiness</div><div class="strong">strong</div></div>
+    <div class="card"><div class="muted">Substance over theater</div><div class="strong">strong</div></div>
+    <div class="card"><div class="muted">Strategic coherence</div><div class="strong">strong</div></div>
+    <div class="card"><div class="muted">Done-ness clarity</div><div class="strong">strong</div></div>
+    <div class="card"><div class="muted">Scope honesty</div><div class="strong">strong</div></div>
+    <div class="card"><div class="muted">Downstream usability</div><div class="strong">strong</div></div>
+    <div class="card"><div class="muted">Shape fit</div><div class="strong">strong</div></div>
+  </div>
+
+  <section>
+    <h2>Remaining Findings</h2>
+    <p><span class="sev-medium">Medium</span> Exact wire schemas remain in architecture (§4.0, §8). Architecture should define JSON schemas and validation rules for Profile, Portal, Offer, ScanRun, Report, and Artifact DTOs.</p>
+    <p><span class="sev-low">Low</span> Product name remains deferred (§11.2). Resolve before public README/CV polish.</p>
+    <p><span class="sev-low">Low</span> Wrapper naming mixes product term and implementation name in a few places. Standardize during polish.</p>
+  </section>
+
+  <div class="mechanical">
+    <h2>Mechanical Notes</h2>
+    <ul>
+      <li>Critical findings: 0.</li>
+      <li>High findings: 0.</li>
+      <li>§11.1 declares no phase-blocking open questions.</li>
+      <li>PRD is ready for BMad Architecture.</li>
+    </ul>
+  </div>
+
+  <footer>
+    Rubric: /Users/dthuy/Workspace/task-arena/.agents/skills/bmad-prd/assets/prd-validation-checklist.md<br>
+    Reviewer file: /Users/dthuy/Workspace/task-arena/_bmad-output/planning-artifacts/prds/prd-task-arena-2026-06-14/review-rubric.md<br>
+    Run at: 2026-06-14T18:46:00+07:00
+  </footer>
+</div>
+</body>
+</html>
