@@ -1,0 +1,65 @@
+{
+  "module": "app",
+  "dimension": "evironment",
+  "flavors": {
+    "dev": {
+      "applicationIdSuffix": ".dev",
+      "appName": "[DEV] JobFlow",
+      "buildConfigFields": {
+        "CAREER_OPS_ENVIRONMENT": "dev",
+        "CAREER_OPS_DEFAULT_BASE_URL": "http://10.0.2.2:3000"
+      }
+    },
+    "prod": {
+      "applicationIdSuffix": "",
+      "appName": "JobFlow",
+      "buildConfigFields": {
+        "CAREER_OPS_ENVIRONMENT": "prod",
+        "CAREER_OPS_DEFAULT_BASE_URL": ""
+      }
+    }
+  },
+  "networkSecurity": {
+    "enabled": false
+  },
+  "packageName": {
+    "applicationId": "me.dthuy.jobflow",
+    "syncSourcePackages": true
+  },
+  "firebase": {
+    "enabled": false,
+    "mode": "single",
+    "project": "",
+    "createApps": false,
+    "flavors": {
+      "dev": {
+        "project": ""
+      },
+      "prod": {
+        "project": ""
+      }
+    }
+  },
+  "assets": {
+    "enabled": false,
+    "sourceIcon": "",
+    "types": [
+      "app-icons"
+    ],
+    "appIcons": {
+      "image": "",
+      "backgroundColor": "#FFFFFF",
+      "monochromeImage": ""
+    },
+    "splashScreens": {
+      "image": "",
+      "backgroundColor": "#FFFFFF",
+      "darkImage": "",
+      "darkBackgroundColor": ""
+    },
+    "generateLauncherIcon": true,
+    "generateAdaptiveIcon": true,
+    "generateSplashIcon": true,
+    "generateNotificationIcon": true
+  }
+}

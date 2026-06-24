@@ -1,5 +1,5 @@
 # generated: 2026-06-20 23:08:54 +0700
-# last_updated: 2026-06-22 13:53:20 +0700
+# last_updated: 2026-06-22 15:36:35 +0700
 # project: task-arena
 # project_key: NOKEY
 # tracking_system: file-system
@@ -39,7 +39,7 @@
 # - Shared: cross-platform contract/evidence stories requiring coordination
 
 generated: "2026-06-20 23:08:54 +0700"
-last_updated: "2026-06-22 13:53:20 +0700"
+last_updated: "2026-06-22 15:36:35 +0700"
 project: task-arena
 project_key: NOKEY
 tracking_system: file-system
@@ -54,7 +54,7 @@ development_status:
   # owner: Codex
   1-3-expose-health-and-workspace-readiness-api: done
   # owner: Hy
-  1-4-configure-android-dev-and-prod-wrapper-connection: backlog
+  1-4-configure-android-dev-and-prod-wrapper-connection: ready-for-dev
   # owner: Hy
   1-5-show-android-setup-and-health-screen: backlog
   # owner: Shared

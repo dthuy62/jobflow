@@ -10,6 +10,10 @@
 /.idea/assetWizardSettings.xml
 .DS_Store
 /build
+/android/build
+/android/app/build
+/android/local.properties
+/android/debug.keystore
 /captures
 .externalNativeBuild
 .cxx
