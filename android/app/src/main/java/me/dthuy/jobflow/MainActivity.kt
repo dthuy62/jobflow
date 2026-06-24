@@ -20,7 +20,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         
         // Retrieve our lazy dependency locator container
-        val appContainer = (application as TaskArenaApplication).container
+        val appContainer = (application as JobFlowApplication).container
 
         setContent {
             MyApplicationTheme {

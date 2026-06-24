@@ -28,7 +28,7 @@ android {
     create("prod") {
       dimension = "environment"
       buildConfigField("String", "CAREER_OPS_ENVIRONMENT", "\"prod\"")
-      buildConfigField("String", "CAREER_OPS_DEFAULT_BASE_URL", "\"\"")
+      buildConfigField("String", "CAREER_OPS_DEFAULT_BASE_URL", "\"http://10.0.2.2:3000\"")
     }
   }
 

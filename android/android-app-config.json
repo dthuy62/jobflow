@@ -1,6 +1,6 @@
 {
   "module": "app",
-  "dimension": "evironment",
+  "dimension": "environment",
   "flavors": {
     "dev": {
       "applicationIdSuffix": ".dev",
@@ -15,7 +15,7 @@
       "appName": "JobFlow",
       "buildConfigFields": {
         "CAREER_OPS_ENVIRONMENT": "prod",
-        "CAREER_OPS_DEFAULT_BASE_URL": ""
+        "CAREER_OPS_DEFAULT_BASE_URL": "http://10.0.2.2:3000"
       }
     }
   },

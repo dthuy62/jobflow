@@ -2,7 +2,7 @@ package me.dthuy.jobflow
 
 import android.app.Application
 
-class TaskArenaApplication : Application() {
+class JobFlowApplication : Application() {
     lateinit var container: AppContainer
 
     override fun onCreate() {
