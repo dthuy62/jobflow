@@ -26,3 +26,5 @@ debug.keystore
 .agent
 .github
 _bmad
+/.idea/
+/android/.idea/

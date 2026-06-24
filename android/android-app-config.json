@@ -20,7 +20,10 @@
     }
   },
   "networkSecurity": {
-    "enabled": false
+    "enabled": true,
+    "targetFlavors": [
+      "dev"
+    ]
   },
   "packageName": {
     "applicationId": "me.dthuy.jobflow",

@@ -16,17 +16,17 @@ android {
     versionName = "1.0"
   }
 
-  flavorDimensions += "evironment"
+  flavorDimensions += "environment"
 
   productFlavors {
     create("dev") {
-      dimension = "evironment"
+      dimension = "environment"
       applicationIdSuffix = ".dev"
       buildConfigField("String", "CAREER_OPS_ENVIRONMENT", "\"dev\"")
       buildConfigField("String", "CAREER_OPS_DEFAULT_BASE_URL", "\"http://10.0.2.2:3000\"")
     }
     create("prod") {
-      dimension = "evironment"
+      dimension = "environment"
       buildConfigField("String", "CAREER_OPS_ENVIRONMENT", "\"prod\"")
       buildConfigField("String", "CAREER_OPS_DEFAULT_BASE_URL", "\"\"")
     }
