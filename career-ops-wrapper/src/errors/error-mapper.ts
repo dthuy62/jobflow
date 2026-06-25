@@ -33,6 +33,16 @@ export function mapErrorToResponse(error: unknown): MappedApiError {
     };
   }
 
+  if (isFastifyPayloadTooLargeError(error)) {
+    return mapErrorToResponse(
+      new ApiError("PAYLOAD_TOO_LARGE", "CV Markdown must be 512 KiB or smaller.")
+    );
+  }
+
+  if (isFastifyClientParseError(error)) {
+    return mapErrorToResponse(new ApiError("VALIDATION_ERROR", "Request body is invalid."));
+  }
+
   return {
     statusCode: 500,
     body: {
@@ -42,4 +52,22 @@ export function mapErrorToResponse(error: unknown): MappedApiError {
       }
     }
   };
+}
+
+function isFastifyPayloadTooLargeError(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "statusCode" in error &&
+    error.statusCode === 413
+  );
+}
+
+function isFastifyClientParseError(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "statusCode" in error &&
+    error.statusCode === 400
+  );
 }

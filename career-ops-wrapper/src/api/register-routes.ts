@@ -1,8 +1,12 @@
 import type { FastifyInstance } from "fastify";
+import { registerCvRoutes } from "./cv-routes.js";
 import { registerHealthRoutes } from "./health-routes.js";
+import { registerProfileRoutes } from "./profile-routes.js";
 import type { RuntimeConfig } from "../config/runtime-config.js";
 import { registerLocalPairingTokenGuard } from "../security/local-pairing-token.js";
+import { createCvService } from "../services/cv-service.js";
 import { createHealthService } from "../services/health-service.js";
+import { createProfileService } from "../services/profile-service.js";
 
 export interface RegisterApiRoutesOptions {
   readonly config: RuntimeConfig;
@@ -17,6 +21,8 @@ export async function registerApiRoutes(
     async (apiV1) => {
       registerLocalPairingTokenGuard(apiV1, options.config);
       await registerHealthRoutes(apiV1, createHealthService(options.config));
+      await registerCvRoutes(apiV1, createCvService(options.config));
+      await registerProfileRoutes(apiV1, createProfileService(options.config));
       await options.registerAdditionalRoutes?.(apiV1);
     },
     { prefix: "/api/v1" }

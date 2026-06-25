@@ -1,0 +1,26 @@
+{
+  "targetRoles": [
+    "Middle/Senior Flutter Developer",
+    "Junior/Middle Android Developer (Kotlin)"
+  ],
+  "seniorityLevel": "Middle/Senior",
+  "preferredLocations": [
+    "Da Nang",
+    "Viet Nam",
+    "Da Nang only (On-site/Hybrid) or Remote from Da Nang for VN companies"
+  ],
+  "remotePreference": "flexible",
+  "salaryMin": 20000000,
+  "salaryMax": 45000000,
+  "salaryCurrency": "VND",
+  "workAuthorizationNote": "No sponsorship needed",
+  "mustHaveSkills": [
+    "Cross-platform mobile development using Flutter & Dart",
+    "Android Kotlin development (Jetpack Compose, custom keyboards)"
+  ],
+  "niceToHaveSkills": [],
+  "excludedKeywords": [],
+  "positioningSummary": "Mobile Developer | Flutter (Middle/Senior) & Android Kotlin (Junior/Middle) | AI-powered builder",
+  "sourceRevision": "profile_sha256_0123abcd",
+  "updatedAt": "2026-06-25T05:00:00.000Z"
+}

@@ -1,0 +1,6 @@
+{
+  "error": {
+    "code": "PAYLOAD_TOO_LARGE",
+    "message": "CV Markdown must be 512 KiB or smaller."
+  }
+}

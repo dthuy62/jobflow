@@ -1,5 +1,5 @@
 # generated: 2026-06-20 23:08:54 +0700
-# last_updated: 2026-06-22 15:36:35 +0700
+# last_updated: 2026-06-25 13:22:10 +0700
 # project: task-arena
 # project_key: NOKEY
 # tracking_system: file-system
@@ -39,7 +39,7 @@
 # - Shared: cross-platform contract/evidence stories requiring coordination
 
 generated: "2026-06-20 23:08:54 +0700"
-last_updated: "2026-06-22 15:36:35 +0700"
+last_updated: "2026-06-25 13:22:10 +0700"
 project: task-arena
 project_key: NOKEY
 tracking_system: file-system
@@ -54,7 +54,7 @@ development_status:
   # owner: Codex
   1-3-expose-health-and-workspace-readiness-api: done
   # owner: Hy
-  1-4-configure-android-dev-and-prod-wrapper-connection: ready-for-dev
+  1-4-configure-android-dev-and-prod-wrapper-connection: done
   # owner: Hy
   1-5-show-android-setup-and-health-screen: backlog
   # owner: Shared
@@ -65,13 +65,13 @@ development_status:
   1-8-upgrade-android-build-stack-to-latest-stable-baseline: done
   epic-1-retrospective: optional
 
-  epic-2: backlog
+  epic-2: in-progress
   # owner: Codex
-  2-1-read-cv-markdown-from-career-ops-workspace: backlog
+  2-1-read-cv-markdown-from-career-ops-workspace: done
+  # owner: Codex; covered by 2-1 backend batch story
+  2-2-save-cv-markdown-with-validation-and-backup: done
   # owner: Codex
-  2-2-save-cv-markdown-with-validation-and-backup: backlog
-  # owner: Codex
-  2-3-read-and-normalize-profile-config: backlog
+  2-3-read-and-normalize-profile-config: done
   # owner: Codex
   2-4-save-profile-config-safely: backlog
   # owner: Hy

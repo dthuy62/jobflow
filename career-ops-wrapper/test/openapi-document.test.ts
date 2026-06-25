@@ -7,8 +7,6 @@ import { buildOpenApiDocument } from "../src/openapi/openapi-document.js";
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 const unimplementedEndpointFamilies = [
-  "/api/v1/cv",
-  "/api/v1/profile",
   "/api/v1/portals",
   "/api/v1/scan-runs",
   "/api/v1/offers",
@@ -33,12 +31,35 @@ describe("OpenAPI document", () => {
       title: "Career Ops Wrapper API",
       version: "1.0.0"
     });
-    expect(Object.keys(document.paths)).toEqual(["/api/v1/health"]);
+    expect(Object.keys(document.paths)).toEqual([
+      "/api/v1/health",
+      "/api/v1/cv",
+      "/api/v1/profile"
+    ]);
     expect(document.paths["/api/v1/health"].get).toMatchObject({
       operationId: "getHealth",
       tags: ["Health"],
       security: []
     });
+    expect(document.paths["/api/v1/cv"].get).toMatchObject({
+      operationId: "getCv",
+      tags: ["CV"]
+    });
+    expect(document.paths["/api/v1/cv"].put).toMatchObject({
+      operationId: "saveCv",
+      tags: ["CV"]
+    });
+    expect(document.paths["/api/v1/profile"].get).toMatchObject({
+      operationId: "getProfile",
+      tags: ["Profile"]
+    });
+    expect(document.paths["/api/v1/profile"]).not.toHaveProperty("put");
+    expect(document.paths["/api/v1/cv"].get.responses).toHaveProperty("503");
+    expect(document.paths["/api/v1/cv"].put.responses).toHaveProperty("503");
+    expect(document.paths["/api/v1/profile"].get.responses).toHaveProperty("400");
+    expect(document.paths["/api/v1/profile"].get.responses).toHaveProperty("403");
+    expect(document.paths["/api/v1/profile"].get.responses).toHaveProperty("404");
+    expect(document.paths["/api/v1/profile"].get.responses).toHaveProperty("503");
 
     const serialized = JSON.stringify(document);
     for (const endpoint of unimplementedEndpointFamilies) {
@@ -46,7 +67,7 @@ describe("OpenAPI document", () => {
     }
   });
 
-  it("builds HealthDto and ErrorResponseDto schemas from backend contracts", () => {
+  it("builds HealthDto, CvDto, ProfileDto, and ErrorResponseDto schemas from backend contracts", () => {
     const document = buildOpenApiDocument();
     const schemas = document.components.schemas;
 
@@ -60,6 +81,22 @@ describe("OpenAPI document", () => {
         "serverTime"
       ])
     );
+    expect(Object.keys(schemas.CvDto.properties ?? {})).toEqual(
+      expect.arrayContaining(["markdown", "sizeBytes", "updatedAt", "sourceRevision"])
+    );
+    expect(Object.keys(schemas.ProfileDto.properties ?? {})).toEqual(
+      expect.arrayContaining([
+        "targetRoles",
+        "seniorityLevel",
+        "preferredLocations",
+        "remotePreference",
+        "mustHaveSkills",
+        "niceToHaveSkills",
+        "excludedKeywords",
+        "sourceRevision"
+      ])
+    );
+    expect(Object.keys(schemas.SaveCvRequestDto.properties ?? {})).toEqual(["markdown"]);
     expect(schemas.ErrorResponseDto.properties).toHaveProperty("error");
     expect(document.paths["/api/v1/health"].get.responses["200"].content).toMatchObject({
       "application/json": {
@@ -85,6 +122,17 @@ describe("OpenAPI document", () => {
     const workspaceUnhealthyError = await readJsonFixture<unknown>(
       "contracts/examples/errors/workspace-unhealthy.json"
     );
+    const cvValid = await readJsonFixture<unknown>("contracts/examples/cv.valid.json");
+    const profileValid = await readJsonFixture<unknown>("contracts/examples/profile.valid.json");
+    const cvMissingError = await readJsonFixture<unknown>(
+      "contracts/examples/errors/cv-missing.json"
+    );
+    const profileMissingError = await readJsonFixture<unknown>(
+      "contracts/examples/errors/profile-missing.json"
+    );
+    const payloadTooLargeError = await readJsonFixture<unknown>(
+      "contracts/examples/errors/payload-too-large.json"
+    );
 
     expect(document.components.examples.HealthReady.value).toEqual(healthReady);
     expect(document.components.examples.HealthNotReady.value).toEqual(healthNotReady);
@@ -93,6 +141,11 @@ describe("OpenAPI document", () => {
     expect(document.components.examples.WorkspaceUnhealthyError.value).toEqual(
       workspaceUnhealthyError
     );
+    expect(document.components.examples.CvValid.value).toEqual(cvValid);
+    expect(document.components.examples.ProfileValid.value).toEqual(profileValid);
+    expect(document.components.examples.CvMissingError.value).toEqual(cvMissingError);
+    expect(document.components.examples.ProfileMissingError.value).toEqual(profileMissingError);
+    expect(document.components.examples.PayloadTooLargeError.value).toEqual(payloadTooLargeError);
     expect(
       document.paths["/api/v1/health"].get.responses["200"].content["application/json"].examples
     ).toMatchObject({
@@ -101,6 +154,13 @@ describe("OpenAPI document", () => {
       },
       notReady: {
         $ref: "#/components/examples/HealthNotReady"
+      }
+    });
+    expect(
+      document.paths["/api/v1/profile"].get.responses["200"].content["application/json"].examples
+    ).toMatchObject({
+      current: {
+        $ref: "#/components/examples/ProfileValid"
       }
     });
   });
