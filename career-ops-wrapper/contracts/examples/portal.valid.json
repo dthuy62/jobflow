@@ -1,0 +1,28 @@
+{
+  "titlePositiveKeywords": ["Flutter", "Mobile"],
+  "titleNegativeKeywords": ["Intern"],
+  "locationAllowList": ["Remote", "Viet Nam"],
+  "locationBlockList": ["India"],
+  "salaryMin": 100000,
+  "salaryMax": 200000,
+  "salaryCurrency": "USD",
+  "trackedCompanies": [
+    {
+      "id": "company_openai",
+      "name": "OpenAI",
+      "careersUrl": "https://openai.com/careers",
+      "provider": "websearch",
+      "enabled": true
+    }
+  ],
+  "searchQueries": [
+    {
+      "id": "query_greenhouse_flutter",
+      "label": "Greenhouse Flutter",
+      "query": "site:boards.greenhouse.io Flutter",
+      "enabled": true
+    }
+  ],
+  "sourceRevision": "portals_sha256_0123abcd",
+  "updatedAt": "2026-06-26T05:00:00.000Z"
+}

@@ -1,10 +1,17 @@
 import type { RuntimeConfig } from "../config/runtime-config.js";
-import { ProfileDtoSchema, type ProfileDto } from "../contracts/index.js";
+import {
+  PROFILE_CONFIG_MAX_BYTES,
+  ProfileDtoSchema,
+  SaveProfileRequestDtoSchema,
+  type ProfileDto,
+  type SaveProfileRequestDto
+} from "../contracts/index.js";
 import { ApiError } from "../errors/api-error.js";
 import { createProfileFileAdapter } from "../workspace/profile-file-adapter.js";
 
 export interface ProfileService {
   getProfile(): Promise<ProfileDto>;
+  saveProfile(request: SaveProfileRequestDto): Promise<ProfileDto>;
 }
 
 export function createProfileService(config: RuntimeConfig): ProfileService {
@@ -13,6 +20,18 @@ export function createProfileService(config: RuntimeConfig): ProfileService {
   return {
     async getProfile(): Promise<ProfileDto> {
       const file = await adapter.readProfileConfig();
+      return normalizeProfile(file.parsedProfile, {
+        sourceRevision: file.sourceRevision,
+        updatedAt: file.updatedAt
+      });
+    },
+
+    async saveProfile(request: SaveProfileRequestDto): Promise<ProfileDto> {
+      const saveRequest = validateSaveRequest(request);
+      const existingProfile = await readExistingProfileForSave(adapter);
+      const mergedProfile = mergeProfileSaveRequest(existingProfile, saveRequest);
+      const file = await adapter.writeProfileConfig(mergedProfile);
+
       return normalizeProfile(file.parsedProfile, {
         sourceRevision: file.sourceRevision,
         updatedAt: file.updatedAt
@@ -27,6 +46,153 @@ interface ProfileMetadata {
 }
 
 type StringRecord = Record<string, unknown>;
+
+interface WritableStringRecord {
+  [key: string]: unknown;
+}
+
+interface WritableProfileFileAdapter {
+  readProfileConfig(): Promise<{ readonly parsedProfile: unknown }>;
+  writeProfileConfig(profile: unknown): Promise<{
+    readonly parsedProfile: unknown;
+    readonly sourceRevision: string;
+    readonly updatedAt: string;
+  }>;
+}
+
+function validateSaveRequest(request: SaveProfileRequestDto): SaveProfileRequestDto {
+  if (Buffer.byteLength(JSON.stringify(request), "utf8") > PROFILE_CONFIG_MAX_BYTES) {
+    throw new ApiError("PAYLOAD_TOO_LARGE", "Profile config payload must be 128 KiB or smaller.");
+  }
+
+  const result = SaveProfileRequestDtoSchema.safeParse(request);
+  if (!result.success) {
+    throw new ApiError("VALIDATION_ERROR", "Profile config is invalid.");
+  }
+
+  return result.data;
+}
+
+async function readExistingProfileForSave(adapter: WritableProfileFileAdapter): Promise<WritableStringRecord> {
+  try {
+    const file = await adapter.readProfileConfig();
+    normalizeProfile(file.parsedProfile, {
+      sourceRevision: "profile_sha256_00000000",
+      updatedAt: new Date(0).toISOString()
+    });
+    return asWritableRecord(file.parsedProfile);
+  } catch (error) {
+    if (error instanceof ApiError && error.code === "NOT_FOUND") {
+      return {};
+    }
+
+    throw error;
+  }
+}
+
+function mergeProfileSaveRequest(
+  existingProfile: WritableStringRecord,
+  request: SaveProfileRequestDto
+): WritableStringRecord {
+  const targetRoles = ensureRecord(existingProfile, "target_roles");
+  targetRoles.primary = request.targetRoles;
+  const archetypes = Array.isArray(targetRoles.archetypes)
+    ? (targetRoles.archetypes as unknown[])
+    : [];
+  const firstArchetype = asWritableRecordOrUndefined(archetypes[0]) ?? {};
+  firstArchetype.name = readOptionalString(firstArchetype.name) ?? request.targetRoles[0];
+  firstArchetype.level = request.seniorityLevel;
+  firstArchetype.fit = readOptionalString(firstArchetype.fit) ?? "primary";
+  targetRoles.archetypes = [firstArchetype, ...archetypes.slice(1)];
+
+  const narrative = ensureRecord(existingProfile, "narrative");
+  narrative.superpowers = request.mustHaveSkills;
+  if (request.positioningSummary) {
+    narrative.headline = request.positioningSummary;
+  }
+
+  const compensation = ensureRecord(existingProfile, "compensation");
+  compensation.location_flexibility = remotePreferenceToSourceValue(request.remotePreference);
+  if (request.salaryCurrency) {
+    compensation.currency = request.salaryCurrency;
+  }
+  if (request.salaryMin !== undefined) {
+    compensation.minimum = formatSalary(request.salaryMin, request.salaryCurrency);
+  }
+  if (request.salaryMin !== undefined || request.salaryMax !== undefined) {
+    compensation.target_range = formatSalaryRange(
+      request.salaryMin,
+      request.salaryMax,
+      request.salaryCurrency
+    );
+  }
+
+  const location = ensureRecord(existingProfile, "location");
+  const [city, country] = request.preferredLocations;
+  if (city) {
+    location.city = city;
+  }
+  if (country) {
+    location.country = country;
+  }
+  if (request.workAuthorizationNote) {
+    location.visa_status = request.workAuthorizationNote;
+  }
+
+  return existingProfile;
+}
+
+function ensureRecord(source: WritableStringRecord, key: string): WritableStringRecord {
+  const existing = asWritableRecordOrUndefined(source[key]);
+  if (existing) {
+    return existing;
+  }
+
+  const record: WritableStringRecord = {};
+  source[key] = record;
+  return record;
+}
+
+function asWritableRecord(source: unknown): WritableStringRecord {
+  const record = asWritableRecordOrUndefined(source);
+  if (!record) {
+    throw new ApiError("VALIDATION_ERROR", "Profile config cannot be normalized.");
+  }
+  return record;
+}
+
+function asWritableRecordOrUndefined(source: unknown): WritableStringRecord | undefined {
+  return typeof source === "object" && source !== null && !Array.isArray(source)
+    ? (source as WritableStringRecord)
+    : undefined;
+}
+
+function remotePreferenceToSourceValue(value: SaveProfileRequestDto["remotePreference"]): string {
+  const labels: Record<SaveProfileRequestDto["remotePreference"], string> = {
+    remote: "Remote",
+    hybrid: "Hybrid",
+    onsite: "On-site",
+    flexible: "Flexible",
+    unknown: "Unknown"
+  };
+  return labels[value];
+}
+
+function formatSalary(amount: number, currency: string | undefined): string {
+  return currency ? `${amount} ${currency}` : `${amount}`;
+}
+
+function formatSalaryRange(
+  salaryMin: number | undefined,
+  salaryMax: number | undefined,
+  currency: string | undefined
+): string {
+  if (salaryMin !== undefined && salaryMax !== undefined) {
+    return `${salaryMin} - ${salaryMax}${currency ? ` ${currency}` : ""}`;
+  }
+
+  return formatSalary(salaryMin ?? salaryMax ?? 0, currency);
+}
 
 function normalizeProfile(source: unknown, metadata: ProfileMetadata): ProfileDto {
   const root = asRecord(source);

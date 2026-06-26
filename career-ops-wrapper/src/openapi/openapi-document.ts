@@ -6,8 +6,10 @@ import {
   CvDtoSchema,
   ErrorResponseDtoSchema,
   HealthDtoSchema,
+  PortalDtoSchema,
   ProfileDtoSchema,
-  SaveCvRequestDtoSchema
+  SaveCvRequestDtoSchema,
+  SaveProfileRequestDtoSchema
 } from "../contracts/index.js";
 
 export interface BuildOpenApiDocumentOptions {
@@ -92,6 +94,41 @@ export interface OpenApiDocument {
           readonly "500": OpenApiJsonResponse;
         };
       };
+      readonly put: {
+        readonly operationId: "saveProfile";
+        readonly tags: readonly ["Profile"];
+        readonly summary: string;
+        readonly description: string;
+        readonly security: readonly OpenApiSecurityRequirement[];
+        readonly requestBody: OpenApiJsonRequestBody;
+        readonly responses: {
+          readonly "200": OpenApiJsonResponse;
+          readonly "400": OpenApiJsonResponse;
+          readonly "401": OpenApiJsonResponse;
+          readonly "403": OpenApiJsonResponse;
+          readonly "413": OpenApiJsonResponse;
+          readonly "503": OpenApiJsonResponse;
+          readonly "500": OpenApiJsonResponse;
+        };
+      };
+    };
+    readonly "/api/v1/portals": {
+      readonly get: {
+        readonly operationId: "getPortals";
+        readonly tags: readonly ["Portals"];
+        readonly summary: string;
+        readonly description: string;
+        readonly security: readonly OpenApiSecurityRequirement[];
+        readonly responses: {
+          readonly "200": OpenApiJsonResponse;
+          readonly "400": OpenApiJsonResponse;
+          readonly "401": OpenApiJsonResponse;
+          readonly "403": OpenApiJsonResponse;
+          readonly "404": OpenApiJsonResponse;
+          readonly "503": OpenApiJsonResponse;
+          readonly "500": OpenApiJsonResponse;
+        };
+      };
     };
   };
   readonly components: {
@@ -99,7 +136,9 @@ export interface OpenApiDocument {
       readonly HealthDto: JsonSchemaObject;
       readonly CvDto: JsonSchemaObject;
       readonly ProfileDto: JsonSchemaObject;
+      readonly PortalDto: JsonSchemaObject;
       readonly SaveCvRequestDto: JsonSchemaObject;
+      readonly SaveProfileRequestDto: JsonSchemaObject;
       readonly ErrorResponseDto: JsonSchemaObject;
     };
     readonly examples: {
@@ -107,12 +146,14 @@ export interface OpenApiDocument {
       readonly HealthNotReady: OpenApiExample;
       readonly CvValid: OpenApiExample;
       readonly ProfileValid: OpenApiExample;
+      readonly PortalValid: OpenApiExample;
       readonly ValidationError: OpenApiExample;
       readonly UnauthorizedError: OpenApiExample;
       readonly PathOutsideWorkspaceError: OpenApiExample;
       readonly WorkspaceUnhealthyError: OpenApiExample;
       readonly CvMissingError: OpenApiExample;
       readonly ProfileMissingError: OpenApiExample;
+      readonly PortalMissingError: OpenApiExample;
       readonly PayloadTooLargeError: OpenApiExample;
       readonly UnexpectedError: OpenApiExample;
     };
@@ -169,6 +210,7 @@ const examples = {
   healthNotReady: HealthDtoSchema.parse(readJsonExample("contracts/examples/health.not-ready.json")),
   cvValid: CvDtoSchema.parse(readJsonExample("contracts/examples/cv.valid.json")),
   profileValid: ProfileDtoSchema.parse(readJsonExample("contracts/examples/profile.valid.json")),
+  portalValid: PortalDtoSchema.parse(readJsonExample("contracts/examples/portal.valid.json")),
   validationError: ErrorResponseDtoSchema.parse(
     readJsonExample("contracts/examples/errors/validation.json")
   ),
@@ -189,6 +231,9 @@ const examples = {
   ),
   profileMissingError: ErrorResponseDtoSchema.parse(
     readJsonExample("contracts/examples/errors/profile-missing.json")
+  ),
+  portalMissingError: ErrorResponseDtoSchema.parse(
+    readJsonExample("contracts/examples/errors/portal-missing.json")
   ),
   payloadTooLargeError: ErrorResponseDtoSchema.parse(
     readJsonExample("contracts/examples/errors/payload-too-large.json")
@@ -227,7 +272,11 @@ export function buildOpenApiDocument(options: BuildOpenApiDocumentOptions = {}):
       },
       {
         name: "Profile",
-        description: "Read normalized MVP fields from the fixed Career Ops Profile Config"
+        description: "Read and safely save normalized MVP fields for the fixed Career Ops Profile Config"
+      },
+      {
+        name: "Portals",
+        description: "Read normalized MVP fields for the fixed Career Ops Portal Config"
       }
     ],
     paths: {
@@ -344,6 +393,76 @@ export function buildOpenApiDocument(options: BuildOpenApiDocumentOptions = {}):
               unexpected: { $ref: "#/components/examples/UnexpectedError" }
             })
           }
+        },
+        put: {
+          operationId: "saveProfile",
+          tags: ["Profile"],
+          summary: "Save normalized profile config",
+          description:
+            "Validates editable MVP Profile Config fields and safely writes the fixed Profile Config file inside the configured Career Ops Workspace.",
+          security: [{ LocalPairingToken: [] }],
+          requestBody: jsonRequestBody("SaveProfileRequestDto", {
+            profile: {
+              summary: "Editable MVP Profile Config fields",
+              value: profileSaveRequestExample()
+            }
+          }),
+          responses: {
+            "200": jsonResponse("Saved normalized Profile Config.", "ProfileDto", {
+              saved: { $ref: "#/components/examples/ProfileValid" }
+            }),
+            "400": jsonResponse("Invalid Profile Config request.", "ErrorResponseDto", {
+              validation: { $ref: "#/components/examples/ValidationError" }
+            }),
+            "401": jsonResponse("Missing or invalid Local Pairing Token.", "ErrorResponseDto", {
+              unauthorized: { $ref: "#/components/examples/UnauthorizedError" }
+            }),
+            "403": jsonResponse("Profile Config path is outside the workspace.", "ErrorResponseDto", {
+              outsideWorkspace: { $ref: "#/components/examples/PathOutsideWorkspaceError" }
+            }),
+            "413": jsonResponse("Profile Config payload is too large.", "ErrorResponseDto", {
+              tooLarge: { $ref: "#/components/examples/PayloadTooLargeError" }
+            }),
+            "503": jsonResponse("Career Ops Workspace is not ready.", "ErrorResponseDto", {
+              workspace: { $ref: "#/components/examples/WorkspaceUnhealthyError" }
+            }),
+            "500": jsonResponse("Unexpected wrapper error response.", "ErrorResponseDto", {
+              unexpected: { $ref: "#/components/examples/UnexpectedError" }
+            })
+          }
+        }
+      },
+      "/api/v1/portals": {
+        get: {
+          operationId: "getPortals",
+          tags: ["Portals"],
+          summary: "Read normalized portal config",
+          description:
+            "Reads the first supported fixed Portal Config file from the configured Career Ops Workspace and returns normalized MVP portal fields.",
+          security: [{ LocalPairingToken: [] }],
+          responses: {
+            "200": jsonResponse("Current normalized Portal Config.", "PortalDto", {
+              current: { $ref: "#/components/examples/PortalValid" }
+            }),
+            "400": jsonResponse("Portal Config is malformed or cannot be normalized.", "ErrorResponseDto", {
+              validation: { $ref: "#/components/examples/ValidationError" }
+            }),
+            "401": jsonResponse("Missing or invalid Local Pairing Token.", "ErrorResponseDto", {
+              unauthorized: { $ref: "#/components/examples/UnauthorizedError" }
+            }),
+            "403": jsonResponse("Portal Config path is outside the workspace.", "ErrorResponseDto", {
+              outsideWorkspace: { $ref: "#/components/examples/PathOutsideWorkspaceError" }
+            }),
+            "404": jsonResponse("Portal Config file is missing.", "ErrorResponseDto", {
+              missing: { $ref: "#/components/examples/PortalMissingError" }
+            }),
+            "503": jsonResponse("Career Ops Workspace is not ready.", "ErrorResponseDto", {
+              workspace: { $ref: "#/components/examples/WorkspaceUnhealthyError" }
+            }),
+            "500": jsonResponse("Unexpected wrapper error response.", "ErrorResponseDto", {
+              unexpected: { $ref: "#/components/examples/UnexpectedError" }
+            })
+          }
         }
       }
     },
@@ -352,7 +471,9 @@ export function buildOpenApiDocument(options: BuildOpenApiDocumentOptions = {}):
         HealthDto: schemaFromZod(HealthDtoSchema),
         CvDto: schemaFromZod(CvDtoSchema),
         ProfileDto: schemaFromZod(ProfileDtoSchema),
+        PortalDto: schemaFromZod(PortalDtoSchema),
         SaveCvRequestDto: schemaFromZod(SaveCvRequestDtoSchema),
+        SaveProfileRequestDto: schemaFromZod(SaveProfileRequestDtoSchema),
         ErrorResponseDto: schemaFromZod(ErrorResponseDtoSchema)
       },
       examples: {
@@ -371,6 +492,10 @@ export function buildOpenApiDocument(options: BuildOpenApiDocumentOptions = {}):
         ProfileValid: {
           summary: "Current normalized Profile Config",
           value: examples.profileValid
+        },
+        PortalValid: {
+          summary: "Current normalized Portal Config",
+          value: examples.portalValid
         },
         ValidationError: {
           summary: "Validation error response",
@@ -395,6 +520,10 @@ export function buildOpenApiDocument(options: BuildOpenApiDocumentOptions = {}):
         ProfileMissingError: {
           summary: "Profile Config file is missing",
           value: examples.profileMissingError
+        },
+        PortalMissingError: {
+          summary: "Portal Config file is missing",
+          value: examples.portalMissingError
         },
         PayloadTooLargeError: {
           summary: "CV Markdown payload is too large",
@@ -433,6 +562,11 @@ function jsonRequestBody(
       }
     }
   };
+}
+
+function profileSaveRequestExample(): unknown {
+  const { sourceRevision: _sourceRevision, updatedAt: _updatedAt, ...request } = examples.profileValid;
+  return SaveProfileRequestDtoSchema.parse(request);
 }
 
 function jsonResponse(

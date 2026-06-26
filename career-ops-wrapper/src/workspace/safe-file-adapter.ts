@@ -47,6 +47,7 @@ async function writeWorkspaceFileSafelyUnlocked(
   let hasBackup = false;
 
   try {
+    await assertSafeParentDirectory(workspaceRoot, path.dirname(targetPath));
     await assertSafeExistingPath(workspaceRoot, targetPath);
     await assertSafeExistingPath(workspaceRoot, backupPath);
 
@@ -99,6 +100,25 @@ async function withTargetWriteLock<T>(targetPath: string, operation: () => Promi
     if (writeQueues.get(targetPath) === queued) {
       writeQueues.delete(targetPath);
     }
+  }
+}
+
+async function assertSafeParentDirectory(workspaceRoot: string, parentPath: string): Promise<void> {
+  const parentStat = await lstat(parentPath);
+
+  if (parentStat.isSymbolicLink()) {
+    throw new ApiError("PATH_OUTSIDE_WORKSPACE", "Workspace file parent must not be a symbolic link.");
+  }
+
+  if (!parentStat.isDirectory()) {
+    throw new ApiError("WORKSPACE_UNHEALTHY", "Workspace file parent is not writable.");
+  }
+
+  if (!isInsidePath(workspaceRoot, await realpath(parentPath))) {
+    throw new ApiError(
+      "PATH_OUTSIDE_WORKSPACE",
+      "Requested path is outside the configured Career Ops Workspace."
+    );
   }
 }
 

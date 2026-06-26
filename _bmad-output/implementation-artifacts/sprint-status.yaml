@@ -1,5 +1,5 @@
 # generated: 2026-06-20 23:08:54 +0700
-# last_updated: 2026-06-25 13:22:10 +0700
+# last_updated: 2026-06-26 13:22:52 +0700
 # project: task-arena
 # project_key: NOKEY
 # tracking_system: file-system
@@ -39,7 +39,7 @@
 # - Shared: cross-platform contract/evidence stories requiring coordination
 
 generated: "2026-06-20 23:08:54 +0700"
-last_updated: "2026-06-25 13:22:10 +0700"
+last_updated: "2026-06-26 13:22:52 +0700"
 project: task-arena
 project_key: NOKEY
 tracking_system: file-system
@@ -73,16 +73,16 @@ development_status:
   # owner: Codex
   2-3-read-and-normalize-profile-config: done
   # owner: Codex
-  2-4-save-profile-config-safely: backlog
+  2-4-save-profile-config-safely: done
   # owner: Hy
   2-5-build-android-cv-and-profile-editing-ui: backlog
   # owner: Hy
   2-6-preserve-cached-cv-profile-state-on-backend-errors: backlog
   epic-2-retrospective: optional
 
-  epic-3: backlog
+  epic-3: in-progress
   # owner: Codex
-  3-1-read-and-validate-portal-config: backlog
+  3-1-read-and-validate-portal-config: done
   # owner: Codex
   3-2-save-portal-config-safely: backlog
   # owner: Hy

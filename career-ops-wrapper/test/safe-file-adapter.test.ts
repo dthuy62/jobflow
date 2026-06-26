@@ -89,6 +89,25 @@ describe("safe workspace file adapter", () => {
     await expect(readFile(path.join(outside, "external.md"), "utf8")).resolves.toBe("# External");
   });
 
+  it("rejects writes through symlinked parent directories", async () => {
+    const workspace = await createTempWorkspace();
+    const outside = await createTempWorkspace();
+    await symlink(outside, path.join(workspace, "config"));
+
+    await expect(
+      writeWorkspaceFileSafely({
+        workspacePath: workspace,
+        relativePath: "config/profile.yml",
+        content: "target_roles:\n  primary: [Outside]\n"
+      })
+    ).rejects.toMatchObject({
+      code: "PATH_OUTSIDE_WORKSPACE"
+    } satisfies Partial<ApiError>);
+    await expect(readFile(path.join(outside, "profile.yml"), "utf8")).rejects.toMatchObject({
+      code: "ENOENT"
+    });
+  });
+
   it("keeps the previous file when writing the replacement fails", async () => {
     const workspace = await createTempWorkspace();
     const cvPath = path.join(workspace, "cv.md");

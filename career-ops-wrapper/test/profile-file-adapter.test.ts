@@ -107,4 +107,104 @@ describe("profile file adapter", () => {
       code: "PATH_OUTSIDE_WORKSPACE"
     } satisfies Partial<ApiError>);
   });
+
+  it("saves to the first existing supported profile file and preserves provided unknown keys", async () => {
+    const workspace = await createTempWorkspace();
+    await writeProfile(workspace, "profile.yml", "target_roles:\n  primary: [Root]\n");
+    await writeProfile(workspace, "config/profile.yml", "target_roles:\n  primary: [Old]\n");
+
+    const result = await createProfileFileAdapter(workspace).writeProfileConfig({
+      target_roles: {
+        primary: ["New"],
+        archetypes: [{ name: "New", level: "Senior", fit: "primary" }]
+      },
+      narrative: {
+        headline: "Builder",
+        superpowers: ["Kotlin"]
+      },
+      compensation: {
+        location_flexibility: "Remote"
+      },
+      location: {
+        city: "Remote",
+        country: "Global"
+      },
+      unknown_top_level: "keep-me"
+    });
+
+    expect(result.relativePath).toBe("config/profile.yml");
+    await expect(readFile(path.join(workspace, "profile.yml"), "utf8")).resolves.toContain("Root");
+    await expect(readFile(path.join(workspace, "config/profile.yml"), "utf8")).resolves.toContain(
+      "unknown_top_level: keep-me"
+    );
+    await expect(readFile(path.join(workspace, "config/profile.yml.bak"), "utf8")).resolves.toContain(
+      "Old"
+    );
+  });
+
+  it("creates config/profile.yml when no supported profile file exists", async () => {
+    const workspace = await createTempWorkspace();
+
+    const result = await createProfileFileAdapter(workspace).writeProfileConfig({
+      target_roles: {
+        primary: ["Senior Engineer"],
+        archetypes: [{ name: "Senior Engineer", level: "Senior", fit: "primary" }]
+      },
+      narrative: {
+        headline: "Builder",
+        superpowers: ["TypeScript"]
+      },
+      compensation: {
+        location_flexibility: "Remote"
+      },
+      location: {
+        city: "Remote",
+        country: "Global"
+      }
+    });
+
+    expect(result.relativePath).toBe("config/profile.yml");
+    await expect(readFile(path.join(workspace, "config/profile.yml"), "utf8")).resolves.toContain(
+      "Senior Engineer"
+    );
+  });
+
+  it("does not overwrite malformed existing profile YAML on save", async () => {
+    const workspace = await createTempWorkspace();
+    const profilePath = path.join(workspace, "config/profile.yml");
+    await writeProfile(workspace, "config/profile.yml", "target_roles: [");
+
+    await expect(
+      createProfileFileAdapter(workspace).writeProfileConfig({
+        target_roles: {
+          primary: ["New"]
+        }
+      })
+    ).rejects.toMatchObject({
+      code: "VALIDATION_ERROR"
+    } satisfies Partial<ApiError>);
+    await expect(readFile(profilePath, "utf8")).resolves.toBe("target_roles: [");
+  });
+
+  it("preserves the previous profile when safe write fails", async () => {
+    const workspace = await createTempWorkspace();
+    const profilePath = path.join(workspace, "config/profile.yml");
+    await writeProfile(workspace, "config/profile.yml", "target_roles:\n  primary: [Stable]\n");
+    await chmod(path.join(workspace, "config"), 0o555);
+
+    try {
+      await expect(
+        createProfileFileAdapter(workspace).writeProfileConfig({
+          target_roles: {
+            primary: ["New"]
+          }
+        })
+      ).rejects.toMatchObject({
+        code: "UNEXPECTED_ERROR"
+      } satisfies Partial<ApiError>);
+      await expect(readFile(profilePath, "utf8")).resolves.toContain("Stable");
+    } finally {
+      await chmod(path.join(workspace, "config"), 0o700);
+    }
+  });
 });

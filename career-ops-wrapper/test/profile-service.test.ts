@@ -1,6 +1,7 @@
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { load as loadYaml } from "js-yaml";
 import { afterEach, describe, expect, it } from "vitest";
 import type { RuntimeConfig } from "../src/config/runtime-config.js";
 import { ProfileDtoSchema } from "../src/contracts/index.js";
@@ -117,5 +118,146 @@ location:
     await expect(createProfileService(configFor(workspace)).getProfile()).rejects.toMatchObject({
       code: "VALIDATION_ERROR"
     } satisfies Partial<ApiError>);
+  });
+
+  it("saves editable MVP fields while preserving unknown YAML keys", async () => {
+    const workspace = await createTempWorkspace();
+    const profilePath = path.join(workspace, "config/profile.yml");
+    await writeFile(profilePath, realProfileYaml);
+
+    const saved = await createProfileService(configFor(workspace)).saveProfile({
+      targetRoles: ["Senior Android Engineer"],
+      seniorityLevel: "Senior",
+      preferredLocations: ["Remote", "Global"],
+      remotePreference: "remote",
+      salaryMin: 3000,
+      salaryMax: 5000,
+      salaryCurrency: "USD",
+      workAuthorizationNote: "No sponsorship needed",
+      mustHaveSkills: ["Kotlin", "Compose"],
+      niceToHaveSkills: [],
+      excludedKeywords: [],
+      positioningSummary: "Android engineer"
+    });
+    const yaml = await readFile(profilePath, "utf8");
+    const parsed = loadYaml(yaml) as Record<string, unknown>;
+
+    expect(saved).toMatchObject({
+      targetRoles: ["Senior Android Engineer"],
+      seniorityLevel: "Senior",
+      remotePreference: "remote",
+      salaryMin: 3000,
+      salaryMax: 5000,
+      salaryCurrency: "USD"
+    });
+    expect(saved.sourceRevision).toMatch(/^profile_sha256_[a-f0-9]{8}$/);
+    expect(parsed).toMatchObject({
+      target_roles: {
+        primary: ["Senior Android Engineer"],
+        archetypes: [
+          {
+            level: "Senior"
+          }
+        ]
+      },
+      narrative: {
+        headline: "Android engineer",
+        superpowers: ["Kotlin", "Compose"]
+      },
+      compensation: {
+        currency: "USD",
+        minimum: "3000 USD",
+        target_range: "3000 - 5000 USD",
+        location_flexibility: "Remote"
+      },
+      location: {
+        city: "Remote",
+        country: "Global",
+        visa_status: "No sponsorship needed"
+      },
+      unknown_top_level: "must not leak"
+    });
+  });
+
+  it("rejects invalid save requests without modifying profile YAML", async () => {
+    const workspace = await createTempWorkspace();
+    const profilePath = path.join(workspace, "config/profile.yml");
+    await writeFile(profilePath, realProfileYaml);
+
+    await expect(
+      createProfileService(configFor(workspace)).saveProfile({
+        targetRoles: [],
+        seniorityLevel: "Senior",
+        preferredLocations: ["Remote"],
+        remotePreference: "remote",
+        mustHaveSkills: []
+      } as never)
+    ).rejects.toMatchObject({
+      code: "VALIDATION_ERROR"
+    } satisfies Partial<ApiError>);
+    await expect(readFile(profilePath, "utf8")).resolves.toBe(realProfileYaml);
+  });
+
+  it("creates a minimal profile config when none exists", async () => {
+    const workspace = await createTempWorkspace();
+
+    const saved = await createProfileService(configFor(workspace)).saveProfile({
+      targetRoles: ["Senior Engineer"],
+      seniorityLevel: "Senior",
+      preferredLocations: ["Remote", "Global"],
+      remotePreference: "remote",
+      mustHaveSkills: ["TypeScript"]
+    });
+
+    expect(saved).toMatchObject({
+      targetRoles: ["Senior Engineer"],
+      seniorityLevel: "Senior",
+      preferredLocations: ["Remote", "Global"],
+      remotePreference: "remote",
+      mustHaveSkills: ["TypeScript"]
+    });
+    await expect(readFile(path.join(workspace, "config/profile.yml"), "utf8")).resolves.toContain(
+      "Senior Engineer"
+    );
+  });
+
+  it("rejects malformed existing YAML instead of overwriting it", async () => {
+    const workspace = await createTempWorkspace();
+    const profilePath = path.join(workspace, "config/profile.yml");
+    const yaml = "target_roles: [";
+    await writeFile(profilePath, yaml);
+
+    await expect(
+      createProfileService(configFor(workspace)).saveProfile({
+        targetRoles: ["Senior Engineer"],
+        seniorityLevel: "Senior",
+        preferredLocations: ["Remote"],
+        remotePreference: "remote",
+        mustHaveSkills: []
+      })
+    ).rejects.toMatchObject({
+      code: "VALIDATION_ERROR"
+    } satisfies Partial<ApiError>);
+    await expect(readFile(profilePath, "utf8")).resolves.toBe(yaml);
+  });
+
+  it("rejects semantically malformed existing profile YAML instead of repairing it", async () => {
+    const workspace = await createTempWorkspace();
+    const profilePath = path.join(workspace, "config/profile.yml");
+    const yaml = "target_roles: bad\n";
+    await writeFile(profilePath, yaml);
+
+    await expect(
+      createProfileService(configFor(workspace)).saveProfile({
+        targetRoles: ["Senior Engineer"],
+        seniorityLevel: "Senior",
+        preferredLocations: ["Remote"],
+        remotePreference: "remote",
+        mustHaveSkills: ["TypeScript"]
+      })
+    ).rejects.toMatchObject({
+      code: "VALIDATION_ERROR"
+    } satisfies Partial<ApiError>);
+    await expect(readFile(profilePath, "utf8")).resolves.toBe(yaml);
   });
 });

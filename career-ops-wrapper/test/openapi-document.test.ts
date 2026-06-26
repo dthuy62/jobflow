@@ -7,7 +7,6 @@ import { buildOpenApiDocument } from "../src/openapi/openapi-document.js";
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 const unimplementedEndpointFamilies = [
-  "/api/v1/portals",
   "/api/v1/scan-runs",
   "/api/v1/offers",
   "/api/v1/reports",
@@ -34,7 +33,8 @@ describe("OpenAPI document", () => {
     expect(Object.keys(document.paths)).toEqual([
       "/api/v1/health",
       "/api/v1/cv",
-      "/api/v1/profile"
+      "/api/v1/profile",
+      "/api/v1/portals"
     ]);
     expect(document.paths["/api/v1/health"].get).toMatchObject({
       operationId: "getHealth",
@@ -53,13 +53,30 @@ describe("OpenAPI document", () => {
       operationId: "getProfile",
       tags: ["Profile"]
     });
-    expect(document.paths["/api/v1/profile"]).not.toHaveProperty("put");
+    expect(document.paths["/api/v1/profile"].put).toMatchObject({
+      operationId: "saveProfile",
+      tags: ["Profile"]
+    });
+    expect(document.paths["/api/v1/portals"].get).toMatchObject({
+      operationId: "getPortals",
+      tags: ["Portals"]
+    });
     expect(document.paths["/api/v1/cv"].get.responses).toHaveProperty("503");
     expect(document.paths["/api/v1/cv"].put.responses).toHaveProperty("503");
     expect(document.paths["/api/v1/profile"].get.responses).toHaveProperty("400");
     expect(document.paths["/api/v1/profile"].get.responses).toHaveProperty("403");
     expect(document.paths["/api/v1/profile"].get.responses).toHaveProperty("404");
     expect(document.paths["/api/v1/profile"].get.responses).toHaveProperty("503");
+    expect(document.paths["/api/v1/profile"].put.responses).toHaveProperty("400");
+    expect(document.paths["/api/v1/profile"].put.responses).toHaveProperty("401");
+    expect(document.paths["/api/v1/profile"].put.responses).toHaveProperty("403");
+    expect(document.paths["/api/v1/profile"].put.responses).toHaveProperty("413");
+    expect(document.paths["/api/v1/profile"].put.responses).toHaveProperty("503");
+    expect(document.paths["/api/v1/portals"].get.responses).toHaveProperty("400");
+    expect(document.paths["/api/v1/portals"].get.responses).toHaveProperty("401");
+    expect(document.paths["/api/v1/portals"].get.responses).toHaveProperty("403");
+    expect(document.paths["/api/v1/portals"].get.responses).toHaveProperty("404");
+    expect(document.paths["/api/v1/portals"].get.responses).toHaveProperty("503");
 
     const serialized = JSON.stringify(document);
     for (const endpoint of unimplementedEndpointFamilies) {
@@ -67,7 +84,7 @@ describe("OpenAPI document", () => {
     }
   });
 
-  it("builds HealthDto, CvDto, ProfileDto, and ErrorResponseDto schemas from backend contracts", () => {
+  it("builds HealthDto, CvDto, ProfileDto, PortalDto, and ErrorResponseDto schemas from backend contracts", () => {
     const document = buildOpenApiDocument();
     const schemas = document.components.schemas;
 
@@ -96,7 +113,25 @@ describe("OpenAPI document", () => {
         "sourceRevision"
       ])
     );
+    expect(Object.keys(schemas.PortalDto.properties ?? {})).toEqual(
+      expect.arrayContaining([
+        "titlePositiveKeywords",
+        "titleNegativeKeywords",
+        "trackedCompanies",
+        "searchQueries",
+        "sourceRevision"
+      ])
+    );
     expect(Object.keys(schemas.SaveCvRequestDto.properties ?? {})).toEqual(["markdown"]);
+    expect(Object.keys(schemas.SaveProfileRequestDto.properties ?? {})).toEqual(
+      expect.arrayContaining([
+        "targetRoles",
+        "seniorityLevel",
+        "preferredLocations",
+        "remotePreference",
+        "mustHaveSkills"
+      ])
+    );
     expect(schemas.ErrorResponseDto.properties).toHaveProperty("error");
     expect(document.paths["/api/v1/health"].get.responses["200"].content).toMatchObject({
       "application/json": {
@@ -124,11 +159,15 @@ describe("OpenAPI document", () => {
     );
     const cvValid = await readJsonFixture<unknown>("contracts/examples/cv.valid.json");
     const profileValid = await readJsonFixture<unknown>("contracts/examples/profile.valid.json");
+    const portalValid = await readJsonFixture<unknown>("contracts/examples/portal.valid.json");
     const cvMissingError = await readJsonFixture<unknown>(
       "contracts/examples/errors/cv-missing.json"
     );
     const profileMissingError = await readJsonFixture<unknown>(
       "contracts/examples/errors/profile-missing.json"
+    );
+    const portalMissingError = await readJsonFixture<unknown>(
+      "contracts/examples/errors/portal-missing.json"
     );
     const payloadTooLargeError = await readJsonFixture<unknown>(
       "contracts/examples/errors/payload-too-large.json"
@@ -143,8 +182,10 @@ describe("OpenAPI document", () => {
     );
     expect(document.components.examples.CvValid.value).toEqual(cvValid);
     expect(document.components.examples.ProfileValid.value).toEqual(profileValid);
+    expect(document.components.examples.PortalValid.value).toEqual(portalValid);
     expect(document.components.examples.CvMissingError.value).toEqual(cvMissingError);
     expect(document.components.examples.ProfileMissingError.value).toEqual(profileMissingError);
+    expect(document.components.examples.PortalMissingError.value).toEqual(portalMissingError);
     expect(document.components.examples.PayloadTooLargeError.value).toEqual(payloadTooLargeError);
     expect(
       document.paths["/api/v1/health"].get.responses["200"].content["application/json"].examples
@@ -161,6 +202,23 @@ describe("OpenAPI document", () => {
     ).toMatchObject({
       current: {
         $ref: "#/components/examples/ProfileValid"
+      }
+    });
+    expect(
+      document.paths["/api/v1/portals"].get.responses["200"].content["application/json"].examples
+    ).toMatchObject({
+      current: {
+        $ref: "#/components/examples/PortalValid"
+      }
+    });
+    expect(
+      document.paths["/api/v1/profile"].put.requestBody.content["application/json"].examples
+    ).toMatchObject({
+      profile: {
+        value: expect.objectContaining({
+          targetRoles: expect.any(Array),
+          remotePreference: expect.any(String)
+        })
       }
     });
   });

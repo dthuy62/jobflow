@@ -1,9 +1,10 @@
 import { createHash } from "node:crypto";
 import { constants, type Stats } from "node:fs";
-import { access, lstat, readFile, realpath, stat } from "node:fs/promises";
+import { access, lstat, mkdir, readFile, realpath, stat } from "node:fs/promises";
 import path from "node:path";
-import { load as loadYaml } from "js-yaml";
+import { dump as dumpYaml, load as loadYaml } from "js-yaml";
 import { ApiError } from "../errors/api-error.js";
+import { writeWorkspaceFileSafely } from "./safe-file-adapter.js";
 import { isInsidePath, resolveWorkspaceRoot } from "./workspace-paths.js";
 
 const PROFILE_RELATIVE_PATHS = [
@@ -23,12 +24,17 @@ export interface ProfileFileRead {
 
 export interface ProfileFileAdapter {
   readProfileConfig(): Promise<ProfileFileRead>;
+  writeProfileConfig(profile: unknown): Promise<ProfileFileRead>;
 }
 
 export function createProfileFileAdapter(workspacePath: string): ProfileFileAdapter {
   return {
     async readProfileConfig(): Promise<ProfileFileRead> {
       return readProfileConfigFromWorkspace(workspacePath);
+    },
+
+    async writeProfileConfig(profile: unknown): Promise<ProfileFileRead> {
+      return writeProfileConfigToWorkspace(workspacePath, profile);
     }
   };
 }
@@ -50,6 +56,55 @@ async function readProfileConfigFromWorkspace(workspacePath: string): Promise<Pr
   }
 
   throw new ApiError("NOT_FOUND", "Profile config file is missing.");
+}
+
+async function writeProfileConfigToWorkspace(
+  workspacePath: string,
+  profile: unknown
+): Promise<ProfileFileRead> {
+  const workspaceRoot = await resolveWorkspaceRoot(workspacePath).catch(() => {
+    throw new ApiError("WORKSPACE_UNHEALTHY", "Career Ops workspace is not ready.");
+  });
+  const relativePath = await findProfileWriteRelativePath(workspaceRoot);
+
+  await mkdir(path.dirname(path.join(workspaceRoot, relativePath)), { recursive: true }).catch(() => {
+    throw new ApiError("WORKSPACE_UNHEALTHY", "Profile config file is not writable.");
+  });
+
+  const yaml = dumpYaml(profile, {
+    lineWidth: -1,
+    noRefs: true,
+    sortKeys: false
+  });
+
+  await writeWorkspaceFileSafely({
+    workspacePath,
+    relativePath,
+    content: yaml
+  });
+
+  const targetPath = path.join(workspaceRoot, relativePath);
+  const targetStat = await lstat(targetPath).catch(() => {
+    throw new ApiError("WORKSPACE_UNHEALTHY", "Profile config file is not readable.");
+  });
+
+  return readProfileCandidate(workspaceRoot, targetPath, relativePath, targetStat);
+}
+
+async function findProfileWriteRelativePath(workspaceRoot: string): Promise<string> {
+  for (const relativePath of PROFILE_RELATIVE_PATHS) {
+    const targetPath = path.join(workspaceRoot, relativePath);
+    const targetStat = await readCandidateStat(targetPath);
+
+    if (!targetStat) {
+      continue;
+    }
+
+    await readProfileCandidate(workspaceRoot, targetPath, relativePath, targetStat);
+    return relativePath;
+  }
+
+  return "config/profile.yml";
 }
 
 async function readCandidateStat(targetPath: string): Promise<Stats | undefined> {
