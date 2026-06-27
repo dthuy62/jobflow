@@ -93,8 +93,8 @@ NFR9: Portfolio Readability. The repository should make architecture and trade-o
 - Wrapper runtime config should prefer CLI flags, then `.env` fallback, then safe defaults.
 - Android must use two product flavors: `dev` and `prod`.
 - `dev` flavor should use application ID suffix `.dev`, app name `[DEV] Career Ops`, default wrapper URL `http://10.0.2.2:3000`, and dev/local cleartext network config.
-- `prod` flavor should have no suffix, app name `Career Ops`, empty default wrapper URL, user-entered setup URL, and token required for non-localhost/LAN endpoints.
-- Android must store only `WrapperConnectionSettings(baseUrl, pairingToken)` for wrapper connection; do not build a saved endpoint list or connection-profile registry for MVP.
+- `prod` flavor should have no suffix and app name `Career Ops`; during local MVP development it may use the same configured local wrapper URL as `dev` through BuildConfig or local build configuration, not through user-entered runtime setup.
+- Android wrapper connection configuration is build/session configuration for MVP. Do not build user-editable endpoint fields, saved endpoint lists, workspace path fields, or connection-profile registries.
 - Android Career Ops code must live under a bounded feature package: `app/src/main/java/<existing-package>/careerops`.
 - Android Career Ops feature must be layered into `data`, `domain`, and `presentation`.
 - Android repository must coordinate Retrofit, settings storage, and Room.
@@ -293,27 +293,27 @@ So that I can use the app on emulator or a personal device without managing comp
 
 **Given** the `prod` flavor is built
 **When** connection defaults are inspected
-**Then** `prod` has no application ID suffix, app name `Career Ops`, and no hardcoded default wrapper URL
-**And** the user must enter the wrapper base URL before API calls can succeed.
+**Then** `prod` has no application ID suffix and app name `Career Ops`
+**And** the wrapper base URL is supplied by flavor BuildConfig or local build configuration rather than a user-editable runtime setup field.
 
 **Given** the app runs in `dev` flavor
 **When** it connects to the local Wrapper Backend from an Android emulator
 **Then** it can use cleartext HTTP for the configured local development URL
 **And** the network security configuration is limited to dev/local development needs.
 
-**Given** the app runs against a LAN/private backend URL
-**When** the user saves wrapper connection settings
-**Then** the app stores only `WrapperConnectionSettings(baseUrl, pairingToken)`
-**And** it does not create a saved endpoint list, workspace path field, or connection-profile registry for MVP.
+**Given** the app runs against a local or LAN/private backend URL
+**When** the API client is created
+**Then** it uses the configured wrapper base URL and optional build/session Local Pairing Token
+**And** it does not create user-editable endpoint fields, saved endpoint lists, workspace path fields, settings persistence, or connection-profile registries for MVP.
 
 **Given** an API request is sent from Android
 **When** a local pairing token is configured
 **Then** the Retrofit/OkHttp client attaches `X-Career-Ops-Token: <token>`
 **And** if no token is configured, the client omits the header rather than sending an empty token.
 
-**Given** Android connection settings are changed
-**When** the user saves and retries connection
-**Then** subsequent API calls use the latest base URL and token
+**Given** Android connection configuration changes between builds or sessions
+**When** the app is restarted with the new configuration
+**Then** subsequent API calls use the configured base URL and optional token
 **And** previous failed connection attempts do not permanently block retry.
 
 #### Story 1.5: Show Android Setup and Health Screen
@@ -325,11 +325,11 @@ So that I can fix local setup issues before using CV, config, or scan features.
 **Acceptance Criteria:**
 
 **Given** the user opens the Career Ops area for the first time
-**When** no valid wrapper connection has been saved
-**Then** the Android app shows a setup screen with wrapper base URL input, optional Local Pairing Token input, and a retry/check action
+**When** the configured wrapper connection has not yet been checked
+**Then** the Android app shows a setup screen with connection status, workspace readiness status, and a retry/check action
 **And** the screen uses the existing neo-brutalist visual language.
 
-**Given** the wrapper connection is saved
+**Given** the wrapper base URL is supplied by `BuildConfig.CAREER_OPS_DEFAULT_BASE_URL` or equivalent local build configuration
 **When** the user taps retry/check health
 **Then** Android calls `GET /api/v1/health`
 **And** displays loading, success, not-ready, and error states consistently with existing visual primitives.
@@ -337,7 +337,7 @@ So that I can fix local setup issues before using CV, config, or scan features.
 **Given** the wrapper cannot be reached
 **When** the health request fails due to network or timeout
 **Then** the setup screen displays wrapper unreachable guidance
-**And** the user can edit the URL/token and retry without restarting the app.
+**And** the user can retry without any URL or token entry fields in the app UI.
 
 **Given** the wrapper is reachable but workspace readiness fails
 **When** the health response identifies missing workspace, invalid workspace, missing required files, command unavailable, or script failure
@@ -351,7 +351,7 @@ So that I can fix local setup issues before using CV, config, or scan features.
 
 **Given** the screen is rotated or the ViewModel is recreated
 **When** the setup screen returns
-**Then** the latest connection input and health UI state survive without losing unsaved edits unnecessarily.
+**Then** the latest health UI state survives without losing configured connection context.
 
 #### Story 1.6: Prove API Contract Compatibility with Tests and Examples
 
@@ -1582,6 +1582,108 @@ So that the project communicates Real First integration quality to future review
 **Then** the MVP demonstrates a coherent personal Android app backed by real Career Ops behavior
 **And** no mock-only completion claims remain.
 
+### Epic 7: Harden Production Access
+
+Future public or hosted access is explicitly separated from the local-first MVP. The app and backend can be prepared for publishing without pretending that Local Pairing Token or BuildConfig values are production-grade authentication.
+
+**FRs covered:** Future/non-MVP production hardening.
+
+**Key risk gates and dependencies:**
+
+- This epic starts only when the project moves beyond local/private MVP access toward a published Android app or public/hosted backend.
+- Firebase App Check protects backend access from unverified app clients; it does not replace user authentication when user/account-specific data is introduced.
+- Backend keeps all server secrets, private keys, provider keys, and Firebase Admin credentials. Android only receives public config or public keys.
+- HTTPS is mandatory for production access. Certificate/public-key pinning is optional and only appropriate once the production endpoint is stable.
+- This epic must not block Stories 1.5 through 6.7 local MVP work.
+
+#### Story 7.1: Define Production Security Mode and Trust Boundaries
+
+As a maintainer preparing a publishable app,
+I want production access boundaries documented and configurable,
+So that local MVP security does not get mistaken for public production security.
+
+**Acceptance Criteria:**
+
+**Given** production hardening begins
+**When** backend runtime config is reviewed
+**Then** the backend supports an explicit security mode such as `local` or `production`
+**And** production mode does not trust Android BuildConfig secrets or Local Pairing Token as public authentication.
+
+**Given** production mode is selected
+**When** API requests are handled
+**Then** backend secrets, private keys, provider keys, and Firebase Admin credentials remain server-side only
+**And** Android stores only public config, public keys, or short-lived verified session material.
+
+**Given** architecture and docs are updated
+**When** a reviewer compares local MVP and production mode
+**Then** the docs clearly distinguish Local Pairing Token for trusted local/LAN use from Firebase App Check and optional user auth for production.
+
+#### Story 7.2: Verify Firebase App Check on Backend Requests
+
+As a backend maintainer,
+I want production API requests verified with Firebase App Check,
+So that the public backend rejects requests from unverified clients.
+
+**Acceptance Criteria:**
+
+**Given** production mode is enabled
+**When** a protected API request arrives
+**Then** backend middleware verifies the Firebase App Check token before service logic runs
+**And** missing, invalid, expired, or revoked tokens return typed unauthorized or forbidden errors.
+
+**Given** backend services are inspected
+**When** App Check verification is implemented
+**Then** Firebase-specific verification stays in the security boundary
+**And** route/service code receives only verified request context, not Firebase Admin implementation details.
+
+**Given** backend tests run
+**When** valid, missing, invalid, and malformed App Check token cases are exercised
+**Then** tests prove protected production routes reject unverified clients and keep health/debug behavior intentionally scoped.
+
+#### Story 7.3: Attach App Check Tokens from Android
+
+As an Android maintainer,
+I want the app to attach Firebase App Check tokens in production builds,
+So that production backend requests can be verified without shipping static client secrets.
+
+**Acceptance Criteria:**
+
+**Given** the Android production flavor is configured for publishing
+**When** the API client sends a protected request
+**Then** it obtains and attaches a current Firebase App Check token using the approved Firebase SDK path
+**And** it does not include static production secrets, private keys, or provider keys in BuildConfig, resources, or local properties.
+
+**Given** App Check token retrieval fails
+**When** Android calls a protected endpoint
+**Then** the app surfaces a recoverable production access error
+**And** it does not fall back to a local pairing token as production authentication.
+
+**Given** Android tests or manual verification run
+**When** production request construction is inspected
+**Then** App Check token attachment is covered without leaking real tokens in logs or evidence.
+
+#### Story 7.4: Enforce Production HTTPS and Optional Pinning
+
+As a maintainer preparing production access,
+I want transport security requirements explicit,
+So that sensitive CV/profile traffic is not sent over insecure channels.
+
+**Acceptance Criteria:**
+
+**Given** production mode is enabled
+**When** Android or backend production configuration is inspected
+**Then** production API traffic requires HTTPS
+**And** cleartext exceptions remain limited to local/dev builds.
+
+**Given** a stable production endpoint exists
+**When** certificate or public-key pinning is evaluated
+**Then** the decision is documented with rotation and recovery trade-offs
+**And** pinning is implemented only if the operational risk is acceptable.
+
+**Given** production network tests or checks run
+**When** HTTP, invalid certificate, and valid HTTPS cases are exercised
+**Then** insecure production transport is rejected and local development remains usable.
+
 ### Epic Exit Gates
 
 - Epic 1 is complete only when the wrapper API foundation, health endpoint, runtime workspace validation, Android dev/prod connection setup, and contract example tests are all demonstrable.
@@ -1590,6 +1692,7 @@ So that the project communicates Real First integration quality to future review
 - Epic 4 is complete only when a real allowlisted scan can be started, concurrent scans are rejected, lifecycle state is persisted, sanitized logs are available, and Real First scan evidence exists.
 - Epic 5 is complete only when Career Ops output fixtures or real outputs prove discovery, parser projection, offer APIs, Android Room cache freshness, stale fallback, and offer detail/external URL behavior.
 - Epic 6 is complete only when reports/artifacts are viewable if present, artifact/report access uses opaque workspace-boundary-safe IDs, MVP navigation is coherent, visual consistency is verified, and portfolio evidence is redacted.
+- Epic 7 is complete only when production access has explicit backend security mode, Firebase App Check verification, Android App Check token attachment, HTTPS enforcement, and documented auth/pinning decisions.
 
 ### Implementation Guardrails
 
@@ -1616,5 +1719,6 @@ So that the project communicates Real First integration quality to future review
 - Parser reliability, fixture workspaces, and cache freshness are proven in Epic 5.
 - Visual consistency is applied incrementally in each Android epic, with final demo coherence completed in Epic 6.
 - Security regression tests start in Epic 1 and are extended by scan/output stories in Epics 4-6.
+- Production security is deferred to Epic 7 and must not expand Story 1.5 beyond local/MVP setup-health.
 - Fixture workspace ownership starts in Epic 1 and expands through Epics 2-5.
 - Real First evidence starts with fixtures in Epic 1 and is proven end-to-end by Epic 4/Epic 5.

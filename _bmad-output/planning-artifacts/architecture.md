@@ -1078,11 +1078,10 @@ Android uses two product flavors:
 
 - No application ID suffix.
 - App name: `Career Ops`.
-- Default wrapper base URL is empty.
-- User enters wrapper URL in setup screen.
-- Token is required for non-localhost/LAN endpoints.
+- Local MVP wrapper base URL is supplied by BuildConfig or local build configuration, not by user-entered setup UI.
+- Optional Local Pairing Token is build/session configuration for trusted local/LAN use only; it is not production authentication.
 
-Android stores only:
+Android connection configuration remains minimal:
 
 ```kotlin
 data class WrapperConnectionSettings(
@@ -1091,7 +1090,7 @@ data class WrapperConnectionSettings(
 )
 ```
 
-Do not add a saved endpoint list or connection-profile registry for MVP. The app may remember the last successful settings only.
+Do not add user-editable endpoint fields, saved endpoint lists, settings persistence, or connection-profile registries for MVP.
 
 CORS is not an MVP concern because the Android app is a native client using Retrofit/OkHttp, not a browser web app.
 
@@ -1259,8 +1258,8 @@ Backend:
 
 - Start Wrapper Backend from `career-ops-wrapper` or from the Career Ops Workspace using `--workspace`.
 - `dev` Android flavor defaults to emulator base URL `http://10.0.2.2:3000`.
-- `prod` Android flavor requires setup-screen URL entry for LAN/private wrapper access.
-- LAN access uses `X-Career-Ops-Token: <token>`.
+- `prod` Android flavor uses configured BuildConfig/local build values for local MVP access; no setup-screen URL entry is required.
+- Trusted local/LAN access may use `X-Career-Ops-Token: <token>`, but production/public access is deferred to a separate hardening epic.
 
 **Build Process Structure:**
 

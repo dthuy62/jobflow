@@ -4,7 +4,8 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import {
   ErrorResponseDtoSchema,
-  HealthDtoSchema
+  HealthDtoSchema,
+  ScanReadinessDtoSchema
 } from "../src/contracts/index.js";
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -22,6 +23,15 @@ describe("contract examples", () => {
     const example = await readJsonFixture<unknown>(fixturePath);
 
     expect(() => HealthDtoSchema.parse(example)).not.toThrow();
+  });
+
+  it.each([
+    "contracts/examples/scan-readiness.ready.json",
+    "contracts/examples/scan-readiness.not-ready.json"
+  ])("validates scan readiness example %s", async (fixturePath) => {
+    const example = await readJsonFixture<unknown>(fixturePath);
+
+    expect(() => ScanReadinessDtoSchema.parse(example)).not.toThrow();
   });
 
   it("documents local script readiness without advertising unimplemented APIs", async () => {

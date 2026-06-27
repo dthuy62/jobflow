@@ -111,4 +111,103 @@ describe("portal file adapter", () => {
       code: "PATH_OUTSIDE_WORKSPACE"
     } satisfies Partial<ApiError>);
   });
+
+  it("saves to the first existing supported portal file and preserves provided unknown keys", async () => {
+    const workspace = await createTempWorkspace();
+    await writePortal(workspace, "portals.yaml", "title_filter:\n  positive: [Yaml]\n");
+    await writePortal(workspace, "portals.yml", "title_filter:\n  positive: [Old]\n");
+
+    const result = await createPortalFileAdapter(workspace).writePortalConfig({
+      title_filter: {
+        positive: ["New"]
+      },
+      tracked_companies: [
+        {
+          name: "OpenAI",
+          careers_url: "https://openai.com/careers",
+          enabled: true,
+          parser: "keep-me"
+        }
+      ],
+      unknown_top_level: "keep-me"
+    });
+
+    expect(result.relativePath).toBe("portals.yml");
+    await expect(readFile(path.join(workspace, "portals.yaml"), "utf8")).resolves.toContain("Yaml");
+    await expect(readFile(path.join(workspace, "portals.yml"), "utf8")).resolves.toContain(
+      "unknown_top_level: keep-me"
+    );
+    await expect(readFile(path.join(workspace, "portals.yml"), "utf8")).resolves.toContain(
+      "parser: keep-me"
+    );
+    await expect(readFile(path.join(workspace, "portals.yml.bak"), "utf8")).resolves.toContain(
+      "Old"
+    );
+  });
+
+  it("falls back to portals.yaml for save when portals.yml is missing", async () => {
+    const workspace = await createTempWorkspace();
+    await writePortal(workspace, "portals.yaml", "title_filter:\n  positive: [Old]\n");
+
+    const result = await createPortalFileAdapter(workspace).writePortalConfig({
+      title_filter: {
+        positive: ["New"]
+      }
+    });
+
+    expect(result.relativePath).toBe("portals.yaml");
+    await expect(readFile(path.join(workspace, "portals.yaml"), "utf8")).resolves.toContain("New");
+  });
+
+  it("creates portals.yml when no supported portal file exists", async () => {
+    const workspace = await createTempWorkspace();
+
+    const result = await createPortalFileAdapter(workspace).writePortalConfig({
+      title_filter: {
+        positive: ["Mobile"]
+      }
+    });
+
+    expect(result.relativePath).toBe("portals.yml");
+    await expect(readFile(path.join(workspace, "portals.yml"), "utf8")).resolves.toContain("Mobile");
+  });
+
+  it("does not overwrite malformed existing portal YAML on save", async () => {
+    const workspace = await createTempWorkspace();
+    const portalPath = path.join(workspace, "portals.yml");
+    await writePortal(workspace, "portals.yml", "title_filter: [");
+
+    await expect(
+      createPortalFileAdapter(workspace).writePortalConfig({
+        title_filter: {
+          positive: ["New"]
+        }
+      })
+    ).rejects.toMatchObject({
+      code: "VALIDATION_ERROR"
+    } satisfies Partial<ApiError>);
+    await expect(readFile(portalPath, "utf8")).resolves.toBe("title_filter: [");
+  });
+
+  it("preserves the previous portal config when safe write fails", async () => {
+    const workspace = await createTempWorkspace();
+    const portalPath = path.join(workspace, "portals.yml");
+    await writePortal(workspace, "portals.yml", "title_filter:\n  positive: [Stable]\n");
+    await chmod(workspace, 0o555);
+
+    try {
+      await expect(
+        createPortalFileAdapter(workspace).writePortalConfig({
+          title_filter: {
+            positive: ["New"]
+          }
+        })
+      ).rejects.toMatchObject({
+        code: "UNEXPECTED_ERROR"
+      } satisfies Partial<ApiError>);
+      await expect(readFile(portalPath, "utf8")).resolves.toContain("Stable");
+    } finally {
+      await chmod(workspace, 0o700);
+    }
+  });
 });

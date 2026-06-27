@@ -1,0 +1,44 @@
+{
+  "status": "ready",
+  "canStartScan": true,
+  "computedAt": "2026-06-27T10:00:00.000Z",
+  "checks": [
+    {
+      "name": "wrapper",
+      "status": "ready",
+      "message": "Wrapper backend is available."
+    },
+    {
+      "name": "workspace",
+      "status": "ready",
+      "message": "Career Ops workspace is ready."
+    },
+    {
+      "name": "scanner",
+      "status": "ready",
+      "message": "Local scan prerequisites are ready."
+    },
+    {
+      "name": "cv",
+      "status": "ready",
+      "message": "CV Markdown is ready.",
+      "sourceRevision": "cv_sha256_0123abcd",
+      "updatedAt": "2026-06-27T09:00:00.000Z"
+    },
+    {
+      "name": "profile",
+      "status": "ready",
+      "message": "Profile config is ready.",
+      "sourceRevision": "profile_sha256_0123abcd",
+      "updatedAt": "2026-06-27T09:01:00.000Z"
+    },
+    {
+      "name": "portal",
+      "status": "ready",
+      "message": "Portal config is ready.",
+      "sourceRevision": "portals_sha256_0123abcd",
+      "updatedAt": "2026-06-27T09:02:00.000Z"
+    }
+  ],
+  "missingRequirements": []
+}

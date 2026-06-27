@@ -1,0 +1,55 @@
+{
+  "status": "notReady",
+  "canStartScan": false,
+  "computedAt": "2026-06-27T10:00:00.000Z",
+  "checks": [
+    {
+      "name": "wrapper",
+      "status": "ready",
+      "message": "Wrapper backend is available."
+    },
+    {
+      "name": "workspace",
+      "status": "notReady",
+      "message": "Career Ops workspace is missing required files.",
+      "requirement": "workspace",
+      "details": {
+        "code": "WORKSPACE_UNHEALTHY",
+        "missingRequirements": ["cv"]
+      }
+    },
+    {
+      "name": "scanner",
+      "status": "notReady",
+      "message": "Local scan prerequisites are missing.",
+      "requirement": "scanner.scan-script",
+      "details": {
+        "missingRequirements": ["scan-script"]
+      }
+    },
+    {
+      "name": "cv",
+      "status": "notReady",
+      "message": "CV Markdown is missing.",
+      "requirement": "cv",
+      "details": {
+        "code": "NOT_FOUND"
+      }
+    },
+    {
+      "name": "profile",
+      "status": "ready",
+      "message": "Profile config is ready."
+    },
+    {
+      "name": "portal",
+      "status": "notReady",
+      "message": "Portal config is invalid.",
+      "requirement": "portal.validation",
+      "details": {
+        "code": "VALIDATION_ERROR"
+      }
+    }
+  ],
+  "missingRequirements": ["workspace", "scanner.scan-script", "cv", "portal.validation"]
+}

@@ -34,7 +34,8 @@ describe("OpenAPI document", () => {
       "/api/v1/health",
       "/api/v1/cv",
       "/api/v1/profile",
-      "/api/v1/portals"
+      "/api/v1/portals",
+      "/api/v1/scan-readiness"
     ]);
     expect(document.paths["/api/v1/health"].get).toMatchObject({
       operationId: "getHealth",
@@ -61,6 +62,15 @@ describe("OpenAPI document", () => {
       operationId: "getPortals",
       tags: ["Portals"]
     });
+    expect(document.paths["/api/v1/portals"].put).toMatchObject({
+      operationId: "savePortals",
+      tags: ["Portals"]
+    });
+    expect(document.paths["/api/v1/scan-readiness"].get).toMatchObject({
+      operationId: "getScanReadiness",
+      tags: ["Scan Readiness"],
+      security: [{ LocalPairingToken: [] }]
+    });
     expect(document.paths["/api/v1/cv"].get.responses).toHaveProperty("503");
     expect(document.paths["/api/v1/cv"].put.responses).toHaveProperty("503");
     expect(document.paths["/api/v1/profile"].get.responses).toHaveProperty("400");
@@ -77,6 +87,16 @@ describe("OpenAPI document", () => {
     expect(document.paths["/api/v1/portals"].get.responses).toHaveProperty("403");
     expect(document.paths["/api/v1/portals"].get.responses).toHaveProperty("404");
     expect(document.paths["/api/v1/portals"].get.responses).toHaveProperty("503");
+    expect(document.paths["/api/v1/portals"].put.responses).toHaveProperty("400");
+    expect(document.paths["/api/v1/portals"].put.responses).toHaveProperty("401");
+    expect(document.paths["/api/v1/portals"].put.responses).toHaveProperty("403");
+    expect(document.paths["/api/v1/portals"].put.responses).toHaveProperty("413");
+    expect(document.paths["/api/v1/portals"].put.responses).toHaveProperty("503");
+    expect(document.paths["/api/v1/scan-readiness"].get.responses).toHaveProperty("200");
+    expect(document.paths["/api/v1/scan-readiness"].get.responses).toHaveProperty("401");
+    expect(document.paths["/api/v1/scan-readiness"].get.responses).toHaveProperty("403");
+    expect(document.paths["/api/v1/scan-readiness"].get.responses).toHaveProperty("503");
+    expect(document.paths["/api/v1/scan-readiness"].get.responses).toHaveProperty("500");
 
     const serialized = JSON.stringify(document);
     for (const endpoint of unimplementedEndpointFamilies) {
@@ -84,7 +104,7 @@ describe("OpenAPI document", () => {
     }
   });
 
-  it("builds HealthDto, CvDto, ProfileDto, PortalDto, and ErrorResponseDto schemas from backend contracts", () => {
+  it("builds HealthDto, CvDto, ProfileDto, PortalDto, ScanReadinessDto, and ErrorResponseDto schemas from backend contracts", () => {
     const document = buildOpenApiDocument();
     const schemas = document.components.schemas;
 
@@ -132,6 +152,19 @@ describe("OpenAPI document", () => {
         "mustHaveSkills"
       ])
     );
+    expect(Object.keys(schemas.SavePortalRequestDto.properties ?? {})).toEqual(
+      expect.arrayContaining([
+        "titlePositiveKeywords",
+        "titleNegativeKeywords",
+        "locationAllowList",
+        "locationBlockList",
+        "trackedCompanies",
+        "searchQueries"
+      ])
+    );
+    expect(Object.keys(schemas.ScanReadinessDto.properties ?? {})).toEqual(
+      expect.arrayContaining(["status", "canStartScan", "computedAt", "checks", "missingRequirements"])
+    );
     expect(schemas.ErrorResponseDto.properties).toHaveProperty("error");
     expect(document.paths["/api/v1/health"].get.responses["200"].content).toMatchObject({
       "application/json": {
@@ -160,6 +193,12 @@ describe("OpenAPI document", () => {
     const cvValid = await readJsonFixture<unknown>("contracts/examples/cv.valid.json");
     const profileValid = await readJsonFixture<unknown>("contracts/examples/profile.valid.json");
     const portalValid = await readJsonFixture<unknown>("contracts/examples/portal.valid.json");
+    const scanReadinessReady = await readJsonFixture<unknown>(
+      "contracts/examples/scan-readiness.ready.json"
+    );
+    const scanReadinessNotReady = await readJsonFixture<unknown>(
+      "contracts/examples/scan-readiness.not-ready.json"
+    );
     const cvMissingError = await readJsonFixture<unknown>(
       "contracts/examples/errors/cv-missing.json"
     );
@@ -183,10 +222,15 @@ describe("OpenAPI document", () => {
     expect(document.components.examples.CvValid.value).toEqual(cvValid);
     expect(document.components.examples.ProfileValid.value).toEqual(profileValid);
     expect(document.components.examples.PortalValid.value).toEqual(portalValid);
+    expect(document.components.examples.ScanReadinessReady.value).toEqual(scanReadinessReady);
+    expect(document.components.examples.ScanReadinessNotReady.value).toEqual(scanReadinessNotReady);
     expect(document.components.examples.CvMissingError.value).toEqual(cvMissingError);
     expect(document.components.examples.ProfileMissingError.value).toEqual(profileMissingError);
     expect(document.components.examples.PortalMissingError.value).toEqual(portalMissingError);
     expect(document.components.examples.PayloadTooLargeError.value).toEqual(payloadTooLargeError);
+    expect(document.components.examples.PayloadTooLargeError.summary).toBe(
+      "Request payload is too large"
+    );
     expect(
       document.paths["/api/v1/health"].get.responses["200"].content["application/json"].examples
     ).toMatchObject({
@@ -212,12 +256,33 @@ describe("OpenAPI document", () => {
       }
     });
     expect(
+      document.paths["/api/v1/scan-readiness"].get.responses["200"].content["application/json"].examples
+    ).toMatchObject({
+      ready: {
+        $ref: "#/components/examples/ScanReadinessReady"
+      },
+      notReady: {
+        $ref: "#/components/examples/ScanReadinessNotReady"
+      }
+    });
+    expect(
       document.paths["/api/v1/profile"].put.requestBody.content["application/json"].examples
     ).toMatchObject({
       profile: {
         value: expect.objectContaining({
           targetRoles: expect.any(Array),
           remotePreference: expect.any(String)
+        })
+      }
+    });
+    expect(
+      document.paths["/api/v1/portals"].put.requestBody.content["application/json"].examples
+    ).toMatchObject({
+      portals: {
+        value: expect.objectContaining({
+          titlePositiveKeywords: expect.any(Array),
+          trackedCompanies: expect.any(Array),
+          searchQueries: expect.any(Array)
         })
       }
     });

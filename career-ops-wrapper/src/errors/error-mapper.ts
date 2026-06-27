@@ -34,9 +34,7 @@ export function mapErrorToResponse(error: unknown): MappedApiError {
   }
 
   if (isFastifyPayloadTooLargeError(error)) {
-    return mapErrorToResponse(
-      new ApiError("PAYLOAD_TOO_LARGE", "CV Markdown must be 512 KiB or smaller.")
-    );
+    return mapErrorToResponse(new ApiError("PAYLOAD_TOO_LARGE", "Request payload is too large."));
   }
 
   if (isFastifyClientParseError(error)) {

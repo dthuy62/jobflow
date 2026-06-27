@@ -2,8 +2,9 @@ import { createHash } from "node:crypto";
 import { constants, type Stats } from "node:fs";
 import { access, lstat, readFile, realpath, stat } from "node:fs/promises";
 import path from "node:path";
-import { load as loadYaml } from "js-yaml";
+import { dump as dumpYaml, load as loadYaml } from "js-yaml";
 import { ApiError } from "../errors/api-error.js";
+import { writeWorkspaceFileSafely } from "./safe-file-adapter.js";
 import { isInsidePath, resolveWorkspaceRoot } from "./workspace-paths.js";
 
 const PORTAL_RELATIVE_PATHS = ["portals.yml", "portals.yaml"] as const;
@@ -18,12 +19,17 @@ export interface PortalFileRead {
 
 export interface PortalFileAdapter {
   readPortalConfig(): Promise<PortalFileRead>;
+  writePortalConfig(portal: unknown): Promise<PortalFileRead>;
 }
 
 export function createPortalFileAdapter(workspacePath: string): PortalFileAdapter {
   return {
     async readPortalConfig(): Promise<PortalFileRead> {
       return readPortalConfigFromWorkspace(workspacePath);
+    },
+
+    async writePortalConfig(portal: unknown): Promise<PortalFileRead> {
+      return writePortalConfigToWorkspace(workspacePath, portal);
     }
   };
 }
@@ -45,6 +51,50 @@ async function readPortalConfigFromWorkspace(workspacePath: string): Promise<Por
   }
 
   throw new ApiError("NOT_FOUND", "Portal config file is missing.");
+}
+
+async function writePortalConfigToWorkspace(
+  workspacePath: string,
+  portal: unknown
+): Promise<PortalFileRead> {
+  const workspaceRoot = await resolveWorkspaceRoot(workspacePath).catch(() => {
+    throw new ApiError("WORKSPACE_UNHEALTHY", "Career Ops workspace is not ready.");
+  });
+  const relativePath = await findPortalWriteRelativePath(workspaceRoot);
+  const yaml = dumpYaml(portal, {
+    lineWidth: -1,
+    noRefs: true,
+    sortKeys: false
+  });
+
+  await writeWorkspaceFileSafely({
+    workspacePath,
+    relativePath,
+    content: yaml
+  });
+
+  const targetPath = path.join(workspaceRoot, relativePath);
+  const targetStat = await lstat(targetPath).catch(() => {
+    throw new ApiError("WORKSPACE_UNHEALTHY", "Portal config file is not readable.");
+  });
+
+  return readPortalCandidate(workspaceRoot, targetPath, relativePath, targetStat);
+}
+
+async function findPortalWriteRelativePath(workspaceRoot: string): Promise<string> {
+  for (const relativePath of PORTAL_RELATIVE_PATHS) {
+    const targetPath = path.join(workspaceRoot, relativePath);
+    const targetStat = await readCandidateStat(targetPath);
+
+    if (!targetStat) {
+      continue;
+    }
+
+    await readPortalCandidate(workspaceRoot, targetPath, relativePath, targetStat);
+    return relativePath;
+  }
+
+  return "portals.yml";
 }
 
 async function readCandidateStat(targetPath: string): Promise<Stats | undefined> {

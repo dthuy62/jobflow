@@ -1,5 +1,5 @@
 # generated: 2026-06-20 23:08:54 +0700
-# last_updated: 2026-06-26 13:22:52 +0700
+# last_updated: 2026-06-27 20:58:23 +0700
 # project: task-arena
 # project_key: NOKEY
 # tracking_system: file-system
@@ -39,7 +39,7 @@
 # - Shared: cross-platform contract/evidence stories requiring coordination
 
 generated: "2026-06-20 23:08:54 +0700"
-last_updated: "2026-06-26 13:22:52 +0700"
+last_updated: "2026-06-27 20:58:23 +0700"
 project: task-arena
 project_key: NOKEY
 tracking_system: file-system
@@ -84,11 +84,11 @@ development_status:
   # owner: Codex
   3-1-read-and-validate-portal-config: done
   # owner: Codex
-  3-2-save-portal-config-safely: backlog
+  3-2-save-portal-config-safely: done
   # owner: Hy
   3-3-build-android-portal-config-editing-ui: backlog
   # owner: Codex
-  3-4-compute-scan-readiness-from-workspace-inputs: backlog
+  3-4-compute-scan-readiness-from-workspace-inputs: done
   # owner: Hy
   3-5-display-scan-readiness-and-block-invalid-scan-starts: backlog
   epic-3-retrospective: optional
@@ -141,3 +141,14 @@ development_status:
   # owner: Shared
   6-7-package-portfolio-evidence-and-implementation-notes: backlog
   epic-6-retrospective: optional
+
+  epic-7: backlog
+  # owner: Shared
+  7-1-define-production-security-mode-and-trust-boundaries: backlog
+  # owner: Codex
+  7-2-verify-firebase-app-check-on-backend-requests: backlog
+  # owner: Hy
+  7-3-attach-app-check-tokens-from-android: backlog
+  # owner: Shared
+  7-4-enforce-production-https-and-optional-pinning: backlog
+  epic-7-retrospective: optional

@@ -9,7 +9,9 @@ import {
   PortalDtoSchema,
   ProfileDtoSchema,
   SaveCvRequestDtoSchema,
-  SaveProfileRequestDtoSchema
+  SavePortalRequestDtoSchema,
+  SaveProfileRequestDtoSchema,
+  ScanReadinessDtoSchema
 } from "../contracts/index.js";
 
 export interface BuildOpenApiDocumentOptions {
@@ -129,6 +131,39 @@ export interface OpenApiDocument {
           readonly "500": OpenApiJsonResponse;
         };
       };
+      readonly put: {
+        readonly operationId: "savePortals";
+        readonly tags: readonly ["Portals"];
+        readonly summary: string;
+        readonly description: string;
+        readonly security: readonly OpenApiSecurityRequirement[];
+        readonly requestBody: OpenApiJsonRequestBody;
+        readonly responses: {
+          readonly "200": OpenApiJsonResponse;
+          readonly "400": OpenApiJsonResponse;
+          readonly "401": OpenApiJsonResponse;
+          readonly "403": OpenApiJsonResponse;
+          readonly "413": OpenApiJsonResponse;
+          readonly "503": OpenApiJsonResponse;
+          readonly "500": OpenApiJsonResponse;
+        };
+      };
+    };
+    readonly "/api/v1/scan-readiness": {
+      readonly get: {
+        readonly operationId: "getScanReadiness";
+        readonly tags: readonly ["Scan Readiness"];
+        readonly summary: string;
+        readonly description: string;
+        readonly security: readonly OpenApiSecurityRequirement[];
+        readonly responses: {
+          readonly "200": OpenApiJsonResponse;
+          readonly "401": OpenApiJsonResponse;
+          readonly "403": OpenApiJsonResponse;
+          readonly "503": OpenApiJsonResponse;
+          readonly "500": OpenApiJsonResponse;
+        };
+      };
     };
   };
   readonly components: {
@@ -137,7 +172,9 @@ export interface OpenApiDocument {
       readonly CvDto: JsonSchemaObject;
       readonly ProfileDto: JsonSchemaObject;
       readonly PortalDto: JsonSchemaObject;
+      readonly ScanReadinessDto: JsonSchemaObject;
       readonly SaveCvRequestDto: JsonSchemaObject;
+      readonly SavePortalRequestDto: JsonSchemaObject;
       readonly SaveProfileRequestDto: JsonSchemaObject;
       readonly ErrorResponseDto: JsonSchemaObject;
     };
@@ -147,6 +184,8 @@ export interface OpenApiDocument {
       readonly CvValid: OpenApiExample;
       readonly ProfileValid: OpenApiExample;
       readonly PortalValid: OpenApiExample;
+      readonly ScanReadinessReady: OpenApiExample;
+      readonly ScanReadinessNotReady: OpenApiExample;
       readonly ValidationError: OpenApiExample;
       readonly UnauthorizedError: OpenApiExample;
       readonly PathOutsideWorkspaceError: OpenApiExample;
@@ -211,6 +250,12 @@ const examples = {
   cvValid: CvDtoSchema.parse(readJsonExample("contracts/examples/cv.valid.json")),
   profileValid: ProfileDtoSchema.parse(readJsonExample("contracts/examples/profile.valid.json")),
   portalValid: PortalDtoSchema.parse(readJsonExample("contracts/examples/portal.valid.json")),
+  scanReadinessReady: ScanReadinessDtoSchema.parse(
+    readJsonExample("contracts/examples/scan-readiness.ready.json")
+  ),
+  scanReadinessNotReady: ScanReadinessDtoSchema.parse(
+    readJsonExample("contracts/examples/scan-readiness.not-ready.json")
+  ),
   validationError: ErrorResponseDtoSchema.parse(
     readJsonExample("contracts/examples/errors/validation.json")
   ),
@@ -276,7 +321,11 @@ export function buildOpenApiDocument(options: BuildOpenApiDocumentOptions = {}):
       },
       {
         name: "Portals",
-        description: "Read normalized MVP fields for the fixed Career Ops Portal Config"
+        description: "Read and safely save normalized MVP fields for the fixed Career Ops Portal Config"
+      },
+      {
+        name: "Scan Readiness",
+        description: "Compute read-only scan gating readiness from workspace inputs"
       }
     ],
     paths: {
@@ -463,6 +512,71 @@ export function buildOpenApiDocument(options: BuildOpenApiDocumentOptions = {}):
               unexpected: { $ref: "#/components/examples/UnexpectedError" }
             })
           }
+        },
+        put: {
+          operationId: "savePortals",
+          tags: ["Portals"],
+          summary: "Save normalized portal config",
+          description:
+            "Validates editable MVP Portal Config fields and safely writes the fixed Portal Config file inside the configured Career Ops Workspace.",
+          security: [{ LocalPairingToken: [] }],
+          requestBody: jsonRequestBody("SavePortalRequestDto", {
+            portals: {
+              summary: "Editable MVP Portal Config fields",
+              value: portalSaveRequestExample()
+            }
+          }),
+          responses: {
+            "200": jsonResponse("Saved normalized Portal Config.", "PortalDto", {
+              saved: { $ref: "#/components/examples/PortalValid" }
+            }),
+            "400": jsonResponse("Invalid Portal Config request.", "ErrorResponseDto", {
+              validation: { $ref: "#/components/examples/ValidationError" }
+            }),
+            "401": jsonResponse("Missing or invalid Local Pairing Token.", "ErrorResponseDto", {
+              unauthorized: { $ref: "#/components/examples/UnauthorizedError" }
+            }),
+            "403": jsonResponse("Portal Config path is outside the workspace.", "ErrorResponseDto", {
+              outsideWorkspace: { $ref: "#/components/examples/PathOutsideWorkspaceError" }
+            }),
+            "413": jsonResponse("Portal Config payload is too large.", "ErrorResponseDto", {
+              tooLarge: { $ref: "#/components/examples/PayloadTooLargeError" }
+            }),
+            "503": jsonResponse("Career Ops Workspace is not ready.", "ErrorResponseDto", {
+              workspace: { $ref: "#/components/examples/WorkspaceUnhealthyError" }
+            }),
+            "500": jsonResponse("Unexpected wrapper error response.", "ErrorResponseDto", {
+              unexpected: { $ref: "#/components/examples/UnexpectedError" }
+            })
+          }
+        }
+      },
+      "/api/v1/scan-readiness": {
+        get: {
+          operationId: "getScanReadiness",
+          tags: ["Scan Readiness"],
+          summary: "Compute scan readiness",
+          description:
+            "Computes a read-only checklist for wrapper, workspace, local scanner, CV, Profile Config, and Portal Config readiness. It does not start scan execution.",
+          security: [{ LocalPairingToken: [] }],
+          responses: {
+            "200": jsonResponse("Current scan readiness checklist.", "ScanReadinessDto", {
+              ready: { $ref: "#/components/examples/ScanReadinessReady" },
+              notReady: { $ref: "#/components/examples/ScanReadinessNotReady" }
+            }),
+            "401": jsonResponse("Missing or invalid Local Pairing Token.", "ErrorResponseDto", {
+              unauthorized: { $ref: "#/components/examples/UnauthorizedError" }
+            }),
+            "403": jsonResponse("Input path is outside the workspace.", "ErrorResponseDto", {
+              outsideWorkspace: { $ref: "#/components/examples/PathOutsideWorkspaceError" }
+            }),
+            "503": jsonResponse("Career Ops Workspace is not ready.", "ErrorResponseDto", {
+              workspace: { $ref: "#/components/examples/WorkspaceUnhealthyError" }
+            }),
+            "500": jsonResponse("Unexpected wrapper error response.", "ErrorResponseDto", {
+              unexpected: { $ref: "#/components/examples/UnexpectedError" }
+            })
+          }
         }
       }
     },
@@ -472,7 +586,9 @@ export function buildOpenApiDocument(options: BuildOpenApiDocumentOptions = {}):
         CvDto: schemaFromZod(CvDtoSchema),
         ProfileDto: schemaFromZod(ProfileDtoSchema),
         PortalDto: schemaFromZod(PortalDtoSchema),
+        ScanReadinessDto: schemaFromZod(ScanReadinessDtoSchema),
         SaveCvRequestDto: schemaFromZod(SaveCvRequestDtoSchema),
+        SavePortalRequestDto: schemaFromZod(SavePortalRequestDtoSchema),
         SaveProfileRequestDto: schemaFromZod(SaveProfileRequestDtoSchema),
         ErrorResponseDto: schemaFromZod(ErrorResponseDtoSchema)
       },
@@ -496,6 +612,14 @@ export function buildOpenApiDocument(options: BuildOpenApiDocumentOptions = {}):
         PortalValid: {
           summary: "Current normalized Portal Config",
           value: examples.portalValid
+        },
+        ScanReadinessReady: {
+          summary: "All scan readiness checks are ready",
+          value: examples.scanReadinessReady
+        },
+        ScanReadinessNotReady: {
+          summary: "One or more scan readiness checks are not ready",
+          value: examples.scanReadinessNotReady
         },
         ValidationError: {
           summary: "Validation error response",
@@ -526,7 +650,7 @@ export function buildOpenApiDocument(options: BuildOpenApiDocumentOptions = {}):
           value: examples.portalMissingError
         },
         PayloadTooLargeError: {
-          summary: "CV Markdown payload is too large",
+          summary: "Request payload is too large",
           value: examples.payloadTooLargeError
         },
         UnexpectedError: {
@@ -567,6 +691,11 @@ function jsonRequestBody(
 function profileSaveRequestExample(): unknown {
   const { sourceRevision: _sourceRevision, updatedAt: _updatedAt, ...request } = examples.profileValid;
   return SaveProfileRequestDtoSchema.parse(request);
+}
+
+function portalSaveRequestExample(): unknown {
+  const { sourceRevision: _sourceRevision, updatedAt: _updatedAt, ...request } = examples.portalValid;
+  return SavePortalRequestDtoSchema.parse(request);
 }
 
 function jsonResponse(

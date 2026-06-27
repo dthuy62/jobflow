@@ -41,7 +41,7 @@ The product also has a portfolio purpose. It should refresh the user's GitHub pr
 - **UJ-1. Hy connects the mobile app to a real Career Ops workspace.**
   - **Persona + context:** Hy is building a personal Android portfolio app and wants a real integration, not demo-only screens.
   - **Entry state:** Career Ops is installed locally; the Wrapper Backend is running or ready to run.
-  - **Path:** Hy opens the app, enters the wrapper endpoint, checks connection health, and sees whether Career Ops workspace prerequisites are valid.
+  - **Path:** Hy opens the app, uses the configured wrapper endpoint, checks connection health, and sees whether Career Ops workspace prerequisites are valid.
   - **Climax:** The app shows a connected state with workspace health, required file status, and available capabilities.
   - **Resolution:** Hy can proceed to CV/profile/search configuration with confidence that the backend is real.
   - **Edge case:** If the wrapper is unreachable or workspace validation fails, the app shows the failing check and does not pretend setup succeeded.
@@ -183,14 +183,14 @@ Remote hosted access is not required for MVP.
 
 **Functional Requirements:**
 
-#### FR-1: Configure wrapper endpoint
+#### FR-1: Use configured wrapper endpoint
 
-The user can enter, save, and update the Wrapper Backend endpoint used by the Android App. Realizes UJ-1.
+The Android App can use the Wrapper Backend endpoint supplied by app flavor BuildConfig or local build/session configuration. Realizes UJ-1.
 
 **Consequences (testable):**
-- The app persists the endpoint across restarts.
-- The app can retry connection after endpoint changes.
-- Invalid endpoint format prevents connection attempts and shows a clear validation message.
+- The app does not require user-entered URL or token fields in the setup UI for the local MVP.
+- The app can retry health checks after wrapper availability or build/session configuration changes.
+- Invalid configured endpoint format prevents connection attempts and shows a clear validation message.
 
 #### FR-2: Display wrapper health
 
@@ -418,6 +418,7 @@ The Android App provides navigable surfaces for setup, CV/profile, portal config
 - No in-app Playwright/browser automation.
 - No phone-only Career Ops runtime.
 - No remote hosted backend as the default v1 deployment.
+- No production/public backend security hardening in MVP; Firebase App Check, production HTTPS policy, server-held production secrets, user auth, and optional certificate/public-key pinning are deferred.
 - No full AI evaluation orchestration unless real scriptable behavior is verified during implementation.
 - No PDF/DOCX CV conversion in MVP; CV input is Markdown-only.
 

@@ -1,8 +1,12 @@
-import { mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { ErrorResponseDtoSchema, PortalDtoSchema } from "../src/contracts/index.js";
+import {
+  ErrorResponseDtoSchema,
+  PORTAL_CONFIG_MAX_BYTES,
+  PortalDtoSchema
+} from "../src/contracts/index.js";
 import { createServer } from "../src/server.js";
 
 const tempDirs: string[] = [];
@@ -31,6 +35,31 @@ search_queries:
     query: "site:boards.greenhouse.io Flutter"
     enabled: true
 `;
+
+const saveRequest = {
+  titlePositiveKeywords: ["Android", "Kotlin"],
+  titleNegativeKeywords: ["Intern"],
+  locationAllowList: ["Remote"],
+  locationBlockList: ["India"],
+  salaryMin: 120000,
+  salaryMax: 220000,
+  salaryCurrency: "USD",
+  trackedCompanies: [
+    {
+      name: "OpenAI",
+      careersUrl: "https://openai.com/careers",
+      provider: "websearch",
+      enabled: true
+    }
+  ],
+  searchQueries: [
+    {
+      label: "Greenhouse Android",
+      query: "site:boards.greenhouse.io Android",
+      enabled: true
+    }
+  ]
+};
 
 afterEach(async () => {
   await Promise.all(
@@ -137,4 +166,160 @@ describe("Portal routes", () => {
       }
     }
   );
+
+  it("saves portal config under /api/v1/portals", async () => {
+    const workspace = await createTempWorkspace();
+    await writePortal(workspace, portalYaml);
+    const server = await createServer({
+      config: { host: "127.0.0.1", port: 3000, workspace }
+    });
+
+    try {
+      const response = await server.inject({
+        method: "PUT",
+        url: "/api/v1/portals",
+        payload: saveRequest
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(PortalDtoSchema.parse(response.json())).toMatchObject({
+        titlePositiveKeywords: ["Android", "Kotlin"],
+        trackedCompanies: [{ name: "OpenAI" }],
+        searchQueries: [{ label: "Greenhouse Android" }]
+      });
+    } finally {
+      await server.close();
+    }
+  });
+
+  it("creates portal config when none exists", async () => {
+    const workspace = await createTempWorkspace();
+    const server = await createServer({
+      config: { host: "127.0.0.1", port: 3000, workspace }
+    });
+
+    try {
+      const response = await server.inject({
+        method: "PUT",
+        url: "/api/v1/portals",
+        payload: saveRequest
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(PortalDtoSchema.parse(response.json()).titlePositiveKeywords).toEqual([
+        "Android",
+        "Kotlin"
+      ]);
+    } finally {
+      await server.close();
+    }
+  });
+
+  it.each([
+    ["invalid portal request", { ...saveRequest, titlePositiveKeywords: [" "] }, 400, "VALIDATION_ERROR"],
+    ["invalid portal URL", {
+      ...saveRequest,
+      trackedCompanies: [{ ...saveRequest.trackedCompanies[0], careersUrl: "not-a-url" }]
+    }, 400, "VALIDATION_ERROR"],
+    [
+      "oversized portal request",
+      { ...saveRequest, titlePositiveKeywords: ["x".repeat(132_000)] },
+      413,
+      "PAYLOAD_TOO_LARGE"
+    ],
+    ["malformed existing portal", saveRequest, 400, "VALIDATION_ERROR"]
+  ])("maps %s to a typed save response", async (name, payload, statusCode, code) => {
+    const workspace = await createTempWorkspace();
+    if (name === "malformed existing portal") {
+      await writePortal(workspace, "title_filter: [");
+    } else {
+      await writePortal(workspace, portalYaml);
+    }
+    const server = await createServer({
+      config: { host: "127.0.0.1", port: 3000, workspace }
+    });
+
+    try {
+      const response = await server.inject({
+        method: "PUT",
+        url: "/api/v1/portals",
+        payload
+      });
+
+      expect(response.statusCode).toBe(statusCode);
+      if (code) {
+        const error = ErrorResponseDtoSchema.parse(response.json()).error;
+        expect(error.code).toBe(code);
+        if (name === "invalid portal request") {
+          expect(error.details).toMatchObject({
+            issues: [expect.objectContaining({ path: "titlePositiveKeywords.0" })]
+          });
+        }
+      }
+      expect(JSON.stringify(response.json())).not.toContain(workspace);
+    } finally {
+      await server.close();
+    }
+  });
+
+  it("rejects raw portal save bodies over 128 KiB before saving", async () => {
+    const workspace = await createTempWorkspace();
+    const portalPath = path.join(workspace, "portals.yml");
+    await writePortal(workspace, portalYaml);
+    const server = await createServer({
+      config: { host: "127.0.0.1", port: 3000, workspace }
+    });
+    const rawBody = `{\n${" ".repeat(PORTAL_CONFIG_MAX_BYTES)}"titlePositiveKeywords":["Android"],"titleNegativeKeywords":[],"locationAllowList":[],"locationBlockList":[],"trackedCompanies":[],"searchQueries":[]}`;
+
+    try {
+      const response = await server.inject({
+        method: "PUT",
+        url: "/api/v1/portals",
+        headers: { "content-type": "application/json" },
+        payload: rawBody
+      });
+
+      expect(response.statusCode).toBe(413);
+      expect(ErrorResponseDtoSchema.parse(response.json()).error).toMatchObject({
+        code: "PAYLOAD_TOO_LARGE",
+        message: "Request payload is too large."
+      });
+      await expect(readFile(portalPath, "utf8")).resolves.toBe(portalYaml);
+    } finally {
+      await server.close();
+    }
+  });
+
+  it("protects portal save with the local pairing token in LAN mode", async () => {
+    const workspace = await createTempWorkspace();
+    await writePortal(workspace, portalYaml);
+    const server = await createServer({
+      config: {
+        host: "0.0.0.0",
+        port: 3000,
+        workspace,
+        pairingToken: "local-secret"
+      }
+    });
+
+    try {
+      const unauthorized = await server.inject({
+        method: "PUT",
+        url: "/api/v1/portals",
+        payload: saveRequest
+      });
+      const authorized = await server.inject({
+        method: "PUT",
+        url: "/api/v1/portals",
+        payload: saveRequest,
+        headers: { "x-career-ops-token": "local-secret" }
+      });
+
+      expect(unauthorized.statusCode).toBe(401);
+      expect(ErrorResponseDtoSchema.parse(unauthorized.json()).error.code).toBe("UNAUTHORIZED");
+      expect(authorized.statusCode).toBe(200);
+    } finally {
+      await server.close();
+    }
+  });
 });

@@ -3,3 +3,4 @@ export * from "./error-contract.js";
 export * from "./health-contract.js";
 export * from "./portal-contract.js";
 export * from "./profile-contract.js";
+export * from "./scan-readiness-contract.js";

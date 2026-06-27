@@ -4,7 +4,9 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import {
   ErrorResponseDtoSchema,
-  PortalDtoSchema
+  PORTAL_CONFIG_MAX_BYTES,
+  PortalDtoSchema,
+  SavePortalRequestDtoSchema
 } from "../src/contracts/index.js";
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -44,6 +46,86 @@ const validPortal = {
 };
 
 describe("Portal contract", () => {
+  const { sourceRevision: _sourceRevision, updatedAt: _updatedAt, ...validSaveRequest } = validPortal;
+
+  it("validates editable portal save requests without response metadata", () => {
+    const request = SavePortalRequestDtoSchema.parse(validSaveRequest);
+
+    expect(request).toMatchObject({
+      titlePositiveKeywords: ["Flutter", "Mobile"],
+      trackedCompanies: [{ name: "OpenAI" }],
+      searchQueries: [{ label: "Greenhouse Flutter" }]
+    });
+    expect(request).not.toHaveProperty("sourceRevision");
+    expect(request).not.toHaveProperty("updatedAt");
+  });
+
+  it("rejects invalid editable portal save requests", () => {
+    expect(() =>
+      SavePortalRequestDtoSchema.parse({ ...validSaveRequest, salaryMin: 300, salaryMax: 200 })
+    ).toThrow();
+    expect(() =>
+      SavePortalRequestDtoSchema.parse({
+        ...validSaveRequest,
+        salaryMin: 100,
+        salaryCurrency: undefined
+      })
+    ).toThrow();
+    expect(() =>
+      SavePortalRequestDtoSchema.parse({
+        ...validSaveRequest,
+        salaryMin: undefined,
+        salaryMax: undefined,
+        salaryCurrency: "USD"
+      })
+    ).toThrow();
+    expect(() =>
+      SavePortalRequestDtoSchema.parse({
+        ...validSaveRequest,
+        trackedCompanies: [{ ...validSaveRequest.trackedCompanies[0], careersUrl: "ftp://example.com" }]
+      })
+    ).toThrow();
+    expect(() =>
+      SavePortalRequestDtoSchema.parse({
+        ...validSaveRequest,
+        trackedCompanies: [{ ...validSaveRequest.trackedCompanies[0], provider: " " }]
+      })
+    ).toThrow();
+    expect(() =>
+      SavePortalRequestDtoSchema.parse({
+        ...validSaveRequest,
+        searchQueries: [{ ...validSaveRequest.searchQueries[0], label: "" }]
+      })
+    ).toThrow();
+    expect(() =>
+      SavePortalRequestDtoSchema.parse({
+        ...validSaveRequest,
+        trackedCompanies: [
+          { ...validSaveRequest.trackedCompanies[0], id: "company_openai" },
+          { ...validSaveRequest.trackedCompanies[0], id: "company_openai" }
+        ]
+      })
+    ).toThrow();
+    expect(() =>
+      SavePortalRequestDtoSchema.parse({
+        ...validSaveRequest,
+        searchQueries: [
+          { ...validSaveRequest.searchQueries[0], id: "query_greenhouse" },
+          { ...validSaveRequest.searchQueries[0], id: "query_greenhouse" }
+        ]
+      })
+    ).toThrow();
+  });
+
+  it("rejects oversized portal save requests", () => {
+    expect(() =>
+      SavePortalRequestDtoSchema.parse({
+        ...validSaveRequest,
+        titlePositiveKeywords: ["x".repeat(PORTAL_CONFIG_MAX_BYTES)]
+      })
+    ).toThrow();
+  });
+
   it("validates a normalized portal response", () => {
     expect(PortalDtoSchema.parse(validPortal)).toMatchObject({
       titlePositiveKeywords: ["Flutter", "Mobile"],

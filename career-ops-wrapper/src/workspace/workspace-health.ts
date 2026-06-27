@@ -14,8 +14,16 @@ export function getScaffoldWorkspaceHealth(): WorkspaceHealthDto {
   };
 }
 
-export async function getWorkspaceHealth(workspacePath: string): Promise<WorkspaceHealthDto> {
+export interface WorkspaceHealthOptions {
+  readonly checkWritable?: boolean;
+}
+
+export async function getWorkspaceHealth(
+  workspacePath: string,
+  options: WorkspaceHealthOptions = {}
+): Promise<WorkspaceHealthDto> {
   const missingRequirements: string[] = [];
+  const checkWritable = options.checkWritable ?? true;
   let workspaceRealPath: string;
 
   try {
@@ -41,10 +49,12 @@ export async function getWorkspaceHealth(workspacePath: string): Promise<Workspa
     missingRequirements.push("workspace-readable");
   }
 
-  try {
-    await assertWritable(workspacePath);
-  } catch {
-    missingRequirements.push("workspace-writable");
+  if (checkWritable) {
+    try {
+      await assertWritable(workspacePath);
+    } catch {
+      missingRequirements.push("workspace-writable");
+    }
   }
 
   const entries = await safeReadDir(workspacePath);
