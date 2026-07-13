@@ -4,63 +4,69 @@ import retrofit2.Response
 import java.io.IOException
 import kotlin.coroutines.cancellation.CancellationException
 
-sealed class Either<out L, out R> {
-    data class Left<out L>(val value: L) : Either<L, Nothing>()
-    data class Right<out R>(val value: R) : Either<Nothing, R>()
+sealed interface Either<out L, out R> {
+    data class Left<out L>(
+        val value: L,
+    ) : Either<L, Nothing>
+
+    data class Right<out R>(
+        val value: R,
+    ) : Either<Nothing, R>
 
     fun isLeft(): Boolean = this is Left
+
     fun isRight(): Boolean = this is Right
 }
 
 fun <L> L.left(): Either.Left<L> = Either.Left(this)
+
 fun <R> R.right(): Either.Right<R> = Either.Right(this)
 
 inline fun <L, R, T> Either<L, R>.fold(
     onLeft: (L) -> T,
-    onRight: (R) -> T
-): T = when (this) {
-    is Either.Left -> onLeft(value)
-    is Either.Right -> onRight(value)
-}
+    onRight: (R) -> T,
+): T =
+    when (this) {
+        is Either.Left -> onLeft(value)
+        is Either.Right -> onRight(value)
+    }
 
-sealed class DataSourceError
+sealed interface DataSourceError
 
-sealed class NetworkError : DataSourceError() {
+sealed interface NetworkError : DataSourceError {
     data class HttpError(
         val code: Int,
-        val message: String
-    ) : NetworkError()
+        val message: String,
+    ) : NetworkError
 
     data class IOExceptionError(
-        val throwable: IOException
-    ) : NetworkError()
+        val throwable: IOException,
+    ) : NetworkError
 
-    data object EmptyBody : NetworkError()
+    data object EmptyBody : NetworkError
 
     data class Unknown(
-        val message: String? = null
-    ) : NetworkError()
+        val message: String? = null,
+    ) : NetworkError
 }
 
-sealed class DatabaseError : DataSourceError()
+sealed interface DatabaseError : DataSourceError
 
-suspend fun <T> attempt(
-    call: suspend () -> Response<T>
-): Either<DataSourceError, T> =
+suspend fun <T> attempt(call: suspend () -> Response<T>): Either<DataSourceError, T> =
     runCatching { call() }
         .onFailure {
             if (it is CancellationException) throw it
-        }
-        .fold(
+        }.fold(
             onSuccess = { response ->
                 if (response.isSuccessful) {
                     response.body()?.right()
                         ?: NetworkError.EmptyBody.left()
                 } else {
-                    NetworkError.HttpError(
-                        code = response.code(),
-                        message = response.message()
-                    ).left()
+                    NetworkError
+                        .HttpError(
+                            code = response.code(),
+                            message = response.message(),
+                        ).left()
                 }
             },
             onFailure = { throwable ->
@@ -68,5 +74,18 @@ suspend fun <T> attempt(
                     is IOException -> NetworkError.IOExceptionError(throwable).left()
                     else -> NetworkError.Unknown(throwable.message).left()
                 }
-            }
+            },
         )
+
+suspend fun <T, R> attemptMap(
+    call: suspend () -> Response<T>,
+    transform: (T) -> R,
+): Either<DataSourceError, R> =
+    attempt(call).fold(
+        onLeft = { it.left() },
+        onRight = { body ->
+            runCatching {
+                transform(body).right()
+            }.getOrElse { NetworkError.Unknown(it.message).left() }
+        },
+    )

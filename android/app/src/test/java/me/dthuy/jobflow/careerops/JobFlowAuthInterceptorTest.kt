@@ -39,17 +39,25 @@ class JobFlowAuthInterceptorTest {
         assertNull(terminal.recordedRequest?.header("X-Career-Ops-Token"))
     }
 
-    private fun executeRequest(pairingToken: String?, terminal: RecordingTerminalInterceptor) {
-        val client = OkHttpClient.Builder()
-            .addInterceptor(JobFlowAuthInterceptor(pairingToken))
-            .addInterceptor(terminal)
-            .build()
-
-        client.newCall(
-            Request.Builder()
-                .url("http://10.0.2.2:3000/api/v1/health")
+    private fun executeRequest(
+        pairingToken: String?,
+        terminal: RecordingTerminalInterceptor,
+    ) {
+        val client =
+            OkHttpClient
+                .Builder()
+                .addInterceptor(JobFlowAuthInterceptor(pairingToken))
+                .addInterceptor(terminal)
                 .build()
-        ).execute().close()
+
+        client
+            .newCall(
+                Request
+                    .Builder()
+                    .url("http://10.0.2.2:3000/api/v1/health")
+                    .build(),
+            ).execute()
+            .close()
     }
 }
 
@@ -59,7 +67,8 @@ private class RecordingTerminalInterceptor : Interceptor {
     override fun intercept(chain: Interceptor.Chain): Response {
         val request = chain.request()
         recordedRequest = request
-        return Response.Builder()
+        return Response
+            .Builder()
             .request(request)
             .protocol(Protocol.HTTP_1_1)
             .code(200)

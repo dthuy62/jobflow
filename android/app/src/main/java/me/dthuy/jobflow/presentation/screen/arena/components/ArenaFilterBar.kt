@@ -29,29 +29,30 @@ fun ArenaFilterBar(
     activeFilter: ArenaFilter,
     visibleCount: Int,
     onFilterSelected: (ArenaFilter) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     Row(
         modifier = modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             ArenaFilter.entries.forEach { filter ->
                 val bg = if (filter == activeFilter) NeoGreen else NeoWhite
                 Box(
-                    modifier = Modifier
-                        .background(bg, shape = RoundedCornerShape(10.dp))
-                        .border(2.dp, NeoBlack, shape = RoundedCornerShape(10.dp))
-                        .clickable { onFilterSelected(filter) }
-                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                    modifier =
+                        Modifier
+                            .background(bg, shape = RoundedCornerShape(10.dp))
+                            .border(2.dp, NeoBlack, shape = RoundedCornerShape(10.dp))
+                            .clickable { onFilterSelected(filter) }
+                            .padding(horizontal = 12.dp, vertical = 6.dp),
                 ) {
                     Text(
                         filter.name,
                         color = NeoBlack,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
-                        fontFamily = FontFamily.Monospace
+                        fontFamily = FontFamily.Monospace,
                     )
                 }
             }

@@ -28,46 +28,54 @@ import androidx.compose.ui.unit.sp
 import me.dthuy.jobflow.domain.model.TaskDare
 import me.dthuy.jobflow.presentation.component.NeoButton
 import me.dthuy.jobflow.presentation.component.NeoCard
-import me.dthuy.jobflow.presentation.screen.arena.ArenaBody as ArenaBodyState
 import me.dthuy.jobflow.presentation.screen.arena.ArenaUiIntent
 import me.dthuy.jobflow.ui.theme.NeoBlack
 import me.dthuy.jobflow.ui.theme.NeoWhite
 import me.dthuy.jobflow.ui.theme.NeoYellow
+import me.dthuy.jobflow.presentation.screen.arena.ArenaBody as ArenaBodyState
 
 @Composable
 fun ArenaBody(
     body: ArenaBodyState,
     onIntent: (ArenaUiIntent) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     when (body) {
-        is ArenaBodyState.Empty -> EmptyArena(
-            onCreateClick = { onIntent(ArenaUiIntent.ToggleCreateSheet(true)) },
-            modifier = modifier
-        )
+        is ArenaBodyState.Empty -> {
+            EmptyArena(
+                onCreateClick = { onIntent(ArenaUiIntent.ToggleCreateSheet(true)) },
+                modifier = modifier,
+            )
+        }
 
-        is ArenaBodyState.Tasks -> TaskList(
-            tasks = body.tasks,
-            onIntent = onIntent,
-            modifier = modifier
-        )
+        is ArenaBodyState.Tasks -> {
+            TaskList(
+                tasks = body.tasks,
+                onIntent = onIntent,
+                modifier = modifier,
+            )
+        }
     }
 }
 
 @Composable
-private fun EmptyArena(onCreateClick: () -> Unit, modifier: Modifier = Modifier) {
+private fun EmptyArena(
+    onCreateClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         NeoCard(
             backgroundColor = NeoWhite,
             shadowOffset = 4.dp,
-            shape = RoundedCornerShape(20.dp)
+            shape = RoundedCornerShape(20.dp),
         ) {
             Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 24.dp),
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 Text("ಠ_ಠ", fontSize = 48.sp, fontWeight = FontWeight.ExtraBold, color = NeoBlack)
                 Text(
@@ -75,17 +83,20 @@ private fun EmptyArena(onCreateClick: () -> Unit, modifier: Modifier = Modifier)
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold,
                     fontFamily = FontFamily.Monospace,
-                    color = NeoBlack
+                    color = NeoBlack,
                 )
                 Text(
                     "The AI Venture Capitalists are getting bored. Add a software challenge below to roast and complete!",
-                    fontSize = 12.sp, color = Color.DarkGray, fontWeight = FontWeight.Medium,
-                    textAlign = TextAlign.Center, modifier = Modifier.padding(horizontal = 16.dp)
+                    fontSize = 12.sp,
+                    color = Color.DarkGray,
+                    fontWeight = FontWeight.Medium,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(horizontal = 16.dp),
                 )
                 NeoButton(
                     onClick = onCreateClick,
                     backgroundColor = NeoYellow,
-                    modifier = Modifier.width(200.dp)
+                    modifier = Modifier.width(200.dp),
                 ) {
                     Icon(Icons.Default.Add, contentDescription = "Add")
                     Spacer(Modifier.width(6.dp))
@@ -93,7 +104,7 @@ private fun EmptyArena(onCreateClick: () -> Unit, modifier: Modifier = Modifier)
                         "CREATE CHALLENGE",
                         fontWeight = FontWeight.Bold,
                         fontFamily = FontFamily.Monospace,
-                        fontSize = 12.sp
+                        fontSize = 12.sp,
                     )
                 }
             }
@@ -105,19 +116,19 @@ private fun EmptyArena(onCreateClick: () -> Unit, modifier: Modifier = Modifier)
 private fun TaskList(
     tasks: List<TaskDare>,
     onIntent: (ArenaUiIntent) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     LazyColumn(
         modifier = modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(16.dp),
-        contentPadding = PaddingValues(top = 4.dp, bottom = 4.dp)
+        contentPadding = PaddingValues(top = 4.dp, bottom = 4.dp),
     ) {
         items(tasks, key = { it.id }) { task ->
             TaskItemCard(
                 task = task,
                 onCheckedChange = { onIntent(ArenaUiIntent.ToggleComplete(task)) },
                 onDelete = { onIntent(ArenaUiIntent.DeleteTask(task.id)) },
-                onRetryRoast = { onIntent(ArenaUiIntent.TriggerRoast(task)) }
+                onRetryRoast = { onIntent(ArenaUiIntent.TriggerRoast(task)) },
             )
         }
     }

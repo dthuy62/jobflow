@@ -22,18 +22,21 @@ import me.dthuy.jobflow.ui.theme.NeoWhite
 import me.dthuy.jobflow.ui.theme.NeoYellow
 
 @Composable
-fun ArenaHeader(totalXp: Int, modifier: Modifier = Modifier) {
+fun ArenaHeader(
+    totalXp: Int,
+    modifier: Modifier = Modifier,
+) {
     NeoCard(
         modifier = modifier,
         backgroundColor = NeoYellow,
         shadowColor = NeoBlack,
         shadowOffset = 6.dp,
-        shape = RoundedCornerShape(20.dp)
+        shape = RoundedCornerShape(20.dp),
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.CenterVertically,
         ) {
             Column {
                 Text(
@@ -41,36 +44,37 @@ fun ArenaHeader(totalXp: Int, modifier: Modifier = Modifier) {
                     fontSize = 28.sp,
                     fontWeight = FontWeight.ExtraBold,
                     fontFamily = FontFamily.SansSerif,
-                    color = NeoBlack
+                    color = NeoBlack,
                 )
                 Text(
                     "DEFEAT PROCRASTINATION • PLAY HARD",
                     fontSize = 10.sp,
                     fontWeight = FontWeight.Bold,
                     fontFamily = FontFamily.Monospace,
-                    color = NeoBlack
+                    color = NeoBlack,
                 )
             }
             Column(
-                modifier = Modifier
-                    .background(NeoBlack, shape = RoundedCornerShape(10.dp))
-                    .border(2.dp, NeoWhite, shape = RoundedCornerShape(10.dp))
-                    .padding(horizontal = 12.dp, vertical = 6.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
+                modifier =
+                    Modifier
+                        .background(NeoBlack, shape = RoundedCornerShape(10.dp))
+                        .border(2.dp, NeoWhite, shape = RoundedCornerShape(10.dp))
+                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Text(
                     "$totalXp XP",
                     color = NeoWhite,
                     fontSize = 18.sp,
                     fontWeight = FontWeight.ExtraBold,
-                    fontFamily = FontFamily.Monospace
+                    fontFamily = FontFamily.Monospace,
                 )
                 Text(
                     "EARNED",
                     color = NeoYellow,
                     fontSize = 8.sp,
                     fontWeight = FontWeight.Bold,
-                    fontFamily = FontFamily.Monospace
+                    fontFamily = FontFamily.Monospace,
                 )
             }
         }

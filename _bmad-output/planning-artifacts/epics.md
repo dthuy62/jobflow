@@ -316,42 +316,78 @@ So that I can use the app on emulator or a personal device without managing comp
 **Then** subsequent API calls use the configured base URL and optional token
 **And** previous failed connection attempts do not permanently block retry.
 
-#### Story 1.5: Show Android Setup and Health Screen
+#### Story 1.5: Build Career Ops App Shell and Health Feedback
 
 As a personal mobile app user,
-I want a setup screen that shows connection and Career Ops readiness clearly,
-So that I can fix local setup issues before using CV, config, or scan features.
+I want a simple Career Ops app shell with best-effort health feedback,
+So that I can enter the mobile workflow normally while still seeing when local setup needs attention.
 
 **Acceptance Criteria:**
 
-**Given** the user opens the Career Ops area for the first time
-**When** the configured wrapper connection has not yet been checked
-**Then** the Android app shows a setup screen with connection status, workspace readiness status, and a retry/check action
-**And** the screen uses the existing neo-brutalist visual language.
+**Given** the user opens the app
+**When** the main content renders
+**Then** Android shows a Career Ops app shell with three primary destinations: Home, Add, and Settings
+**And** navigation is presented through a floating bottom navigation bar with clear active state and touch targets.
+
+**Given** the app shell is displayed
+**When** Home is selected
+**Then** the screen shows a lightweight overview with the current health summary badge and near-term Career Ops readiness context
+**And** it does not block entry while health is loading or unhealthy.
+
+**Given** the app shell is displayed
+**When** Add is selected
+**Then** the screen reserves the workflow area for future personal scan inputs such as CV, profile, and portal/search information
+**And** it may show a placeholder state, but must not implement CV/Profile/Portal editing in this story.
+
+**Given** the app shell is displayed
+**When** Settings is selected
+**Then** the screen shows System Health details, including wrapper reachability, workspace readiness, scanner readiness, missing requirements, last checked time, and a manual check action
+**And** it does not expose editable URL or token fields.
 
 **Given** the wrapper base URL is supplied by `BuildConfig.CAREER_OPS_DEFAULT_BASE_URL` or equivalent local build configuration
-**When** the user taps retry/check health
+**When** the app enters the main shell or the user taps Check Again in Settings
 **Then** Android calls `GET /api/v1/health`
-**And** displays loading, success, not-ready, and error states consistently with existing visual primitives.
+**And** displays loading, ready, not-ready, unreachable, and invalid-response states consistently with existing visual primitives.
+
+**Given** health was already checked during the current app session
+**When** the user navigates between Home, Add, and Settings before the health snapshot is stale
+**Then** Android reuses the in-memory health snapshot instead of repeatedly calling the backend
+**And** the user can force a refresh from Settings.
+
+**Given** the last health snapshot is older than the configured freshness window
+**When** the user re-enters the main shell or Settings
+**Then** Android may refresh health best-effort
+**And** stale health must never enable scan-dependent actions later in the MVP.
 
 **Given** the wrapper cannot be reached
 **When** the health request fails due to network or timeout
-**Then** the setup screen displays wrapper unreachable guidance
-**And** the user can retry without any URL or token entry fields in the app UI.
+**Then** the app shows a one-time session dialog or bottom sheet summarizing wrapper unreachable status
+**And** the user can dismiss it or open Settings to view details and retry.
 
 **Given** the wrapper is reachable but workspace readiness fails
 **When** the health response identifies missing workspace, invalid workspace, missing required files, command unavailable, or script failure
-**Then** the setup screen displays the matching concise guidance
+**Then** the app shows a one-time session dialog or bottom sheet summarizing the highest-priority not-ready reason
+**And** Settings displays the matching detailed guidance
 **And** it does not claim Android can install or repair Career Ops automatically.
 
 **Given** the wrapper and workspace are ready
-**When** health status is displayed
-**Then** the setup screen clearly marks the connection as ready
+**When** health status is displayed on Home or Settings
+**Then** the app clearly marks the connection as ready
 **And** downstream scan actions can rely on this readiness state.
 
-**Given** the screen is rotated or the ViewModel is recreated
-**When** the setup screen returns
-**Then** the latest health UI state survives without losing configured connection context.
+**Given** the app is rotated or a ViewModel is recreated
+**When** the active destination returns
+**Then** the selected destination, latest health UI state, and session dialog dismissal state survive without losing configured connection context.
+
+**Given** visual design is reviewed
+**When** Home, Add, Settings, health dialog, and floating bottom navigation are inspected
+**Then** the UI combines the existing neo-brutalist visual language with a light liquid-glass-inspired surface treatment
+**And** the treatment remains practical: hard borders, hard shadows, readable contrast, restrained translucency, no decorative blur/orbs, and no URL/token input affordances.
+
+**Given** Android validation runs
+**When** this story is complete
+**Then** focused ViewModel/repository tests cover ready, not-ready, unreachable, stale-cache, force-refresh, and one-time dialog behavior
+**And** `./gradlew test` passes.
 
 #### Story 1.6: Prove API Contract Compatibility with Tests and Examples
 
@@ -1719,6 +1755,6 @@ So that sensitive CV/profile traffic is not sent over insecure channels.
 - Parser reliability, fixture workspaces, and cache freshness are proven in Epic 5.
 - Visual consistency is applied incrementally in each Android epic, with final demo coherence completed in Epic 6.
 - Security regression tests start in Epic 1 and are extended by scan/output stories in Epics 4-6.
-- Production security is deferred to Epic 7 and must not expand Story 1.5 beyond local/MVP setup-health.
+- Production security is deferred to Epic 7 and must not expand Story 1.5 beyond the local/MVP app shell and health feedback scope.
 - Fixture workspace ownership starts in Epic 1 and expands through Epics 2-5.
 - Real First evidence starts with fixtures in Epic 1 and is proven end-to-end by Epic 4/Epic 5.

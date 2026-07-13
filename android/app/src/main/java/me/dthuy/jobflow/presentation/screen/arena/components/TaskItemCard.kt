@@ -51,13 +51,13 @@ fun TaskItemCard(
     onCheckedChange: () -> Unit,
     onDelete: () -> Unit,
     onRetryRoast: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     NeoCard(
         backgroundColor = if (task.isCompleted) Color(0xFFE2E2E2) else NeoWhite,
         shadowOffset = 4.dp,
         shape = RoundedCornerShape(16.dp),
-        modifier = modifier.fillMaxWidth()
+        modifier = modifier.fillMaxWidth(),
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             TaskHeader(task = task, onCheckedChange = onCheckedChange, onDelete = onDelete)
@@ -67,7 +67,7 @@ fun TaskItemCard(
                     task.description,
                     fontSize = 12.sp,
                     color = if (task.isCompleted) Color.Gray else Color.DarkGray,
-                    fontWeight = FontWeight.Medium
+                    fontWeight = FontWeight.Medium,
                 )
             }
 
@@ -79,51 +79,60 @@ fun TaskItemCard(
 }
 
 @Composable
-private fun TaskHeader(task: TaskDare, onCheckedChange: () -> Unit, onDelete: () -> Unit) {
+private fun TaskHeader(
+    task: TaskDare,
+    onCheckedChange: () -> Unit,
+    onDelete: () -> Unit,
+) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.Top,
-        horizontalArrangement = Arrangement.SpaceBetween
+        horizontalArrangement = Arrangement.SpaceBetween,
     ) {
         Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
             Box(
-                modifier = Modifier
-                    .size(24.dp)
-                    .background(
-                        if (task.isCompleted) NeoGreen else NeoWhite,
-                        shape = RoundedCornerShape(6.dp)
-                    )
-                    .border(2.5.dp, NeoBlack, shape = RoundedCornerShape(6.dp))
-                    .clickable { onCheckedChange() },
-                contentAlignment = Alignment.Center
+                modifier =
+                    Modifier
+                        .size(24.dp)
+                        .background(
+                            if (task.isCompleted) NeoGreen else NeoWhite,
+                            shape = RoundedCornerShape(6.dp),
+                        ).border(2.5.dp, NeoBlack, shape = RoundedCornerShape(6.dp))
+                        .clickable { onCheckedChange() },
+                contentAlignment = Alignment.Center,
             ) {
-                if (task.isCompleted) Text(
-                    "✓",
-                    color = NeoBlack,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.ExtraBold
-                )
+                if (task.isCompleted) {
+                    Text(
+                        "✓",
+                        color = NeoBlack,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                    )
+                }
             }
             Spacer(Modifier.width(10.dp))
             Text(
-                task.title, fontSize = 16.sp, fontWeight = FontWeight.ExtraBold,
+                task.title,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.ExtraBold,
                 color = if (task.isCompleted) Color.Gray else NeoBlack,
                 textDecoration = if (task.isCompleted) TextDecoration.LineThrough else null,
-                modifier = Modifier.padding(end = 8.dp)
+                modifier = Modifier.padding(end = 8.dp),
             )
         }
         Box(
-            modifier = Modifier
-                .background(NeoRed, shape = RoundedCornerShape(8.dp))
-                .border(1.5.dp, NeoBlack, shape = RoundedCornerShape(8.dp))
-                .clickable { onDelete() }
-                .padding(6.dp)
+            modifier =
+                Modifier
+                    .background(NeoRed, shape = RoundedCornerShape(8.dp))
+                    .border(1.5.dp, NeoBlack, shape = RoundedCornerShape(8.dp))
+                    .clickable { onDelete() }
+                    .padding(6.dp),
         ) {
             Icon(
                 Icons.Default.Delete,
                 contentDescription = "Delete",
                 modifier = Modifier.size(14.dp),
-                tint = NeoBlack
+                tint = NeoBlack,
             )
         }
     }
@@ -133,7 +142,7 @@ private fun TaskHeader(task: TaskDare, onCheckedChange: () -> Unit, onDelete: ()
 private fun TaskBadges(task: TaskDare) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp)
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         NeoBadge(text = task.difficulty.name, backgroundColor = task.difficulty.accentColor())
         NeoBadge(text = "⏱️ ${task.timeLimitMinutes}M", backgroundColor = NeoBlue)
@@ -143,7 +152,10 @@ private fun TaskBadges(task: TaskDare) {
 
 /** Exhaustive rendering of AI roast state — no nested if/else. */
 @Composable
-private fun RoastSection(roast: TaskRoast, onRetryRoast: () -> Unit) {
+private fun RoastSection(
+    roast: TaskRoast,
+    onRetryRoast: () -> Unit,
+) {
     when (roast) {
         is TaskRoast.InProgress -> RoastLoading()
         is TaskRoast.Available -> RoastVerdict(verdict = roast.verdict, onRetry = onRetryRoast)
@@ -156,47 +168,52 @@ private fun RoastLoading() {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp),
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(Color(0xFFE2E2E2), shape = RoundedCornerShape(8.dp))
-            .border(1.5.dp, NeoBlack, shape = RoundedCornerShape(8.dp))
-            .padding(8.dp)
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .background(Color(0xFFE2E2E2), shape = RoundedCornerShape(8.dp))
+                .border(1.5.dp, NeoBlack, shape = RoundedCornerShape(8.dp))
+                .padding(8.dp),
     ) {
         CircularProgressIndicator(
             color = NeoBlack,
             strokeWidth = 2.dp,
-            modifier = Modifier.size(12.dp)
+            modifier = Modifier.size(12.dp),
         )
         Text(
             "HAILING VC SPARK AI INVESTMENT DEPT FOR EVALUATION...",
             fontSize = 9.sp,
             fontWeight = FontWeight.Bold,
             fontFamily = FontFamily.Monospace,
-            color = NeoBlack
+            color = NeoBlack,
         )
     }
 }
 
 @Composable
-private fun RoastVerdict(verdict: String, onRetry: () -> Unit) {
+private fun RoastVerdict(
+    verdict: String,
+    onRetry: () -> Unit,
+) {
     Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(Color(0xFFFFF2D4), shape = RoundedCornerShape(12.dp))
-            .border(2.dp, NeoBlack, shape = RoundedCornerShape(12.dp))
-            .padding(10.dp)
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .background(Color(0xFFFFF2D4), shape = RoundedCornerShape(12.dp))
+                .border(2.dp, NeoBlack, shape = RoundedCornerShape(12.dp))
+                .padding(10.dp),
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.CenterVertically,
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
                     Icons.Default.Star,
                     contentDescription = "VC",
                     tint = NeoYellow,
-                    modifier = Modifier.size(14.dp)
+                    modifier = Modifier.size(14.dp),
                 )
                 Spacer(Modifier.width(4.dp))
                 Text(
@@ -204,21 +221,22 @@ private fun RoastVerdict(verdict: String, onRetry: () -> Unit) {
                     fontSize = 9.sp,
                     fontWeight = FontWeight.Bold,
                     fontFamily = FontFamily.Monospace,
-                    color = NeoBlack
+                    color = NeoBlack,
                 )
             }
             Box(
-                modifier = Modifier
-                    .background(NeoWhite, shape = RoundedCornerShape(6.dp))
-                    .border(1.5.dp, NeoBlack, shape = RoundedCornerShape(6.dp))
-                    .clickable { onRetry() }
-                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                modifier =
+                    Modifier
+                        .background(NeoWhite, shape = RoundedCornerShape(6.dp))
+                        .border(1.5.dp, NeoBlack, shape = RoundedCornerShape(6.dp))
+                        .clickable { onRetry() }
+                        .padding(horizontal = 6.dp, vertical = 2.dp),
             ) {
                 Icon(
                     Icons.Default.Refresh,
                     contentDescription = "Retry",
                     modifier = Modifier.size(10.dp),
-                    tint = NeoBlack
+                    tint = NeoBlack,
                 )
             }
         }
@@ -228,7 +246,7 @@ private fun RoastVerdict(verdict: String, onRetry: () -> Unit) {
             fontSize = 11.sp,
             fontWeight = FontWeight.Bold,
             color = NeoBlack,
-            lineHeight = 14.sp
+            lineHeight = 14.sp,
         )
     }
 }
@@ -236,20 +254,21 @@ private fun RoastVerdict(verdict: String, onRetry: () -> Unit) {
 @Composable
 private fun RoastPrompt(onClick: () -> Unit) {
     Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(NeoWhite, shape = RoundedCornerShape(10.dp))
-            .border(1.5.dp, NeoBlack, shape = RoundedCornerShape(10.dp))
-            .clickable { onClick() }
-            .padding(8.dp),
-        contentAlignment = Alignment.Center
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .background(NeoWhite, shape = RoundedCornerShape(10.dp))
+                .border(1.5.dp, NeoBlack, shape = RoundedCornerShape(10.dp))
+                .clickable { onClick() }
+                .padding(8.dp),
+        contentAlignment = Alignment.Center,
     ) {
         Text(
             "⚡ GET AI VC REALITY CHECK ROAST",
             fontSize = 9.sp,
             fontWeight = FontWeight.ExtraBold,
             fontFamily = FontFamily.Monospace,
-            color = NeoBlack
+            color = NeoBlack,
         )
     }
 }

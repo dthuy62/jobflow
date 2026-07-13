@@ -3,9 +3,6 @@ package me.dthuy.jobflow.presentation.screen.arena
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
-import me.dthuy.jobflow.domain.model.Difficulty
-import me.dthuy.jobflow.domain.model.TaskDare
-import me.dthuy.jobflow.domain.usecase.*
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -14,15 +11,21 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import me.dthuy.jobflow.domain.model.Difficulty
+import me.dthuy.jobflow.domain.model.TaskDare
+import me.dthuy.jobflow.domain.usecase.AddTaskUseCase
+import me.dthuy.jobflow.domain.usecase.DeleteTaskUseCase
+import me.dthuy.jobflow.domain.usecase.GetTasksUseCase
+import me.dthuy.jobflow.domain.usecase.RoastTaskUseCase
+import me.dthuy.jobflow.domain.usecase.ToggleCompleteTaskUseCase
 
 class ArenaViewModel(
     private val getTasksUseCase: GetTasksUseCase,
     private val addTaskUseCase: AddTaskUseCase,
     private val toggleCompleteTaskUseCase: ToggleCompleteTaskUseCase,
     private val deleteTaskUseCase: DeleteTaskUseCase,
-    private val roastTaskUseCase: RoastTaskUseCase
+    private val roastTaskUseCase: RoastTaskUseCase,
 ) : ViewModel() {
-
     private val _state = MutableStateFlow(ArenaUiState())
     val state: StateFlow<ArenaUiState> = _state.asStateFlow()
 
@@ -63,7 +66,7 @@ class ArenaViewModel(
                         it.copy(
                             tasks = tasksList,
                             totalXp = completedXp,
-                            isLoading = false
+                            isLoading = false,
                         )
                     }
                 }
@@ -71,7 +74,7 @@ class ArenaViewModel(
                 _state.update {
                     it.copy(
                         errorMessage = "Error loading arena tasks: ${e.localizedMessage}",
-                        isLoading = false
+                        isLoading = false,
                     )
                 }
             }
@@ -85,12 +88,13 @@ class ArenaViewModel(
         }
         viewModelScope.launch {
             try {
-                val newTask = TaskDare(
-                    title = intent.title.trim(),
-                    description = intent.description.trim(),
-                    difficulty = intent.difficulty,
-                    timeLimitMinutes = intent.timeLimitMinutes
-                )
+                val newTask =
+                    TaskDare(
+                        title = intent.title.trim(),
+                        description = intent.description.trim(),
+                        difficulty = intent.difficulty,
+                        timeLimitMinutes = intent.timeLimitMinutes,
+                    )
                 // Insert task into Room local database
                 val taskId = addTaskUseCase(newTask)
                 val persistedTask = newTask.copy(id = taskId)
@@ -102,7 +106,7 @@ class ArenaViewModel(
                         descriptionInput = "",
                         difficultyInput = Difficulty.MEDIUM,
                         timeLimitInput = 30,
-                        isCreateSheetOpen = false
+                        isCreateSheetOpen = false,
                     )
                 }
                 emitToast("Challenge Created!")
@@ -124,12 +128,13 @@ class ArenaViewModel(
                 toggleCompleteTaskUseCase(task)
 
                 if (willBeCompleted) {
-                    val pointsGained = when (task.difficulty) {
-                        Difficulty.EASY -> 10
-                        Difficulty.MEDIUM -> 25
-                        Difficulty.HARD -> 55
-                        Difficulty.NIGHTMARE -> 110
-                    }
+                    val pointsGained =
+                        when (task.difficulty) {
+                            Difficulty.EASY -> 10
+                            Difficulty.MEDIUM -> 25
+                            Difficulty.HARD -> 55
+                            Difficulty.NIGHTMARE -> 110
+                        }
                     _effect.emit(ArenaUiEffect.CelebrateXpGain(pointsGained))
                 } else {
                     emitToast("Undid completion!")
@@ -204,7 +209,7 @@ class ArenaViewModelFactory(
     private val addTaskUseCase: AddTaskUseCase,
     private val toggleCompleteTaskUseCase: ToggleCompleteTaskUseCase,
     private val deleteTaskUseCase: DeleteTaskUseCase,
-    private val roastTaskUseCase: RoastTaskUseCase
+    private val roastTaskUseCase: RoastTaskUseCase,
 ) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
@@ -214,7 +219,7 @@ class ArenaViewModelFactory(
                 addTaskUseCase,
                 toggleCompleteTaskUseCase,
                 deleteTaskUseCase,
-                roastTaskUseCase
+                roastTaskUseCase,
             ) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")

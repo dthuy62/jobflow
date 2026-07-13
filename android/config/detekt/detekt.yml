@@ -1,0 +1,27 @@
+config:
+  validation: true
+
+# Compose rendering functions are intentionally declarative and may be long or numerous.
+# ktlint owns naming and line-length formatting, avoiding duplicate reports.
+complexity:
+  LongMethod:
+    active: false
+  LongParameterList:
+    allowedFunctionParameters: 9
+  TooManyFunctions:
+    allowedFunctionsPerFile: 20
+    allowedFunctionsPerClass: 20
+
+exceptions:
+  TooGenericExceptionCaught:
+    active: false
+
+naming:
+  FunctionNaming:
+    active: false
+
+style:
+  MagicNumber:
+    active: false
+  MaxLineLength:
+    active: false

@@ -14,40 +14,71 @@ data class ArenaUiState(
     val activeFilter: ArenaFilter = ArenaFilter.ALL,
     val totalXp: Int = 0,
     val isCreateSheetOpen: Boolean = false,
-    val errorMessage: String? = null
+    val errorMessage: String? = null,
 )
 
 enum class ArenaFilter {
     ALL,
     ACTIVE,
-    COMPLETED
+    COMPLETED,
 }
 
 // --- USER INTENTS ---
 sealed interface ArenaUiIntent {
     object LoadTasks : ArenaUiIntent
+
     data class AddTask(
         val title: String,
         val description: String,
         val difficulty: Difficulty,
-        val timeLimitMinutes: Int
+        val timeLimitMinutes: Int,
     ) : ArenaUiIntent
 
-    data class ToggleComplete(val task: TaskDare) : ArenaUiIntent
-    data class DeleteTask(val id: Long) : ArenaUiIntent
-    data class TriggerRoast(val task: TaskDare) : ArenaUiIntent
+    data class ToggleComplete(
+        val task: TaskDare,
+    ) : ArenaUiIntent
+
+    data class DeleteTask(
+        val id: Long,
+    ) : ArenaUiIntent
+
+    data class TriggerRoast(
+        val task: TaskDare,
+    ) : ArenaUiIntent
 
     // Form Inputs
-    data class UpdateTitleInput(val title: String) : ArenaUiIntent
-    data class UpdateDescInput(val desc: String) : ArenaUiIntent
-    data class UpdateDifficultyInput(val diff: Difficulty) : ArenaUiIntent
-    data class UpdateTimeInput(val mins: Int) : ArenaUiIntent
-    data class UpdateFilter(val filter: ArenaFilter) : ArenaUiIntent
-    data class ToggleCreateSheet(val isOpen: Boolean) : ArenaUiIntent
+    data class UpdateTitleInput(
+        val title: String,
+    ) : ArenaUiIntent
+
+    data class UpdateDescInput(
+        val desc: String,
+    ) : ArenaUiIntent
+
+    data class UpdateDifficultyInput(
+        val diff: Difficulty,
+    ) : ArenaUiIntent
+
+    data class UpdateTimeInput(
+        val mins: Int,
+    ) : ArenaUiIntent
+
+    data class UpdateFilter(
+        val filter: ArenaFilter,
+    ) : ArenaUiIntent
+
+    data class ToggleCreateSheet(
+        val isOpen: Boolean,
+    ) : ArenaUiIntent
 }
 
 // --- ONE-SHOT SIDE EFFECTS ---
 sealed interface ArenaUiEffect {
-    data class ShowToast(val message: String) : ArenaUiEffect
-    data class CelebrateXpGain(val xpGained: Int) : ArenaUiEffect
+    data class ShowToast(
+        val message: String,
+    ) : ArenaUiEffect
+
+    data class CelebrateXpGain(
+        val xpGained: Int,
+    ) : ArenaUiEffect
 }

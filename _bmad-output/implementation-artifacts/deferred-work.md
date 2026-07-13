@@ -14,3 +14,7 @@
 ## Deferred from: code review of 1-3-expose-health-and-workspace-readiness-api.md (2026-06-21)
 
 - Public health endpoint performs workspace write probes [career-ops-wrapper/src/workspace/workspace-health.ts:42] — pre-existing Story 1.2 behavior from workspace-writable readiness. Revisit with a dedicated design decision before changing the public health contract to read-only, cached, or protected readiness.
+
+## Deferred from: code review of 1-5-build-career-ops-app-shell-and-health-feedback.md (2026-07-07)
+
+- Prod flavor points at cleartext HTTP without prod cleartext allowance [android/app/build.gradle.kts:32]. The prod flavor already used the emulator-local HTTP wrapper URL before this Story 1.5 diff; revisit in the production security story rather than blocking this app shell review.

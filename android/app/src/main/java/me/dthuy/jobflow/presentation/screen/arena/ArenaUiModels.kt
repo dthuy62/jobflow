@@ -8,20 +8,18 @@ import me.dthuy.jobflow.ui.theme.NeoMint
 import me.dthuy.jobflow.ui.theme.NeoOrange
 import me.dthuy.jobflow.ui.theme.NeoRed
 
-/**
- * Derived UI models for the Arena screen.
+/** Tasks that should be shown for the currently selected filter.
  *
  * Instead of scattering booleans (isEmpty / isRoasting / aiRealityCheck != null) across the
  * composables, we map [ArenaUiState] into small, explicit "view states" here. Composables can
  * then branch with a single exhaustive `when`, which is far easier to read and test.
  */
-
-/** Tasks that should be shown for the currently selected filter. */
-fun ArenaUiState.visibleTasks(): List<TaskDare> = when (activeFilter) {
-    ArenaFilter.ALL -> tasks
-    ArenaFilter.ACTIVE -> tasks.filter { !it.isCompleted }
-    ArenaFilter.COMPLETED -> tasks.filter { it.isCompleted }
-}
+fun ArenaUiState.visibleTasks(): List<TaskDare> =
+    when (activeFilter) {
+        ArenaFilter.ALL -> tasks
+        ArenaFilter.ACTIVE -> tasks.filter { !it.isCompleted }
+        ArenaFilter.COMPLETED -> tasks.filter { it.isCompleted }
+    }
 
 /** What the main body of the screen should render. */
 sealed interface ArenaBody {
@@ -29,7 +27,9 @@ sealed interface ArenaBody {
     data object Empty : ArenaBody
 
     /** There are tasks to show -> render the scrollable list. */
-    data class Tasks(val tasks: List<TaskDare>) : ArenaBody
+    data class Tasks(
+        val tasks: List<TaskDare>,
+    ) : ArenaBody
 }
 
 /** Maps the current state to the body that should be displayed. */
@@ -44,7 +44,9 @@ sealed interface TaskRoast {
     data object InProgress : TaskRoast
 
     /** A roast verdict has been generated. */
-    data class Available(val verdict: String) : TaskRoast
+    data class Available(
+        val verdict: String,
+    ) : TaskRoast
 
     /** No roast yet -> invite the user to request one. */
     data object NotRequested : TaskRoast
@@ -61,9 +63,10 @@ fun TaskDare.roastState(): TaskRoast {
 }
 
 /** Accent color used to represent each difficulty level. */
-fun Difficulty.accentColor(): Color = when (this) {
-    Difficulty.EASY -> NeoGreen
-    Difficulty.MEDIUM -> NeoMint
-    Difficulty.HARD -> NeoOrange
-    Difficulty.NIGHTMARE -> NeoRed
-}
+fun Difficulty.accentColor(): Color =
+    when (this) {
+        Difficulty.EASY -> NeoGreen
+        Difficulty.MEDIUM -> NeoMint
+        Difficulty.HARD -> NeoOrange
+        Difficulty.NIGHTMARE -> NeoRed
+    }

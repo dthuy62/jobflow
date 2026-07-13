@@ -52,6 +52,7 @@ describe("API docs routes", () => {
       expect(response.headers["content-type"]).toContain("text/html");
       expect(response.body).toContain("/openapi.json");
       expect(response.body).toContain("Career Ops Wrapper API");
+      expect(response.body).toContain("user-select: text");
     } finally {
       await server.close();
     }
@@ -73,6 +74,10 @@ describe("API docs routes", () => {
         method: "GET",
         url: "/docs-assets/js/scalar.js"
       });
+      const docsAssetResponse = await server.inject({
+        method: "GET",
+        url: "/docs-assets/"
+      });
 
       expect(jsonResponse.statusCode).toBe(200);
       expect(jsonResponse.json()).toMatchObject({
@@ -85,6 +90,8 @@ describe("API docs routes", () => {
       expect(yamlResponse.body).toContain("openapi: 3.1.0");
       expect(scriptResponse.statusCode).toBe(200);
       expect(scriptResponse.headers["content-type"]).toContain("application/javascript");
+      expect(docsAssetResponse.statusCode).toBe(200);
+      expect(docsAssetResponse.body).toContain("user-select: text");
     } finally {
       await server.close();
     }

@@ -6,13 +6,27 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.CornerBasedShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Text
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
@@ -40,24 +54,26 @@ fun NeoCard(
     shadowOffset: Dp = 6.dp,
     borderWidth: Dp = 3.dp,
     shape: CornerBasedShape = RoundedCornerShape(16.dp),
-    content: @Composable BoxScope.() -> Unit
+    content: @Composable BoxScope.() -> Unit,
 ) {
     Box(modifier = modifier) {
         // Shadow (drawn underneath)
         Box(
-            modifier = Modifier
-                .matchParentSize()
-                .offset(x = shadowOffset, y = shadowOffset)
-                .background(shadowColor, shape = shape)
-                .border(borderWidth, NeoBlack, shape = shape)
+            modifier =
+                Modifier
+                    .matchParentSize()
+                    .offset(x = shadowOffset, y = shadowOffset)
+                    .background(shadowColor, shape = shape)
+                    .border(borderWidth, NeoBlack, shape = shape),
         )
         // Content card on top
         Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(backgroundColor, shape = shape)
-                .border(borderWidth, NeoBlack, shape = shape)
-                .padding(16.dp)
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .background(backgroundColor, shape = shape)
+                    .border(borderWidth, NeoBlack, shape = shape)
+                    .padding(16.dp),
         ) {
             content()
         }
@@ -74,57 +90,60 @@ fun NeoButton(
     borderWidth: Dp = 3.dp,
     shape: CornerBasedShape = RoundedCornerShape(12.dp),
     enabled: Boolean = true,
-    content: @Composable RowScope.() -> Unit
+    content: @Composable RowScope.() -> Unit,
 ) {
     var isPressed by remember { mutableStateOf(false) }
     // Animate depth of depression on touch: surface sinks towards the shadow
     val offsetAnimation by animateDpAsState(
         targetValue = if (isPressed) shadowOffset else 0.dp,
-        label = "neoButtonPress"
+        label = "neoButtonPress",
     )
 
     Box(
-        modifier = modifier
-            .pointerInput(enabled) {
-                if (enabled) {
-                    detectTapGestures(
-                        onPress = {
-                            isPressed = true
-                            try {
-                                awaitRelease()
-                            } finally {
-                                isPressed = false
-                            }
-                        },
-                        onTap = { onClick() }
-                    )
-                }
-            }
-            .clickable(
-                enabled = enabled,
-                onClick = {},
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null // Disables default Material round-ripple overlays to respect strict brutalist physics
-            )
+        modifier =
+            modifier
+                .pointerInput(enabled) {
+                    if (enabled) {
+                        detectTapGestures(
+                            onPress = {
+                                isPressed = true
+                                try {
+                                    awaitRelease()
+                                } finally {
+                                    isPressed = false
+                                }
+                            },
+                            onTap = { onClick() },
+                        )
+                    }
+                },
+//            .clickable(
+//                enabled = enabled,
+//                onClick = {},
+//                interactionSource = remember { MutableInteractionSource() },
+//                indication = null // Disables default Material round-ripple overlays to respect strict brutalist physics
+//            )
     ) {
         // Flat Black Drop-Shadow
         Box(
-            modifier = Modifier
-                .matchParentSize()
-                .offset(x = shadowOffset, y = shadowOffset)
-                .background(shadowColor, shape = shape)
-                .border(borderWidth, NeoBlack, shape = shape)
+            modifier =
+                Modifier
+                    .matchParentSize()
+                    .offset(x = shadowOffset, y = shadowOffset)
+                    .background(shadowColor, shape = shape)
+                    .border(borderWidth, NeoBlack, shape = shape),
         )
         // Button Surface
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .offset(x = offsetAnimation, y = offsetAnimation)
-                .background(if (enabled) backgroundColor else Color.LightGray, shape = shape)
-                .border(borderWidth, NeoBlack, shape = shape)
-                .padding(vertical = 12.dp, horizontal = 16.dp),
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .offset(x = offsetAnimation, y = offsetAnimation)
+                    .background(if (enabled) backgroundColor else Color.LightGray, shape = shape)
+                    .border(borderWidth, NeoBlack, shape = shape)
+                    .padding(vertical = 12.dp, horizontal = 16.dp),
             horizontalArrangement = Arrangement.Center,
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.CenterVertically,
         ) {
             content()
         }
@@ -140,29 +159,30 @@ fun NeoTextField(
     keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
     singleLine: Boolean = true,
     label: String? = null,
-    shape: CornerBasedShape = RoundedCornerShape(12.dp)
+    shape: CornerBasedShape = RoundedCornerShape(12.dp),
 ) {
     var isFocused by remember { mutableStateOf(false) }
     val shadowOffset by animateDpAsState(
         targetValue = if (isFocused) 4.dp else 0.dp,
-        label = "neoTextFieldFocus"
+        label = "neoTextFieldFocus",
     )
 
     Column(modifier = modifier) {
         if (label != null) {
             // Stylized brutalist label pin with rounded corners
             Box(
-                modifier = Modifier
-                    .background(NeoYellow, shape = RoundedCornerShape(8.dp))
-                    .border(2.dp, NeoBlack, shape = RoundedCornerShape(8.dp))
-                    .padding(horizontal = 10.dp, vertical = 2.dp)
+                modifier =
+                    Modifier
+                        .background(NeoYellow, shape = RoundedCornerShape(8.dp))
+                        .border(2.dp, NeoBlack, shape = RoundedCornerShape(8.dp))
+                        .padding(horizontal = 10.dp, vertical = 2.dp),
             ) {
                 Text(
                     text = label.uppercase(),
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
                     fontFamily = FontFamily.Monospace,
-                    color = NeoBlack
+                    color = NeoBlack,
                 )
             }
             Spacer(modifier = Modifier.height(4.dp))
@@ -172,20 +192,22 @@ fun NeoTextField(
             // Expressive Shadow visible only on Focus
             if (shadowOffset > 0.dp) {
                 Box(
-                    modifier = Modifier
-                        .matchParentSize()
-                        .offset(x = shadowOffset, y = shadowOffset)
-                        .background(NeoBlack, shape = shape)
-                        .border(3.dp, NeoBlack, shape = shape)
+                    modifier =
+                        Modifier
+                            .matchParentSize()
+                            .offset(x = shadowOffset, y = shadowOffset)
+                            .background(NeoBlack, shape = shape)
+                            .border(3.dp, NeoBlack, shape = shape),
                 )
             }
 
             Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(NeoWhite, shape = shape)
-                    .border(3.dp, NeoBlack, shape = shape)
-                    .padding(14.dp)
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .background(NeoWhite, shape = shape)
+                        .border(3.dp, NeoBlack, shape = shape)
+                        .padding(14.dp),
             ) {
                 if (value.isEmpty()) {
                     Text(
@@ -193,23 +215,25 @@ fun NeoTextField(
                         color = Color.Gray,
                         fontSize = 14.sp,
                         fontFamily = FontFamily.SansSerif,
-                        fontWeight = FontWeight.Medium
+                        fontWeight = FontWeight.Medium,
                     )
                 }
                 BasicTextField(
                     value = value,
                     onValueChange = onValueChange,
-                    textStyle = TextStyle(
-                        color = NeoBlack,
-                        fontSize = 14.sp,
-                        fontFamily = FontFamily.SansSerif,
-                        fontWeight = FontWeight.Bold
-                    ),
+                    textStyle =
+                        TextStyle(
+                            color = NeoBlack,
+                            fontSize = 14.sp,
+                            fontFamily = FontFamily.SansSerif,
+                            fontWeight = FontWeight.Bold,
+                        ),
                     keyboardOptions = keyboardOptions,
                     singleLine = singleLine,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .onFocusChanged { isFocused = it.isFocused }
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .onFocusChanged { isFocused = it.isFocused },
                 )
             }
         }
@@ -222,20 +246,21 @@ fun NeoBadge(
     backgroundColor: Color,
     modifier: Modifier = Modifier,
     textColor: Color = NeoBlack,
-    shape: CornerBasedShape = RoundedCornerShape(8.dp)
+    shape: CornerBasedShape = RoundedCornerShape(8.dp),
 ) {
     Box(
-        modifier = modifier
-            .background(backgroundColor, shape = shape)
-            .border(2.dp, NeoBlack, shape = shape)
-            .padding(horizontal = 10.dp, vertical = 4.dp)
+        modifier =
+            modifier
+                .background(backgroundColor, shape = shape)
+                .border(2.dp, NeoBlack, shape = shape)
+                .padding(horizontal = 10.dp, vertical = 4.dp),
     ) {
         Text(
             text = text.uppercase(),
             color = textColor,
             fontSize = 11.sp,
             fontWeight = FontWeight.Bold,
-            fontFamily = FontFamily.Monospace
+            fontFamily = FontFamily.Monospace,
         )
     }
 }
@@ -253,13 +278,13 @@ fun NeoCardPreview() {
                         text = "Expressive Brutalism",
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold,
-                        color = NeoBlack
+                        color = NeoBlack,
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
                         text = "Rounded corners look soft and modern, combined with sharp dark borders and distinct drop shadows.",
                         fontSize = 12.sp,
-                        color = Color.DarkGray
+                        color = Color.DarkGray,
                     )
                 }
             }
@@ -273,7 +298,7 @@ fun NeoButtonPreview() {
     MyApplicationTheme {
         Row(
             modifier = Modifier.padding(20.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             NeoButton(onClick = {}) {
                 Text("TAP ME NOW", fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
@@ -292,13 +317,13 @@ fun NeoTextFieldPreview() {
         var text by remember { mutableStateOf("") }
         Column(
             modifier = Modifier.padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+            verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             NeoTextField(
                 value = text,
                 onValueChange = { text = it },
                 placeholder = "Type something expressive...",
-                label = "Brutalist Input"
+                label = "Brutalist Input",
             )
         }
     }
@@ -310,7 +335,7 @@ fun NeoBadgePreview() {
     MyApplicationTheme {
         Row(
             modifier = Modifier.padding(20.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             NeoBadge(text = "Easy", backgroundColor = NeoGreen)
             NeoBadge(text = "Nightmare", backgroundColor = NeoPink)

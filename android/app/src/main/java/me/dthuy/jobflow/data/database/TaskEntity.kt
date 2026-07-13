@@ -16,27 +16,26 @@ data class TaskEntity(
     val createdAt: Long,
     val completedAt: Long?,
     val aiRealityCheck: String?,
-    val scoreEarned: Int
+    val scoreEarned: Int,
 ) {
-    fun toDomain(): TaskDare {
-        return TaskDare(
+    fun toDomain(): TaskDare =
+        TaskDare(
             id = id,
             title = title,
             description = description,
-            difficulty = try { Difficulty.valueOf(difficulty) } catch (e: Exception) { Difficulty.MEDIUM },
+            difficulty = Difficulty.entries.firstOrNull { it.name == difficulty } ?: Difficulty.MEDIUM,
             timeLimitMinutes = timeLimitMinutes,
             isCompleted = isCompleted,
             createdAt = createdAt,
             completedAt = completedAt,
             aiRealityCheck = aiRealityCheck,
             isRoasting = false,
-            scoreEarned = scoreEarned
+            scoreEarned = scoreEarned,
         )
-    }
 
     companion object {
-        fun fromDomain(domain: TaskDare): TaskEntity {
-            return TaskEntity(
+        fun fromDomain(domain: TaskDare): TaskEntity =
+            TaskEntity(
                 id = domain.id,
                 title = domain.title,
                 description = domain.description,
@@ -46,8 +45,7 @@ data class TaskEntity(
                 createdAt = domain.createdAt,
                 completedAt = domain.completedAt,
                 aiRealityCheck = domain.aiRealityCheck,
-                scoreEarned = domain.scoreEarned
+                scoreEarned = domain.scoreEarned,
             )
-        }
     }
 }

@@ -11,20 +11,20 @@ abstract class JobFlowDatabase : RoomDatabase() {
 
     companion object {
         @Volatile
-        private var INSTANCE: JobFlowDatabase? = null
+        private var databaseInstance: JobFlowDatabase? = null
 
-        fun getDatabase(context: Context): JobFlowDatabase {
-            return INSTANCE ?: synchronized(this) {
-                val instance = Room.databaseBuilder(
-                    context.applicationContext,
-                    JobFlowDatabase::class.java,
-                    "task_arena_database"
-                )
-                    .fallbackToDestructiveMigration(dropAllTables = true)
-                    .build()
-                INSTANCE = instance
+        fun getDatabase(context: Context): JobFlowDatabase =
+            databaseInstance ?: synchronized(this) {
+                val instance =
+                    Room
+                        .databaseBuilder(
+                            context.applicationContext,
+                            JobFlowDatabase::class.java,
+                            "task_arena_database",
+                        ).fallbackToDestructiveMigration(dropAllTables = true)
+                        .build()
+                databaseInstance = instance
                 instance
             }
-        }
     }
 }

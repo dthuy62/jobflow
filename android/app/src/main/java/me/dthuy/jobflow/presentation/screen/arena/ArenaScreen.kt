@@ -21,7 +21,7 @@ import androidx.compose.ui.platform.LocalContext
 @Composable
 fun ArenaScreen(
     viewModel: ArenaViewModel,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     val state by viewModel.state.collectAsState()
     val context = LocalContext.current
@@ -29,15 +29,18 @@ fun ArenaScreen(
     LaunchedEffect(Unit) {
         viewModel.effect.collect { effect ->
             when (effect) {
-                is ArenaUiEffect.ShowToast ->
+                is ArenaUiEffect.ShowToast -> {
                     Toast.makeText(context, effect.message, Toast.LENGTH_SHORT).show()
+                }
 
-                is ArenaUiEffect.CelebrateXpGain ->
-                    Toast.makeText(
-                        context,
-                        "🏆 XP DARE CONQUERED! +${effect.xpGained} XP SECURED!",
-                        Toast.LENGTH_LONG
-                    ).show()
+                is ArenaUiEffect.CelebrateXpGain -> {
+                    Toast
+                        .makeText(
+                            context,
+                            "🏆 XP DARE CONQUERED! +${effect.xpGained} XP SECURED!",
+                            Toast.LENGTH_LONG,
+                        ).show()
+                }
             }
         }
     }
@@ -45,6 +48,6 @@ fun ArenaScreen(
     ArenaContent(
         state = state,
         onIntent = viewModel::handleIntent,
-        modifier = modifier
+        modifier = modifier,
     )
 }

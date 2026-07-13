@@ -2,7 +2,6 @@ package me.dthuy.jobflow
 
 import android.content.Context
 import me.dthuy.jobflow.data.database.JobFlowDatabase
-import me.dthuy.jobflow.data.datasource.JobFlowDatabaseDataSource
 import me.dthuy.jobflow.data.datasource.JobFlowNetworkDataSource
 import me.dthuy.jobflow.data.remote.JobFlowApiClient
 import me.dthuy.jobflow.data.remote.JobFlowApiService
@@ -10,7 +9,12 @@ import me.dthuy.jobflow.data.repository.JobFlowRepositoryImpl
 import me.dthuy.jobflow.data.repository.TaskRepositoryImpl
 import me.dthuy.jobflow.domain.repository.JobFlowRepository
 import me.dthuy.jobflow.domain.repository.TaskRepository
-import me.dthuy.jobflow.domain.usecase.*
+import me.dthuy.jobflow.domain.usecase.AddTaskUseCase
+import me.dthuy.jobflow.domain.usecase.CheckHealthUseCase
+import me.dthuy.jobflow.domain.usecase.DeleteTaskUseCase
+import me.dthuy.jobflow.domain.usecase.GetTasksUseCase
+import me.dthuy.jobflow.domain.usecase.RoastTaskUseCase
+import me.dthuy.jobflow.domain.usecase.ToggleCompleteTaskUseCase
 
 interface AppContainer {
     val taskRepository: TaskRepository
@@ -21,9 +25,12 @@ interface AppContainer {
     val roastTaskUseCase: RoastTaskUseCase
     val jobFlowRepository: JobFlowRepository
     val jobFlowApiClient: JobFlowApiService
+    val checkHealthUseCase: CheckHealthUseCase
 }
 
-class AppContainerImpl(private val context: Context) : AppContainer {
+class AppContainerImpl(
+    private val context: Context,
+) : AppContainer {
     private val database: JobFlowDatabase by lazy {
         JobFlowDatabase.getDatabase(context)
     }
@@ -33,10 +40,6 @@ class AppContainerImpl(private val context: Context) : AppContainer {
 
     private val networkDataSource by lazy {
         JobFlowNetworkDataSource(apiClient)
-    }
-
-    private val databaseDataSource by lazy {
-        JobFlowDatabaseDataSource(database)
     }
 
     override val taskRepository: TaskRepository by lazy {
@@ -63,12 +66,13 @@ class AppContainerImpl(private val context: Context) : AppContainer {
         RoastTaskUseCase(taskRepository)
     }
     override val jobFlowRepository: JobFlowRepository by lazy {
-        JobFlowRepositoryImpl(
-            networkDataSource,
-            databaseDataSource
-        )
+        JobFlowRepositoryImpl(networkDataSource)
+    }
+
+    override val checkHealthUseCase: CheckHealthUseCase by lazy {
+        CheckHealthUseCase(jobFlowRepository)
     }
 
     override val jobFlowApiClient: JobFlowApiService
-            by lazy { apiClient }
+        by lazy { apiClient }
 }

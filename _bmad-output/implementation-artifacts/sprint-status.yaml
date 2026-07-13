@@ -1,5 +1,5 @@
 # generated: 2026-06-20 23:08:54 +0700
-# last_updated: 2026-06-27 20:58:23 +0700
+# last_updated: 2026-06-28 23:00:51 +0700
 # project: task-arena
 # project_key: NOKEY
 # tracking_system: file-system
@@ -39,7 +39,7 @@
 # - Shared: cross-platform contract/evidence stories requiring coordination
 
 generated: "2026-06-20 23:08:54 +0700"
-last_updated: "2026-06-27 20:58:23 +0700"
+last_updated: "2026-06-28 23:45:00 +0700"
 project: task-arena
 project_key: NOKEY
 tracking_system: file-system
@@ -56,7 +56,7 @@ development_status:
   # owner: Hy
   1-4-configure-android-dev-and-prod-wrapper-connection: done
   # owner: Hy
-  1-5-show-android-setup-and-health-screen: backlog
+  1-5-build-career-ops-app-shell-and-health-feedback: in-progress
   # owner: Shared
   1-6-prove-api-contract-compatibility-with-tests-and-examples: backlog
   # owner: Codex
