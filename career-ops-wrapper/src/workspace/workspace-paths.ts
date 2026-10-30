@@ -13,3 +13,13 @@ export function isInsidePath(rootPath: string, targetPath: string): boolean {
     (!relativePath.startsWith("..") && !path.isAbsolute(relativePath))
   );
 }
+
+/** The configured, resolved, and real workspace paths, for redaction. */
+export async function listWorkspacePathVariants(workspacePath: string): Promise<string[]> {
+  const variants = new Set([workspacePath, path.resolve(workspacePath)]);
+  const realWorkspacePath = await realpath(workspacePath).catch(() => undefined);
+  if (realWorkspacePath) {
+    variants.add(realWorkspacePath);
+  }
+  return [...variants];
+}

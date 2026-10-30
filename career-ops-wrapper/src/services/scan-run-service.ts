@@ -1,6 +1,4 @@
 import { randomBytes } from "node:crypto";
-import { realpath } from "node:fs/promises";
-import path from "node:path";
 import {
   createCareerOpsEngineAdapter,
   type CareerOpsEngineAdapter,
@@ -13,6 +11,7 @@ import type { ScanRunDto, StartScanRunRequestDto } from "../contracts/index.js";
 import { ApiError } from "../errors/api-error.js";
 import { parseScanOutput } from "../parsers/index.js";
 import { ScanRunStore } from "../runs/index.js";
+import { listWorkspacePathVariants } from "../workspace/workspace-paths.js";
 import { createScanReadinessService, type ScanReadinessService } from "./scan-readiness-service.js";
 
 export const SCAN_WARNINGS_LIMIT = 20;
@@ -184,11 +183,7 @@ function failureFor(
 }
 
 async function createSanitizer(config: RuntimeConfig): Promise<(line: string) => string> {
-  const workspacePaths = [config.workspace, path.resolve(config.workspace)];
-  const workspaceRealPath = await realpath(config.workspace).catch(() => undefined);
-  if (workspaceRealPath) {
-    workspacePaths.push(workspaceRealPath);
-  }
+  const workspacePaths = await listWorkspacePathVariants(config.workspace);
   const secrets = config.pairingToken ? [config.pairingToken] : [];
 
   return (line) => sanitizeScanOutputLine(line, { workspacePaths, secrets });

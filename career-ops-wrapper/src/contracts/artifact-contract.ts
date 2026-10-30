@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { OpaqueIdSchema, SanitizedTextSchema } from "./shared-contract.js";
+import { OpaqueIdSchema, SanitizedTextSchema, collectionDtoSchema } from "./shared-contract.js";
 
 const artifactDownloadUrlSchema = z.string().refine((value) => {
   if (value.startsWith("/api/v1/")) return true;
@@ -22,4 +22,7 @@ export const ArtifactDtoSchema = z.object({
   sourceRevision: OpaqueIdSchema.optional()
 });
 
+export const ArtifactCollectionDtoSchema = collectionDtoSchema(ArtifactDtoSchema);
+
 export type ArtifactDto = z.infer<typeof ArtifactDtoSchema>;
+export type ArtifactCollectionDto = z.infer<typeof ArtifactCollectionDtoSchema>;
