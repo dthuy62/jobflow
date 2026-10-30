@@ -1,9 +1,9 @@
 {
-  "id": "report-001",
-  "offerId": "offer-001",
-  "title": "Offer evaluation",
+  "id": "report_001",
+  "offerId": "offer_a1461f4e3225f9ea",
+  "title": "Acme Robotics — Senior Android Engineer",
   "kind": "evaluation",
-  "createdAt": "2026-06-15T10:35:00.000Z",
+  "createdAt": "2026-06-20T00:00:00.000Z",
   "updatedAt": null,
-  "sourceRevision": "scan_20260615_103000"
+  "sourceRevision": "report_sha256_65a47347"
 }

@@ -23,9 +23,9 @@ export function createHealthService(config: RuntimeConfig): HealthService {
           cv: workspace.status === "ready",
           profile: workspace.status === "ready",
           portals: workspace.status === "ready",
-          scan: false,
-          reports: false,
-          artifacts: false,
+          scan: isReady,
+          reports: workspace.status === "ready",
+          artifacts: workspace.status === "ready",
           cvConversion: false,
           geminiEvaluation: false
         },

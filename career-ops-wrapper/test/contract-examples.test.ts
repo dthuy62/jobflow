@@ -3,20 +3,28 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import {
+  ArtifactCollectionDtoSchema,
   ArtifactDtoSchema,
   CollectionDtoSchema,
   ErrorCodeSchema,
   ErrorResponseDtoSchema,
   HealthDtoSchema,
+  OfferCollectionDtoSchema,
   OfferDtoSchema,
   PortalDtoSchema,
   ProfileDtoSchema,
+  ReportCollectionDtoSchema,
   ReportDetailDtoSchema,
   ReportListItemDtoSchema,
   ScanReadinessDtoSchema,
   ScanRunDtoSchema,
   CvDtoSchema
 } from "../src/contracts/index.js";
+
+import { createArtifactService } from "../src/services/artifact-service.js";
+import { createOfferService } from "../src/services/offer-service.js";
+import { createReportService } from "../src/services/report-service.js";
+import { projectionFixturePath } from "./support/fixture-workspace.js";
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -37,7 +45,13 @@ describe("contract examples", () => {
     ["scan-run.running.json", ScanRunDtoSchema],
     ["report.list-item.valid.json", ReportListItemDtoSchema],
     ["report.detail.valid.json", ReportDetailDtoSchema],
-    ["artifact.valid.json", ArtifactDtoSchema]
+    ["artifact.valid.json", ArtifactDtoSchema],
+    ["offer.not-evaluated.json", OfferDtoSchema],
+    ["offers.collection.json", OfferCollectionDtoSchema],
+    ["scan-run.succeeded.json", ScanRunDtoSchema],
+    ["scan-run.failed.json", ScanRunDtoSchema],
+    ["reports.collection.json", ReportCollectionDtoSchema],
+    ["artifacts.collection.json", ArtifactCollectionDtoSchema]
   ])("validates %s", async (fixtureName, schema) => {
     const example = await readJsonFixture<unknown>(`contracts/examples/${fixtureName}`);
 
@@ -62,7 +76,9 @@ describe("contract examples", () => {
     expect(() => ScanReadinessDtoSchema.parse(example)).not.toThrow();
   });
 
-  it("documents local script readiness without advertising unimplemented APIs", async () => {
+  // health.ready.json keeps scan/reports/artifacts false until Android's
+  // HealthDtoTest is updated alongside it; the live service now reports true.
+  it("documents local script readiness without requiring AI providers", async () => {
     const example = HealthDtoSchema.parse(
       await readJsonFixture<unknown>("contracts/examples/health.ready.json")
     );
@@ -90,7 +106,9 @@ describe("contract examples", () => {
     "contracts/examples/errors/unauthorized.json",
     "contracts/examples/errors/workspace-unhealthy.json",
     "contracts/examples/errors/path-outside-workspace.json",
-    "contracts/examples/errors/scan-already-running.json"
+    "contracts/examples/errors/scan-already-running.json",
+    "contracts/examples/errors/scan-not-ready.json",
+    "contracts/examples/errors/not-found.json"
   ])("validates error example %s", async (fixturePath) => {
     const example = await readJsonFixture<unknown>(fixturePath);
 
@@ -146,6 +164,31 @@ describe("contract examples", () => {
 
     expect(() => OfferDtoSchema.parse({ ...offer, status: "queued" })).toThrow(/status/i);
     expect(() => ScanRunDtoSchema.parse({ ...scanRun, startedAt: "yesterday" })).toThrow(/startedAt/i);
+  });
+
+  it("keeps projection examples in sync with the synthetic fixture workspace", async () => {
+    const config = { host: "127.0.0.1", port: 3000, workspace: projectionFixturePath };
+    const offers = await createOfferService(config).listOffers();
+    const reports = await createReportService(config).listReports();
+    const artifacts = await createArtifactService(config).listArtifacts();
+    const offersExample = OfferCollectionDtoSchema.parse(
+      await readJsonFixture<unknown>("contracts/examples/offers.collection.json")
+    );
+    const reportsExample = ReportCollectionDtoSchema.parse(
+      await readJsonFixture<unknown>("contracts/examples/reports.collection.json")
+    );
+    const artifactsExample = ArtifactCollectionDtoSchema.parse(
+      await readJsonFixture<unknown>("contracts/examples/artifacts.collection.json")
+    );
+    const withoutTimes = <T extends object>(item: T) => {
+      const { updatedAt: _updatedAt, createdAt: _createdAt, sizeBytes: _sizeBytes, ...rest } =
+        item as T & { updatedAt?: unknown; createdAt?: unknown; sizeBytes?: unknown };
+      return rest;
+    };
+
+    expect(offersExample.items).toEqual(offers.items);
+    expect(reportsExample.items.map(withoutTimes)).toEqual(reports.items.map(withoutTimes));
+    expect(artifactsExample.items.map(withoutTimes)).toEqual(artifacts.items.map(withoutTimes));
   });
 
   it("publishes the error codes that clients mirror", async () => {

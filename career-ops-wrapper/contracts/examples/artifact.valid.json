@@ -1,11 +1,10 @@
 {
-  "id": "artifact-001",
-  "offerId": "offer-001",
-  "reportId": "report-001",
-  "filename": "offer-evaluation.md",
-  "contentType": "text/markdown",
-  "sizeBytes": 48,
-  "downloadUrl": "/api/v1/artifacts/artifact-001/download",
-  "createdAt": "2026-06-15T10:36:00.000Z",
-  "sourceRevision": "scan_20260615_103000"
+  "id": "artifact_df5d3e6d284aa3d7",
+  "offerId": "offer_a1461f4e3225f9ea",
+  "reportId": "report_001",
+  "filename": "cv-jane-doe-acme-robotics-2026-06-20.pdf",
+  "contentType": "application/pdf",
+  "sizeBytes": 125,
+  "downloadUrl": "/api/v1/artifacts/artifact_df5d3e6d284aa3d7/download",
+  "createdAt": "2026-06-20T09:00:00.000Z"
 }

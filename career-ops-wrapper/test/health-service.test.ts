@@ -41,9 +41,9 @@ describe("health service capabilities", () => {
       cv: true,
       profile: true,
       portals: true,
-      scan: false,
-      reports: false,
-      artifacts: false,
+      scan: true,
+      reports: true,
+      artifacts: true,
       cvConversion: false,
       geminiEvaluation: false
     });
@@ -61,7 +61,7 @@ describe("health service capabilities", () => {
     expect(health.workspace.status).toBe("ready");
     expect(health.careerOps.status).toBe("notReady");
     expect(health.careerOps.scanner.missingRequirements).toContain("scan-script");
-    expect(health.capabilities.scan).toBe(false);
+    expect(health.capabilities).toMatchObject({ scan: false, reports: true, artifacts: true });
     expect(JSON.stringify(health)).not.toContain(missingScanWorkspace);
   });
 
