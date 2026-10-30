@@ -7,4 +7,53 @@
     <string name="settings_theme_system">System default</string>
     <string name="settings_theme_light">Light</string>
     <string name="settings_theme_dark">Dark</string>
+
+    <!-- Errors: one message per AppError case (ui/components/UiError.kt) -->
+    <string name="error_unreachable">Cannot reach the local wrapper. Start it and try again.</string>
+    <string name="error_pairing_required">The wrapper needs a pairing token. Pair this device and try again.</string>
+    <string name="error_server">The wrapper hit a problem. Try again in a moment.</string>
+    <string name="error_incompatible">The wrapper answered in an unexpected format. Update the app or the wrapper.</string>
+    <string name="error_unexpected">Something went wrong. Please try again.</string>
+    <string name="error_code_validation_error">Some values are not valid. Check them and save again.</string>
+    <string name="error_code_unauthorized">This device is not paired with the wrapper.</string>
+    <string name="error_code_workspace_unhealthy">The Career Ops workspace is not ready.</string>
+    <string name="error_code_not_found">That item no longer exists.</string>
+    <string name="error_code_scan_already_running">A scan is already running.</string>
+    <string name="error_code_command_failed">A Career Ops command failed.</string>
+    <string name="error_code_parser_failed">Career Ops output could not be read.</string>
+    <string name="error_code_path_outside_workspace">That file is outside the Career Ops workspace.</string>
+    <string name="error_code_payload_too_large">That content is too large to save.</string>
+    <string name="error_code_unexpected_error">The wrapper hit an unexpected error.</string>
+    <string name="error_code_unknown">The wrapper refused the request.</string>
+
+    <!-- Health -->
+    <string name="health_section_system">SYSTEM HEALTH</string>
+    <string name="health_section_readiness">READINESS SNAPSHOT</string>
+    <string name="health_section_details">DETAILS</string>
+    <string name="health_section_guidance">GUIDANCE</string>
+    <string name="health_title_loading">Checking</string>
+    <string name="health_title_ready">Ready</string>
+    <string name="health_title_not_ready">Needs setup</string>
+    <string name="health_title_unreachable">Unreachable</string>
+    <string name="health_title_pairing_required">Pairing required</string>
+    <string name="health_title_invalid_response">Invalid response</string>
+    <string name="health_message_loading">Checking local wrapper health.</string>
+    <string name="health_message_ready">Wrapper and workspace are ready.</string>
+    <string name="health_message_not_ready">Local setup is not ready.</string>
+    <string name="health_missing_requirement">Missing: %1$s</string>
+    <string name="health_wrapper">Wrapper</string>
+    <string name="health_workspace">Workspace</string>
+    <string name="health_scanner">Scanner</string>
+    <string name="health_wrapper_reachable">reachable</string>
+    <string name="health_wrapper_unreachable">unreachable</string>
+    <string name="health_wrapper_pairing_required">pairing required</string>
+    <string name="health_wrapper_invalid_response">invalid response</string>
+    <string name="health_status_unknown">unknown</string>
+    <string name="health_last_checked">Last checked: %1$s</string>
+    <string name="health_not_checked_yet">not yet</string>
+    <string name="health_server_time">Server time: %1$s</string>
+    <string name="health_check_again">CHECK AGAIN</string>
+    <string name="health_dialog_title">LOCAL SETUP NEEDS ATTENTION</string>
+    <string name="health_dialog_details">DETAILS</string>
+    <string name="health_dialog_dismiss">DISMISS</string>
 </resources>

@@ -13,6 +13,9 @@ style:
     active: false
   ForbiddenComment:
     active: false
+  UnusedPrivateMember:
+    # Compose previews are private and only referenced by tooling.
+    ignoreAnnotated: ['Preview']
 
 naming:
   FunctionNaming:

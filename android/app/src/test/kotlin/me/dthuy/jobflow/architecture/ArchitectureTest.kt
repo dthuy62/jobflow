@@ -9,7 +9,7 @@ import org.junit.Test
 class ArchitectureTest {
     // Derived from this file's own package so it survives the package rename done by mobile-app-config.
     private val root = ArchitectureTest::class.java.packageName.removeSuffix(".architecture")
-    private val sharedUiPackages = setOf("theme")
+    private val sharedUiPackages = setOf("theme", "components", "health")
 
     @Test
     fun `ui layer should not import from data layer`() {

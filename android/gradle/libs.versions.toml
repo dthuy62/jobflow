@@ -11,6 +11,7 @@ lifecycle = "2.11.0"
 nav3 = "1.2.0"
 retrofit = "3.0.0"
 okhttp = "5.4.0"
+kyantBackdrop = "2.0.0"
 datastore = "1.2.1"
 coroutines = "1.11.0"
 serialization = "1.11.0"
@@ -40,6 +41,9 @@ androidx-compose-ui-tooling = { module = "androidx.compose.ui:ui-tooling" }
 androidx-compose-ui-tooling-preview = { module = "androidx.compose.ui:ui-tooling-preview" }
 androidx-compose-material3 = { module = "androidx.compose.material3:material3" }
 androidx-compose-material-icons-core = { module = "androidx.compose.material:material-icons-core" }
+
+# --- UI
+kyant-backdrop = { module = "io.github.kyant0:backdrop", version.ref = "kyantBackdrop" }
 
 # --- DI
 hilt-android = { module = "com.google.dagger:hilt-android", version.ref = "hilt" }
