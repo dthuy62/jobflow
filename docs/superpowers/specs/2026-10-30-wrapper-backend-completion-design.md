@@ -98,6 +98,11 @@ persistence)**.
 - Timeout: default 10 minutes, configurable through `RuntimeConfig.scanTimeoutMs`
   (env `CAREER_OPS_SCAN_TIMEOUT_MS`) **(builder's call)**. On timeout the child
   gets `SIGTERM`, then `SIGKILL` after 5 seconds.
+- The child is spawned `detached` so it leads its own process group. Timeout,
+  wrapper shutdown (`server.close()`, SIGINT/SIGTERM), and wrapper exit signal
+  the whole group, and any process left in the group after `scan.mjs` exits is
+  killed. A run settles on `exit` (pipes get 250 ms to drain), so a grandchild
+  holding the pipes cannot keep the run active **(builder's call, from review)**.
 - stdout and stderr are each capped at 256 KiB; only the tail is kept. They stay
   inside the wrapper and are never returned raw **(builder's call)**.
 - The existing placeholder interface (`RunScanInput`/`RunScanResult`, unused)
@@ -135,8 +140,10 @@ persistence)**.
 Every line that leaves the engine goes through `sanitizeScanOutputLine`:
 token patterns (existing `redactSensitiveText`), the configured workspace path
 and its real path → `[WORKSPACE]`, the home directory → `[HOME]`, any other
-absolute path token → `[PATH]`, `..` path segments removed, control characters
-stripped.
+absolute path token (`/x`, `~/x`, `C:\x`, `C:/x`, `file://…`, leading `//…`)
+→ `[PATH]`, `../` segments removed, dot runs collapsed, control characters
+stripped. A line that still fails `SanitizedTextSchema` or has no letters or
+digits is dropped, so one odd line can never make a run unreadable.
 
 ## Offers
 
@@ -210,7 +217,9 @@ Missing files are treated as empty.
   `offers_sha256_<8 hex>` over the source files.
 - `GET /offers/{id}` → one `OfferDto` or `NOT_FOUND`.
 - File size caps: 10 MiB for `scan-history.tsv`, 2 MiB for each Markdown file;
-  over the cap → `PAYLOAD_TOO_LARGE` **(builder's call)**.
+  over the cap → `PAYLOAD_TOO_LARGE` on the offer routes. Report and artifact
+  routes treat an oversized data file as empty and only lose offer links
+  **(builder's call)**.
 
 ## Reports
 
@@ -218,8 +227,8 @@ Missing files are treated as empty.
   `NNN-<slug>.md`). Other files are ignored. Symlinks are skipped.
 - `id`: `report_NNN` **(agreed: from the report number)**. If two files share a
   number, the first by file name wins **(builder's call)**.
-- `title`: the `# Evaluation: …` heading text, else the slug. `kind`:
-  `evaluation` when the heading starts with `Evaluation`, else `unknown`.
+- `title`: the `# Evaluation: …` (or `# Evaluación: …`) heading text, else
+  `Report NNN`. `kind`: `evaluation` for those headings, else `unknown`.
 - `createdAt`: `**Date:**`, else the file-name date. `updatedAt`: file mtime.
 - `offerId`: from `**URL:**` (same hash as offers), else from a tracker row
   that links the report **(agreed)**.

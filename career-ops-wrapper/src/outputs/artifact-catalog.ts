@@ -57,7 +57,8 @@ export async function openArtifactForDownload(
 
   try {
     const fileStat = await handle.stat();
-    if (!fileStat.isFile()) {
+    // Same inode as at listing time: the file (or a parent) was not swapped in between.
+    if (!fileStat.isFile() || fileStat.dev !== entry.dev || fileStat.ino !== entry.ino) {
       throw artifactNotFound();
     }
 

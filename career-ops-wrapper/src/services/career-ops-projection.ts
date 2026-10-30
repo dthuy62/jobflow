@@ -140,9 +140,9 @@ export function projectCareerOps(data: CareerOpsData): CareerOpsProjection {
     offer.sources.add("report");
     offer.reportNumber ??= report.number;
     if (!offer.company && !offer.title && report.header.title) {
-      const [company, title] = report.header.title.split(/\s+[—–-]{1,2}\s+/, 2);
-      offer.company = company;
-      offer.title = title;
+      const [company, title] = report.header.title.split(/\s*[—–]\s*|\s+--?\s+/, 2);
+      offer.company = nonEmpty(company ?? "");
+      offer.title = nonEmpty(title ?? "");
     }
   }
 

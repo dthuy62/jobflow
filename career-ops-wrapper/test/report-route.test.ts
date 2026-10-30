@@ -75,6 +75,23 @@ describe("report routes", () => {
     });
   });
 
+  it("still lists reports when scan history is over its size cap", async () => {
+    const workspace = await copyProjectionFixture();
+    workspaces.push(workspace);
+    await writeFile(path.join(workspace, "data/scan-history.tsv"), "x".repeat(10 * 1024 * 1024 + 1));
+
+    await withServer(workspace, async (server) => {
+      const reports = await server.inject({ method: "GET", url: "/api/v1/reports" });
+      const artifacts = await server.inject({ method: "GET", url: "/api/v1/artifacts" });
+      const offers = await server.inject({ method: "GET", url: "/api/v1/offers" });
+
+      expect(reports.statusCode).toBe(200);
+      expect(reports.json().items).toHaveLength(3);
+      expect(artifacts.statusCode).toBe(200);
+      expect(offers.statusCode).toBe(413);
+    });
+  });
+
   it("returns PAYLOAD_TOO_LARGE for reports over 1 MiB", async () => {
     const workspace = await copyProjectionFixture();
     workspaces.push(workspace);

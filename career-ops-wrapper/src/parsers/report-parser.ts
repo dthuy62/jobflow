@@ -30,7 +30,7 @@ export function parseReportHeader(markdown: string): ReportHeader {
     }
   }
 
-  const evaluationTitle = heading?.match(/^Evaluation\s*:\s*(.+)$/i)?.[1]?.trim();
+  const evaluationTitle = heading?.match(/^(?:Evaluation|Evaluación)\s*:\s*(.+)$/i)?.[1]?.trim();
   const title = evaluationTitle ?? heading;
   const date = fields.get("date")?.match(/\d{4}-\d{2}-\d{2}/)?.[0];
   const url = fields.get("url")?.split(/\s+/)[0];

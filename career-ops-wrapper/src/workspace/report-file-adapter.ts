@@ -1,6 +1,5 @@
-import { readFile } from "node:fs/promises";
 import { normalizeReportNumber, parseReportHeader, type ReportHeader } from "../parsers/index.js";
-import { listWorkspaceFiles } from "./workspace-reader.js";
+import { listWorkspaceFiles, readRegularFileNoFollow } from "./workspace-reader.js";
 
 export const REPORT_MARKDOWN_MAX_BYTES = 1024 * 1024;
 
@@ -35,7 +34,12 @@ export async function listReportFiles(workspacePath: string): Promise<ReportFile
     }
 
     const tooLarge = entry.sizeBytes > REPORT_MARKDOWN_MAX_BYTES;
-    const markdown = tooLarge ? undefined : await readFile(entry.realPath, "utf8").catch(() => undefined);
+    const markdown = tooLarge
+      ? undefined
+      : await readRegularFileNoFollow(entry.realPath, REPORT_MARKDOWN_MAX_BYTES).then(
+          (file) => file.content,
+          () => undefined
+        );
     if (!tooLarge && markdown === undefined) {
       continue;
     }

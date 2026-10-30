@@ -134,6 +134,19 @@ describe("offer service", () => {
     expect(JSON.stringify(offer)).not.toContain("/Users/jane");
   });
 
+  it("falls back without a path warning when a report heading has an empty company", async () => {
+    const workspace = await copyProjectionFixture();
+    workspaces.push(workspace);
+    await writeFile(
+      path.join(workspace, "reports/007-blank-2026-07-01.md"),
+      "# Evaluation: — Lonely Role\n\n**URL:** https://jobs.example.com/blank/role\n"
+    );
+
+    const offer = await serviceFor(workspace).getOffer(urlId("https://jobs.example.com/blank/role"));
+
+    expect(offer).toMatchObject({ company: "Unknown company", title: "Lonely Role", warnings: [] });
+  });
+
   it.each([
     ["Evaluated", "tracked"],
     ["evaluada", "tracked"],

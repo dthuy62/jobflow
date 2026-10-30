@@ -9,7 +9,8 @@ import {
   type TrackerRow
 } from "../parsers/index.js";
 import { listReportFiles, type ReportFile } from "./report-file-adapter.js";
-import { readOptionalWorkspaceText } from "./workspace-reader.js";
+import { ApiError } from "../errors/api-error.js";
+import { readOptionalWorkspaceText, type WorkspaceTextFile } from "./workspace-reader.js";
 
 export const SCAN_HISTORY_MAX_BYTES = 10 * 1024 * 1024;
 export const TRACKER_MARKDOWN_MAX_BYTES = 2 * 1024 * 1024;
@@ -24,12 +25,31 @@ export interface CareerOpsData {
   readonly revisionHash: string;
 }
 
+export interface ReadCareerOpsDataOptions {
+  /**
+   * Treat an oversized data file as empty instead of failing. Report and
+   * artifact routes use this: tracker data only adds links for them.
+   */
+  readonly tolerateOversizedSources?: boolean;
+}
+
 /** Reads the Career Ops files the offer/report/artifact projection is built from. */
-export async function readCareerOpsData(workspacePath: string): Promise<CareerOpsData> {
+export async function readCareerOpsData(
+  workspacePath: string,
+  options: ReadCareerOpsDataOptions = {}
+): Promise<CareerOpsData> {
+  const readSource = (relativePath: string, maxBytes: number): Promise<WorkspaceTextFile | undefined> =>
+    readOptionalWorkspaceText(workspacePath, relativePath, maxBytes).catch((error: unknown) => {
+      if (options.tolerateOversizedSources && error instanceof ApiError && error.code === "PAYLOAD_TOO_LARGE") {
+        return undefined;
+      }
+      throw error;
+    });
+
   const [scanHistory, pipeline, tracker, reports, artifacts] = await Promise.all([
-    readOptionalWorkspaceText(workspacePath, "data/scan-history.tsv", SCAN_HISTORY_MAX_BYTES),
-    readOptionalWorkspaceText(workspacePath, "data/pipeline.md", TRACKER_MARKDOWN_MAX_BYTES),
-    readOptionalWorkspaceText(workspacePath, "data/applications.md", TRACKER_MARKDOWN_MAX_BYTES),
+    readSource("data/scan-history.tsv", SCAN_HISTORY_MAX_BYTES),
+    readSource("data/pipeline.md", TRACKER_MARKDOWN_MAX_BYTES),
+    readSource("data/applications.md", TRACKER_MARKDOWN_MAX_BYTES),
     listReportFiles(workspacePath),
     listArtifactFiles(workspacePath)
   ]);

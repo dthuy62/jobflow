@@ -201,6 +201,10 @@ describe("parseReportHeader", () => {
     });
   });
 
+  it("accepts the Spanish evaluation heading", () => {
+    expect(parseReportHeader("# Evaluación: Acme — Rol\n")).toEqual({ title: "Acme — Rol", kind: "evaluation" });
+  });
+
   it("ignores PDF values that are not output PDFs and non-evaluation headings", () => {
     expect(
       parseReportHeader("# Interview notes\n\n**PDF:** not generated — score below threshold\n")
