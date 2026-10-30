@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process";
+import { spawn, type ChildProcess } from "node:child_process";
 import { resolveWorkspaceRelativePath } from "../security/path-guard.js";
 import { resolveWorkspaceRoot } from "../workspace/workspace-paths.js";
 
@@ -11,6 +11,8 @@ export interface RunScanArgs {
 export interface RunScanInput {
   readonly args: RunScanArgs;
   readonly timeoutMs: number;
+  /** Aborting terminates the scan's process group (wrapper shutdown). */
+  readonly signal?: AbortSignal;
 }
 
 export interface ScanProcessResult {
@@ -36,6 +38,17 @@ export const SCAN_OUTPUT_MAX_CHARS = 256 * 1024;
 
 const SCAN_SCRIPT = "scan.mjs";
 const DEFAULT_KILL_GRACE_MS = 5000;
+/** How long to wait for pipes to drain after exit before settling anyway. */
+const PIPE_DRAIN_MS = 250;
+const USE_PROCESS_GROUPS = process.platform !== "win32";
+
+/** Scans still running in this wrapper process, killed if the wrapper exits. */
+const liveScans = new Set<ChildProcess>();
+process.once("exit", () => {
+  for (const child of liveScans) {
+    signalScan(child, "SIGKILL");
+  }
+});
 
 export function buildScanArgv(args: RunScanArgs): string[] {
   return [
@@ -54,10 +67,18 @@ export function createCareerOpsEngineAdapter(
 ): CareerOpsEngineAdapter {
   const killGraceMs = options.killGraceMs ?? DEFAULT_KILL_GRACE_MS;
 
+  const scheduleKill = (child: ChildProcess): NodeJS.Timeout => {
+    signalScan(child, "SIGTERM");
+    return setTimeout(() => signalScan(child, "SIGKILL"), killGraceMs).unref();
+  };
+
   return {
     async runScan(input: RunScanInput): Promise<ScanProcessResult> {
       const scriptPath = await resolveWorkspaceRelativePath(workspacePath, SCAN_SCRIPT);
       const cwd = await resolveWorkspaceRoot(workspacePath);
+      if (input.signal?.aborted) {
+        return { exitCode: null, signal: "SIGTERM", timedOut: false, spawnFailed: false, stdout: "", stderr: "" };
+      }
 
       return new Promise((resolve) => {
         const stdout = new OutputTail();
@@ -65,40 +86,73 @@ export function createCareerOpsEngineAdapter(
         let timedOut = false;
         let settled = false;
         let killTimer: NodeJS.Timeout | undefined;
+        let drainTimer: NodeJS.Timeout | undefined;
 
+        // A detached child leads its own process group, so a timeout or
+        // shutdown can kill grandchildren that hold the output pipes open.
         const child = spawn(process.execPath, [scriptPath, ...buildScanArgv(input.args)], {
           cwd,
           env: childEnvironment(),
           shell: false,
+          detached: USE_PROCESS_GROUPS,
           stdio: ["ignore", "pipe", "pipe"],
           windowsHide: true
         });
+        liveScans.add(child);
 
         const timeoutTimer = setTimeout(() => {
           timedOut = true;
-          child.kill("SIGTERM");
-          killTimer = setTimeout(() => child.kill("SIGKILL"), killGraceMs);
+          killTimer = scheduleKill(child);
         }, input.timeoutMs);
+        const onAbort = (): void => {
+          killTimer = scheduleKill(child);
+        };
+        input.signal?.addEventListener("abort", onAbort, { once: true });
 
         const finish = (result: Omit<ScanProcessResult, "stdout" | "stderr" | "timedOut">): void => {
           if (settled) {
             return;
           }
           settled = true;
+          liveScans.delete(child);
+          input.signal?.removeEventListener("abort", onAbort);
           clearTimeout(timeoutTimer);
           clearTimeout(killTimer);
+          clearTimeout(drainTimer);
+          child.stdout?.destroy();
+          child.stderr?.destroy();
           resolve({ ...result, timedOut, stdout: stdout.value(), stderr: stderr.value() });
         };
 
-        child.stdout.setEncoding("utf8").on("data", (chunk: string) => stdout.append(chunk));
-        child.stderr.setEncoding("utf8").on("data", (chunk: string) => stderr.append(chunk));
+        child.stdout?.setEncoding("utf8").on("data", (chunk: string) => stdout.append(chunk));
+        child.stderr?.setEncoding("utf8").on("data", (chunk: string) => stderr.append(chunk));
         child.on("error", () => finish({ exitCode: null, signal: null, spawnFailed: true }));
+        child.on("exit", (exitCode, signal) => {
+          // Stop any surviving grandchildren, then give the pipes a moment to drain.
+          signalScan(child, "SIGKILL");
+          drainTimer = setTimeout(
+            () => finish({ exitCode: timedOut ? null : exitCode, signal, spawnFailed: false }),
+            PIPE_DRAIN_MS
+          );
+        });
         child.on("close", (exitCode, signal) =>
           finish({ exitCode: timedOut ? null : exitCode, signal, spawnFailed: false })
         );
       });
     }
   };
+}
+
+function signalScan(child: ChildProcess, signal: NodeJS.Signals): void {
+  try {
+    if (USE_PROCESS_GROUPS && child.pid !== undefined) {
+      process.kill(-child.pid, signal);
+    } else {
+      child.kill(signal);
+    }
+  } catch {
+    // The process group is already gone.
+  }
 }
 
 function childEnvironment(): NodeJS.ProcessEnv {

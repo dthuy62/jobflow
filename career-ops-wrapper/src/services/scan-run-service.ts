@@ -20,8 +20,10 @@ export interface ScanRunService {
   startScan(request: StartScanRunRequestDto): Promise<ScanRunDto>;
   getScanRun(id: string): ScanRunDto;
   getLatestScanRun(): ScanRunDto;
-  /** Resolves once no scan is executing; used by tests and shutdown. */
+  /** Resolves once no scan is executing. */
   waitForIdle(): Promise<void>;
+  /** Terminates a running scan and waits for its run to settle. */
+  shutdown(): Promise<void>;
 }
 
 export interface ScanRunServiceOptions {
@@ -40,11 +42,12 @@ export function createScanRunService(
   const now = options.now ?? (() => new Date());
   const timeoutMs = config.scanTimeoutMs ?? DEFAULT_SCAN_TIMEOUT_MS;
   let execution: Promise<void> = Promise.resolve();
+  const shutdownController = new AbortController();
 
   async function execute(id: string, args: RunScanArgs): Promise<void> {
     let result: ScanProcessResult | undefined;
     try {
-      result = await engine.runScan({ args, timeoutMs });
+      result = await engine.runScan({ args, timeoutMs, signal: shutdownController.signal });
     } catch {
       result = undefined;
     }
@@ -119,6 +122,11 @@ export function createScanRunService(
     },
 
     async waitForIdle(): Promise<void> {
+      await execution;
+    },
+
+    async shutdown(): Promise<void> {
+      shutdownController.abort();
       await execution;
     }
   };

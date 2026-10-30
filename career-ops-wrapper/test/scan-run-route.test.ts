@@ -1,4 +1,4 @@
-import { realpath, rm, writeFile } from "node:fs/promises";
+import { access, realpath, rm, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
 import type { FastifyInstance } from "fastify";
@@ -206,5 +206,53 @@ describe("scan run routes", () => {
       expect(response.json().error.code).toBe("NOT_FOUND");
       expect(response.body).not.toContain("etc");
     }
+  });
+});
+
+describe("scan run output that trips the text contract", () => {
+  it("keeps status readable when warnings and stderr look path-like", async () => {
+    const workspace = await copyProjectionFixture();
+    workspaces.push(workspace);
+    await writeFile(
+      path.join(workspace, "scan.mjs"),
+      [
+        "console.log('Errors (3):');",
+        "console.log('  ✗ Acme: retrying....');",
+        "console.log('  ✗ //cdn.example.com/x.js');",
+        "console.log('  ✗ ..');",
+        "console.error('..');",
+        "process.exit(2);"
+      ].join("\n")
+    );
+    const server = await serverFor(workspace);
+
+    const start = await server.inject({ method: "POST", url: "/api/v1/scan-runs", payload: {} });
+    const finished = await pollUntilDone(server, start.json().id);
+    const latest = await server.inject({ method: "GET", url: "/api/v1/scan-runs/latest" });
+
+    expect(latest.statusCode).toBe(200);
+    expect(finished.summary.warnings).toEqual(["Acme: retrying.", "[PATH]"]);
+    expect(finished.failure?.message).toBe("Career Ops scan exited with code 2.");
+  });
+});
+
+describe("scan runs on shutdown", () => {
+  it("terminates a running scan when the server closes", async () => {
+    const workspace = await copyProjectionFixture();
+    workspaces.push(workspace);
+    await writeFile(
+      path.join(workspace, "scan.mjs"),
+      "import { writeFileSync } from 'node:fs'; setTimeout(() => writeFileSync('late.txt', 'x'), 1500);"
+    );
+    const server = await createServer({ config: { host: "127.0.0.1", port: 3000, workspace } });
+
+    const start = await server.inject({ method: "POST", url: "/api/v1/scan-runs", payload: {} });
+    expect(start.statusCode).toBe(202);
+    const closedAt = Date.now();
+    await server.close();
+
+    expect(Date.now() - closedAt).toBeLessThan(1500);
+    await new Promise((resolve) => setTimeout(resolve, 1700));
+    await expect(access(path.join(workspace, "late.txt"))).rejects.toThrow();
   });
 });

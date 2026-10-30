@@ -20,7 +20,13 @@ describe("sanitizeScanOutputLine", () => {
     ["C:\\Users\\jane\\x.txt missing", "[PATH] missing"],
     ["climb ../../etc", "climb etc"],
     ["Globex: HTTP 503 from https://jobs.example.com/a/b", "Globex: HTTP 503 from https://jobs.example.com/a/b"],
-    ["tab\there\u0007bell", "tab here bell"]
+    ["tab\there\u0007bell", "tab here bell"],
+    ["Acme: retrying....", "Acme: retrying."],
+    ["//cdn.example.com/x.js failed", "[PATH] failed"],
+    ["load file:///opt/secret/x.js", "load [PATH]"],
+    ["at C:/Users/bob/x", "at [PATH]"],
+    ["Error:/opt/secret", "Error:[PATH]"],
+    ["at 10:30 https://a.example/b", "at 10:30 https://a.example/b"]
   ])("sanitizes %j", (input, expected) => {
     expect(sanitizeScanOutputLine(input, options)).toBe(expected);
   });
@@ -30,7 +36,7 @@ describe("sanitizeScanOutputLine", () => {
   });
 
   it("always produces text accepted by SanitizedTextSchema", () => {
-    for (const input of ["/abs", "..", "../x", "~/y", "a/../b", "/Users/jane/career-ops"]) {
+    for (const input of ["/abs", "..", "../x", "~/y", "a/../b", "/Users/jane/career-ops", "x....", "....", "//x", ". ./.."]) {
       const output = sanitizeScanOutputLine(input, options);
       expect(output === "" || SanitizedTextSchema.safeParse(output).success, `${input} -> ${output}`).toBe(true);
     }

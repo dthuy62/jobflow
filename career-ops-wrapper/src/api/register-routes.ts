@@ -37,7 +37,9 @@ export async function registerApiRoutes(
       await registerProfileRoutes(apiV1, createProfileService(options.config));
       await registerPortalRoutes(apiV1, createPortalService(options.config));
       await registerScanReadinessRoutes(apiV1, createScanReadinessService(options.config));
-      await registerScanRunRoutes(apiV1, createScanRunService(options.config));
+      const scanRunService = createScanRunService(options.config);
+      apiV1.addHook("onClose", async () => scanRunService.shutdown());
+      await registerScanRunRoutes(apiV1, scanRunService);
       await registerOfferRoutes(apiV1, createOfferService(options.config));
       await registerReportRoutes(apiV1, createReportService(options.config));
       await registerArtifactRoutes(apiV1, createArtifactService(options.config));

@@ -87,6 +87,39 @@ describe("CareerOpsEngineAdapter.runScan", () => {
     expect(result.exitCode).toBeNull();
   });
 
+  it("finishes a timed-out scan even when a grandchild holds its pipes", async () => {
+    const workspace = await workspaceWithScript(
+      [
+        "import { spawn } from 'node:child_process';",
+        "spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { stdio: 'inherit' });",
+        "setInterval(() => {}, 1000);"
+      ].join("\n")
+    );
+    const started = Date.now();
+
+    const result = await createCareerOpsEngineAdapter(workspace, { killGraceMs: 200 }).runScan({
+      args: { dryRun: true },
+      timeoutMs: 300
+    });
+
+    expect(result.timedOut).toBe(true);
+    expect(Date.now() - started).toBeLessThan(3000);
+  });
+
+  it("terminates a running scan when its signal aborts", async () => {
+    const workspace = await workspaceWithScript("setInterval(() => {}, 1000);");
+    const adapter = createCareerOpsEngineAdapter(workspace, { killGraceMs: 200 });
+    const controller = new AbortController();
+
+    const running = adapter.runScan({ args: { dryRun: true }, timeoutMs: 60_000, signal: controller.signal });
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    controller.abort();
+    const result = await running;
+
+    expect(result.exitCode).toBeNull();
+    expect(result.signal).toBe("SIGTERM");
+  });
+
   it("keeps only the tail of very large output", async () => {
     const workspace = await workspaceWithScript(
       "process.stdout.write('a'.repeat(400 * 1024)); process.stdout.write('TAIL');"
