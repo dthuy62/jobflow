@@ -7,8 +7,6 @@ import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
 import java.util.Map.entry
-import me.dthuy.jobflow.ui.chat.ChatRoute
-import me.dthuy.jobflow.ui.chat.ChatScreen
 import me.dthuy.jobflow.ui.settings.SettingsRoute
 import me.dthuy.jobflow.ui.settings.SettingsScreen
 
@@ -18,7 +16,7 @@ import me.dthuy.jobflow.ui.settings.SettingsScreen
  */
 @Composable
 fun AppNavigation() {
-    val backStack = rememberNavBackStack(ChatRoute)
+    val backStack = rememberNavBackStack(SettingsRoute)
     NavDisplay(
         backStack = backStack,
         onBack = { backStack.removeLastOrNull() },
@@ -31,7 +29,6 @@ fun AppNavigation() {
         ),
         entryProvider =
         entryProvider {
-            entry<ChatRoute> { ChatScreen(onOpenSettings = { backStack.add(SettingsRoute) }) }
             entry<SettingsRoute> { SettingsScreen(onBack = { backStack.removeLastOrNull() }) }
         },
     )

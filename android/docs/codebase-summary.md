@@ -41,5 +41,5 @@ Root files: `MainApplication` (Hilt entry), `MainActivity` (applies the theme, h
 
 ## Generated and local files
 
-`build/`, `.gradle/` and `app/schemas/` are generated; hooks block hand edits. Commit `app/schemas/` (it records each
+`build/`, `.gradle/` and the Room schema folder (once Room is added back) are generated; hooks block hand edits. Commit the schema folder (it records each
 database version for migrations). `local.properties`, `.idea/` and signing files stay out of git; see `.gitignore`.

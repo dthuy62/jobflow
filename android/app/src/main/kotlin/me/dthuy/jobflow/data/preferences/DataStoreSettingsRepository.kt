@@ -20,7 +20,7 @@ class DataStoreSettingsRepository @Inject constructor(@param:ApplicationContext 
     SettingsRepository {
     override val themeMode: Flow<ThemeMode> =
         context.settingsDataStore.data.map { prefs ->
-            prefs[THEME_KEY]?.let { runCatching { ThemeMode.valueOf(it) }.getOrNull() } ?: ThemeMode.System
+            ThemeMode.entries.firstOrNull { it.name == prefs[THEME_KEY] } ?: ThemeMode.System
         }
 
     override suspend fun setThemeMode(mode: ThemeMode) {

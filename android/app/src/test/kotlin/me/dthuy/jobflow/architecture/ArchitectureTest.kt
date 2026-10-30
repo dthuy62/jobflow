@@ -41,6 +41,14 @@ class ArchitectureTest {
         }
     }
 
+    @Test
+    fun `exceptions are only caught at data boundaries`() {
+        val allowed = listOf("core.common", "data.remote", "data.local").map { "$root.$it" }
+        Konsist.scopeFromProduction().files
+            .filterNot { file -> allowed.any { file.packagee?.name?.startsWith(it) == true } }
+            .assertFalse { file -> CATCHING.containsMatchIn(file.text) }
+    }
+
     private fun filesIn(subPackage: String): List<KoFileDeclaration> {
         val files = Konsist.scopeFromPackage("$root.$subPackage..").files
         assertTrue("No files found in $root.$subPackage; did the package move?", files.isNotEmpty())
@@ -53,4 +61,8 @@ class ArchitectureTest {
         .map { it.removePrefix("$root.ui.").substringBefore('.') }
         .filterNot { it in sharedUiPackages }
         .toSet()
+
+    private companion object {
+        val CATCHING = Regex("""\btry\s*\{|\bcatch\s*\(|\brunCatching\b""")
+    }
 }

@@ -52,7 +52,7 @@ The app uses Room 3 (`androidx.room3`, [ADR 6](decisions/0006-use-room-3.md)).
    - complex changes (for example splitting a table): a `Migration(from, to)` from `androidx.room3.migration`, whose
      `suspend fun migrate(connection: SQLiteConnection)` runs SQL, registered with `addMigrations(...)` in
      `DatabaseModule`.
-3. Build once so Room exports the new JSON into `app/schemas/`, and commit it. Never edit that folder by hand.
+3. Build once so Room exports the new JSON into the app schemas folder (created once Room is added back), and commit it. Never edit that folder by hand.
 4. Avoid `fallbackToDestructiveMigration`: it deletes all data. If losing data is acceptable for some versions,
    `fallbackToDestructiveMigrationFrom(...)` and `fallbackToDestructiveMigrationOnDowngrade()` are narrower.
    Chat history is real user data, so the starter does not use any of them.

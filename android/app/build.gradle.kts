@@ -3,7 +3,6 @@ plugins {
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.ksp)
-    alias(libs.plugins.androidx.room3)
     alias(libs.plugins.hilt)
     alias(libs.plugins.detekt)
     alias(libs.plugins.ktlint)
@@ -87,10 +86,6 @@ android {
     }
 }
 
-room3 {
-    schemaDirectory("$projectDir/schemas")
-}
-
 // DocsTest reads these files, so editing them must rerun the unit tests instead of reusing an up-to-date result.
 tasks.withType<Test>().configureEach {
     inputs.files(
@@ -123,6 +118,10 @@ dependencies {
     implementation(libs.androidx.navigation3.runtime)
     implementation(libs.androidx.navigation3.ui)
     implementation(libs.kotlinx.serialization.core)
+    implementation(libs.kotlinx.serialization.json)
+    implementation(libs.retrofit)
+    implementation(libs.retrofit.converter.kotlinx.serialization)
+    implementation(libs.okhttp)
     implementation(libs.kotlinx.collections.immutable)
     implementation(libs.kotlinx.coroutines.android)
 
@@ -130,8 +129,6 @@ dependencies {
     implementation(libs.hilt.navigation.compose)
     ksp(libs.hilt.compiler)
 
-    implementation(libs.androidx.room3.runtime)
-    ksp(libs.androidx.room3.compiler)
     implementation(libs.androidx.datastore.preferences)
 
     implementation(libs.timber)

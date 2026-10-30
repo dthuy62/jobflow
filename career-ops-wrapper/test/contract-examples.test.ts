@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import {
   ArtifactDtoSchema,
   CollectionDtoSchema,
+  ErrorCodeSchema,
   ErrorResponseDtoSchema,
   HealthDtoSchema,
   OfferDtoSchema,
@@ -145,5 +146,11 @@ describe("contract examples", () => {
 
     expect(() => OfferDtoSchema.parse({ ...offer, status: "queued" })).toThrow(/status/i);
     expect(() => ScanRunDtoSchema.parse({ ...scanRun, startedAt: "yesterday" })).toThrow(/startedAt/i);
+  });
+
+  it("publishes the error codes that clients mirror", async () => {
+    const published = await readJsonFixture<string[]>("contracts/error-codes.json");
+
+    expect(published).toEqual([...ErrorCodeSchema.options].sort());
   });
 });
