@@ -2,11 +2,30 @@
 <resources>
     <string name="app_name">JobFlow</string>
     <string name="settings_title">Settings</string>
-    <string name="settings_back">Back</string>
     <string name="settings_theme">Theme</string>
     <string name="settings_theme_system">System default</string>
     <string name="settings_theme_light">Light</string>
     <string name="settings_theme_dark">Dark</string>
+
+    <string name="page_subtitle">CAREER OPS LOCAL WORKFLOW</string>
+    <string name="nav_home">Home</string>
+    <string name="nav_inputs">Inputs</string>
+    <string name="nav_settings">Settings</string>
+
+    <string name="home_title">JobFlow</string>
+    <string name="home_next_action">NEXT ACTION</string>
+    <string name="home_next_action_title">Add personal scan inputs</string>
+    <string name="home_next_action_body">CV, profile, and portal setup will live here next.</string>
+    <string name="home_open_inputs">OPEN INPUTS</string>
+
+    <string name="inputs_title">Inputs</string>
+    <string name="inputs_cv">CV</string>
+    <string name="inputs_cv_body">Future CV input and review area.</string>
+    <string name="inputs_profile">PROFILE</string>
+    <string name="inputs_profile_body">Future profile and preference input area.</string>
+    <string name="inputs_portals">PORTALS</string>
+    <string name="inputs_portals_body">Future job portal and search configuration area.</string>
+    <string name="inputs_coming_soon">COMING SOON</string>
 
     <!-- Errors: one message per AppError case (ui/components/UiError.kt) -->
     <string name="error_unreachable">Cannot reach the local wrapper. Start it and try again.</string>
