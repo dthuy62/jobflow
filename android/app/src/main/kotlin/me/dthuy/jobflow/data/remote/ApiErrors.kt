@@ -2,11 +2,11 @@ package me.dthuy.jobflow.data.remote
 
 import java.io.IOException
 import kotlinx.coroutines.CancellationException
-import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerializationException
 import me.dthuy.jobflow.core.common.AppError
 import me.dthuy.jobflow.core.common.toApiErrorCode
 import me.dthuy.jobflow.core.common.unexpected
+import me.dthuy.jobflow.data.remote.dto.ErrorResponseDto
 import retrofit2.HttpException
 import timber.log.Timber
 
@@ -37,17 +37,10 @@ private fun HttpException.toHttpError(): AppError = when (val status = code()) {
 private fun HttpException.wrapperErrorCode(): String? {
     val body = response()?.errorBody()?.string() ?: return null
     return try {
-        ApiJson.decodeFromString<ErrorBody>(body).error.code
+        ApiJson.decodeFromString<ErrorResponseDto>(body).error.code
     } catch (_: SerializationException) {
         null
     } catch (_: IllegalArgumentException) {
         null
     }
-}
-
-// Replaced by the contract's ErrorResponseDto once the DTOs are ported.
-@Serializable
-private data class ErrorBody(val error: Code) {
-    @Serializable
-    data class Code(val code: String)
 }
