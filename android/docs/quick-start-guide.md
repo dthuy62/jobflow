@@ -1,27 +1,29 @@
 # Quick start
 
-Requirements: Android Studio (current stable), JDK 21, Android SDK 37.
+Requirements: Android Studio (current stable), JDK 21, Android SDK 37, and Node for the wrapper.
 
-## Run and verify
-
-Open the project in Android Studio and run the `app` configuration, or from a shell:
+## Run against a local wrapper
 
 ```bash
-./gradlew assembleDebug
+cd ../career-ops-wrapper
+npm run dev -- --workspace /path/to/career-ops
+curl http://127.0.0.1:3000/api/v1/health
+```
+
+Then run the `app` configuration with the `devDebug` variant on an emulator; `dev` reaches the host at
+`http://10.0.2.2:3000`. From a shell:
+
+```bash
+./gradlew assembleDevDebug
 ```
 
 Verify everything before saying a task is done:
 
 ```bash
-./gradlew assembleDebug testDebugUnitTest lintDebug detekt ktlintCheck
+./gradlew assembleDevDebug testDevDebugUnitTest lintDevDebug detekt ktlintCheck
 ```
 
 `./gradlew ktlintFormat` fixes formatting. This is the same command CI runs.
-
-## Make it yours
-
-Give the app its package, applicationId and name with the `mobile-app-config` plugin, never by hand. The steps, including
-flavors and Firebase, are in skill `setup-starter` and in the root `README.md`.
 
 ## Add a screen
 
@@ -33,27 +35,23 @@ scripts/new-feature.sh profile --mvi    # MVI with a Contract file
 Register the route in `navigation/NavGraph.kt`:
 
 ```kotlin
-entry<ProfileRoute> { ProfileScreen(onBack = { backStack.removeLastOrNull() }) }
+entry<ProfileRoute> { ProfileScreen(contentPadding = innerPadding) }
 ```
 
 Keep it simple first: inject a domain repository interface into the ViewModel and add a use case only when logic is real
-or shared ([code standards](code-standards.md#how-much-structure-per-feature)). More recipes:
-[module guides](module-guides.md).
+or shared ([code standards](code-standards.md#how-much-structure-per-feature)). New wrapper calls follow
+[add a wrapper endpoint](module-guides.md#add-a-wrapper-endpoint).
 
 ## Turn on the local checks
 
+From the workspace root, once per clone:
+
 ```bash
-scripts/install-git-hooks.sh
+git config core.hooksPath .githooks
 ```
 
-The pre-commit hook runs `ktlintCheck` and `detekt` when Kotlin files are staged. Skip it once with
-`git commit --no-verify`; CI still runs the full command on every push to `main` and every pull request.
-
-## Send builds to testers
-
-Merging a pull request into `develop` builds a signed release APK and sends it to Firebase App Distribution. It needs a
-one-time setup (Firebase app, signing key, GitHub secrets); without it the step is skipped and CI stays green. See
-[CI/CD](ci-cd.md).
+The pre-commit hook runs `ktlintCheck` and `detekt`. Skip it once with `git commit --no-verify`; CI still runs the
+full command on every push to `main` and every pull request.
 
 ## Where to read next
 

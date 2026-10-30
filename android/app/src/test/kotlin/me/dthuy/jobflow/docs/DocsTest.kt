@@ -97,7 +97,7 @@ class DocsTest {
         val LINK = Regex("""]\(([^)\s]+)\)""")
         val CODE_SPAN = Regex("""`([^`\n]+)`""")
         val HEADING = Regex("""^#{1,6}\s+(.+?)\s*$""", RegexOption.MULTILINE)
-        val VERIFY = Regex("""\./gradlew [^\n`]*testDebugUnitTest[^\n`]*""")
+        val VERIFY = Regex("""\./gradlew [^\n`]*test(?:Dev)?DebugUnitTest[^\n`]*""")
         val NON_SLUG = Regex("[^a-z0-9 _-]")
         val LINE_SUFFIX = Regex(":\\d+$")
         val REPO_PATH_ROOTS =

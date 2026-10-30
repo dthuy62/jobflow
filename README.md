@@ -14,28 +14,24 @@ Planned, not scaffolded yet:
 
 ## Android
 
-```bash
-cd android
-./gradlew testDevDebugUnitTest
-```
-
-### Kotlin quality checks
-
-Run this once per clone or worktree to enable the tracked pre-commit hook:
+Built from android-agentic-starter: Compose, Hilt, Retrofit, Navigation 3. See
+`android/README.md` and `android/docs/`.
 
 ```bash
 cd android
-./gradlew installGitHooks
+./gradlew assembleDevDebug testDevDebugUnitTest lintDevDebug detekt ktlintCheck
 ```
 
-The hook runs `qualityCheck` before every commit. Run these commands directly
-while developing Kotlin code:
+### Pre-commit hook
+
+Run this once per clone or worktree to enable the tracked hook (ktlint + detekt):
 
 ```bash
-cd android
-./gradlew ktlintFormat
-./gradlew qualityCheck
+git config core.hooksPath .githooks
 ```
+
+`cd android && ./gradlew ktlintFormat` fixes formatting. CI runs
+`.github/workflows/android.yml` and `.github/workflows/wrapper.yml`.
 
 ## Career Ops Wrapper
 

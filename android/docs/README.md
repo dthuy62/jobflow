@@ -1,23 +1,22 @@
-# Android Agentic Starter documentation
+# JobFlow Android documentation
 
-A single-module Android starter (Jetpack Compose, Hilt, Room, DataStore, Navigation 3) built for human and AI-assisted
-feature work: clear layer boundaries, two presentation patterns used where they fit, and checks that enforce the rules.
+The JobFlow Android app (Jetpack Compose, Hilt, Retrofit, DataStore, Navigation 3), built from android-agentic-starter
+for human and AI-assisted feature work: clear layer boundaries, two presentation patterns used where they fit, and checks
+that enforce the rules. Workspace-wide product and architecture docs live in `../../docs/`.
 
 ## Guides
 
 | Read                                            | When you want to know                                                                      |
 |-------------------------------------------------|--------------------------------------------------------------------------------------------|
 | [Quick start](quick-start-guide.md)             | how to run the app, verify it and add a screen                                             |
-| [Product requirements](project-overview-pdr.md) | what the starter is for, what it leaves out, how "done" is checked                         |
+| [Product requirements](project-overview-pdr.md) | what the app must guarantee, what it leaves out, how "done" is checked                     |
 | [System architecture](system-architecture.md)   | how layers, state, errors, DI and navigation fit together, with diagrams                   |
 | [Code standards](code-standards.md)             | conventions, how much structure a feature needs, testing, automated checks                 |
 | [Codebase summary](codebase-summary.md)         | what each package holds and how long each object lives                                     |
-| [Module guides](module-guides.md)               | recipes: add a screen, share logic, swap the AI engine, change the database                |
-| [CI/CD](ci-cd.md)                               | how a merge becomes a Firebase App Distribution build, versioning, secrets, one-time setup |
+| [Module guides](module-guides.md)               | recipes: add a screen, add a wrapper endpoint, share logic, add local storage               |
+| [CI/CD](ci-cd.md)                               | which workflows run, versioning and signing                                                |
 | [Development roadmap](development-roadmap.md)   | what is done and what is next                                                              |
 | [Decisions](decisions/)                         | why things are the way they are (ADRs, one per decision)                                   |
-
-`superpowers/` holds the specs and plans that produced the current setup. It is history, not required reading.
 
 ## Where facts live
 

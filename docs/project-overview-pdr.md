@@ -32,8 +32,8 @@ Career Ops workspace files and scripts.
 
 | Area | State |
 | --- | --- |
-| Android task arena | Implemented with Compose, MVI-style ViewModel, Room persistence |
-| Android wrapper client | Health DTO/API client integration in progress |
+| Android app | Rebuilt from android-agentic-starter; Home/Inputs/Settings tabs |
+| Android wrapper client | Health implemented (cached, Home + Settings); contract tests cover all DTO families |
 | Wrapper API foundation | Implemented under `/api/v1` with Fastify |
 | Wrapper health/readiness | Implemented with workspace and local script readiness |
 | CV/profile/portal API | Implemented in wrapper with Zod contracts and safe adapters |

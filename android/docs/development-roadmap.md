@@ -1,33 +1,27 @@
 # Development roadmap
 
+Product stories and their status live in `../../_bmad-output/implementation-artifacts/sprint-status.yaml`. This file
+tracks the Android engineering baseline only.
+
 ## Complete
 
-- [x] Identity and setup through `mobile-app-config`, with a setup skill
-- [x] Agent instruction layer: `AGENTS.md`, skills, rules, hooks, ADRs
-- [x] Konsist architecture tests, detekt and ktlint (including the AGP 9 fix that made ktlint check Kotlin sources)
-- [x] `scripts/new-feature.sh` with an MVI option and a starter test
-- [x] Structure levels for features ([ADR 5](decisions/0005-scale-structure-with-feature-complexity.md))
-- [x] GitHub Actions workflow and a pre-commit hook
-- [x] Test-build pipeline: fastlane, signed release APK, Firebase App Distribution on merge to `develop`
-      ([ADR 7](decisions/0007-distribute-test-builds-with-fastlane-and-firebase.md))
-- [x] Documentation set and `DocsTest` (docs drift checks in the unit tests)
-- [x] Room upgraded to 3.0.3 ([ADR 6](decisions/0006-use-room-3.md))
-- [x] CI runs green on GitHub (verify and agent-layer jobs); chat and theme switching checked on an emulator
+- [x] Rebuilt on android-agentic-starter: Hilt, Navigation 3, Konsist, detekt, ktlint, docs checks
+      ([ADR 8](decisions/0008-rebuild-jobflow-android-from-starter.md))
+- [x] Retrofit + kotlinx.serialization network layer with wrapper contract tests
+      ([ADR 9](decisions/0009-retrofit-kotlinx-serialization-network-layer.md))
+- [x] `Either<AppError, T>` error model with source and UI mappers and a mirrored `ApiErrorCode`
+      ([ADR 10](decisions/0010-use-either-and-two-boundary-error-mapping.md))
+- [x] Health on Home and Settings with a three-hour cache and a show-once unhealthy dialog
+- [x] Root CI workflows for Android and the wrapper
 
 ## Next
 
-- [ ] Create `develop`, protect it, add the Firebase secrets and run the distribution pipeline once; confirm the required
-      check names and fix anything runner-specific ([CI/CD](ci-cd.md))
-- [ ] Release notes written from the actual changes (AI or otherwise), replacing the commit-subject list
-- [ ] Install and smoke-test a release build (R8 is on and `proguard-rules.pro` is empty)
-- [ ] Tests for `SendMessageUseCase`, `ChatRepositoryImpl` and `DataStoreSettingsRepository`; move
-      `MainDispatcherRule` out of `ui/chat/Fakes.kt` into a shared test folder
-- [ ] More Konsist rules: `domain/` must not import `ui/` or `data/`, `data/` must not import `ui/`, naming and location
-      of ViewModels and use cases
-- [ ] `androidTest` with `room3-testing` to test migrations, when the first migration appears
-- [ ] A lightweight way to record a deliberate exception to a Konsist rule
-- [ ] A real engine behind `ChatEngine` and a network layer, when a project needs them
-- [ ] Extract Gradle modules (level 3) when build time or team ownership calls for it
+- [ ] Story 2.5: CV and profile editing (first `FeatureError`, e.g. validation)
+- [ ] Story 2.6: Room 3 cache with stale-while-error state and a `toLocalError()` mapper
+- [ ] Stories 3.3 and 3.5: portal editing and scan readiness
+- [ ] Install and smoke-test a minified release build (R8 is on, `proguard-rules.pro` is empty)
+- [ ] Epic 7: production endpoint, HTTPS, pairing token storage
+- [ ] More Konsist rules: `domain/` must not import `ui/` or `data/`, `data/` must not import `ui/`
 
 ## Dependency note
 

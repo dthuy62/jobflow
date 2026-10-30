@@ -3,10 +3,11 @@
 ## Current Baseline
 
 - Root documentation initialized.
-- Android task arena exists with Room persistence and Compose UI.
+- Android app rebuilt from android-agentic-starter (Hilt, Navigation 3,
+  Konsist, CI).
 - Wrapper exposes health, CV, profile, portal, scan-readiness, docs, and
   OpenAPI route families.
-- Android wrapper health integration is in progress.
+- Android wrapper health integration is done.
 
 ## Phase 1: Documentation And Agent Alignment
 

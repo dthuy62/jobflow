@@ -4,7 +4,7 @@ Status: Accepted (2026-10-15)
 
 ## Context
 
-Screens differ: settings forms need little structure, while chat-like screens stream data, run async work and emit
+Screens differ: settings forms need little structure, while screens like Home run async work with ordering, run async work and emit
 one-shot events. One heavy pattern everywhere adds boilerplate; no pattern lets state drift into parallel flags.
 
 ## Decision

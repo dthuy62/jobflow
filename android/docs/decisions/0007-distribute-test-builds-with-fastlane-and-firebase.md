@@ -1,6 +1,8 @@
 # 7. Distribute test builds with fastlane and Firebase App Distribution
 
-Status: Accepted (2026-10-17)
+Status: Deprecated (2026-10-30)
+
+JobFlow does not ship the fastlane and Firebase App Distribution pipeline; see [ADR 8](0008-rebuild-jobflow-android-from-starter.md).
 
 ## Context
 

@@ -24,21 +24,27 @@ The Android app is a single-module native app.
 | Area | Files |
 | --- | --- |
 | Build | `android/settings.gradle.kts`, `android/build.gradle.kts`, `android/app/build.gradle.kts`, `android/gradle/libs.versions.toml` |
-| App root | `JobFlowApplication.kt`, `AppContainer.kt`, `MainActivity.kt` |
-| Core | `core/either.kt` |
-| Data | `data/database/`, `data/datasource/`, `data/models/`, `data/remote/`, `data/repository/` |
-| Domain | `domain/model/`, `domain/repository/`, `domain/usecase/` |
-| UI | `presentation/`, `presentation/component/`, `ui/theme/` |
-| Tests | `app/src/test/java/me/dthuy/jobflow/` |
+| App root | `MainApplication.kt` (Hilt), `MainActivity.kt`, `MainViewModel.kt` |
+| Core | `core/common/` (`Either`, `AppError`, `ApiErrorCode`), `core/mvi/` |
+| Data | `data/remote/` (`CareerOpsApi`, DTOs, `toApiError`), `data/preferences/`, `data/repository/impl/` |
+| Domain | `domain/model/`, `domain/repository/` |
+| UI | `ui/home/`, `ui/inputs/`, `ui/settings/`, shared `ui/components/`, `ui/health/`, `ui/theme/`; `navigation/` |
+| DI | `di/` Hilt modules |
+| Tests | `app/src/test/kotlin/me/dthuy/jobflow/` |
 
 Key implementation facts:
 
-- Compose + Material 3 UI.
-- MVI-style arena screen using immutable state, intents, and effects.
-- Room stores task arena data in `task_arena_database`.
-- Retrofit/OkHttp/kotlinx.serialization are used for wrapper API calls.
+- Rebuilt from android-agentic-starter (`android/docs/decisions/0008-rebuild-jobflow-android-from-starter.md`).
+- Compose + Material 3 UI with the JobFlow soft palette and a glass bottom bar.
+- Home is MVI; Settings is MVVM-lite; three Navigation 3 tabs keep Home at the
+  bottom of the stack.
+- Retrofit/OkHttp/kotlinx.serialization call the wrapper; contract tests parse
+  `career-ops-wrapper/contracts/examples` and `contracts/error-codes.json`.
+- Errors: `Either<AppError, T>`, one mapper per data source, one UI mapper.
+- Konsist enforces layers; detekt and ktlint run in the verify command and CI.
 - `dev` and `prod` product flavors exist; `dev` allows cleartext access to
   `10.0.2.2`.
+- No Room yet; it returns as a cache in Story 2.6.
 - Release signing reads environment variables.
 
 ## Career Ops Wrapper
@@ -83,9 +89,7 @@ Android:
 
 ```bash
 cd android
-./gradlew testDevDebugUnitTest
-./gradlew assembleDevDebug
-./gradlew lintDevDebug
+./gradlew assembleDevDebug testDevDebugUnitTest lintDevDebug detekt ktlintCheck
 ```
 
 Wrapper:

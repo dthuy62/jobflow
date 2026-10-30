@@ -11,7 +11,7 @@ management.
 
 Use existing components and tokens first:
 
-- `presentation/component/NeoBrutalist.kt`
+- `ui/components/SoftComponents.kt` and `ui/health/HealthCards.kt`
 - `ui/theme/Color.kt`
 - `ui/theme/Theme.kt`
 - `ui/theme/Type.kt`
@@ -34,7 +34,7 @@ existing neo-brutalist component fits.
 - Split reusable pieces into focused components only when they are reused or
   materially reduce complexity.
 - Use previews for non-trivial components when useful.
-- Avoid putting network DTOs or Room entities in UI state.
+- Avoid putting network DTOs, Room entities or exceptions in UI state.
 
 ## UX States
 

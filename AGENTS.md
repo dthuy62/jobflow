@@ -33,8 +33,7 @@ Android:
 
 ```bash
 cd android
-./gradlew testDevDebugUnitTest
-./gradlew assembleDevDebug
+./gradlew assembleDevDebug testDevDebugUnitTest lintDevDebug detekt ktlintCheck
 ```
 
 Wrapper:

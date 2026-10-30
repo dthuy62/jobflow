@@ -24,7 +24,8 @@ debug.keystore
 .claude
 .kiro
 .agent
-.github
+.github/*
+!.github/workflows/
 _bmad
 /.idea/
 /android/.idea/

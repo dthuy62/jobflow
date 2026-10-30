@@ -1,6 +1,6 @@
 # 3. Return Outcome for expected failures
 
-Status: Accepted (2026-10-15)
+Status: Superseded by 0010 (2026-10-30)
 
 ## Context
 

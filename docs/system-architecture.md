@@ -7,7 +7,7 @@ is the only integration surface for Career Ops workspace files and scripts.
 
 ```mermaid
 flowchart LR
-  Android["Android app\nCompose + ViewModel + Room"]
+  Android["Android app\nCompose + Hilt + ViewModel"]
   ApiClient["Retrofit / OkHttp\n/api/v1 DTOs"]
   Wrapper["career-ops-wrapper\nFastify + Zod"]
   Workspace["Career Ops Workspace\ncv.md, profile config, portals.yml, scripts"]
@@ -23,7 +23,7 @@ flowchart LR
 | --- | --- |
 | Android presentation | Screens, UI state, intents, effects, user feedback |
 | Android domain | App models, repository contracts, use cases |
-| Android data | Room, Retrofit, DTO mapping, repository implementations |
+| Android data | Retrofit, DTO mapping, error mapping, DataStore, repository implementations (Room cache planned) |
 | Wrapper routes | HTTP endpoints, request parsing, response schema checks |
 | Wrapper services | Use-case behavior for health, CV, profile, portals, readiness |
 | Wrapper workspace adapters | File reads/writes, YAML/Markdown translation, backups |
@@ -39,24 +39,25 @@ flowchart TD
   UseCase["Use Case"]
   Repo["Repository Interface"]
   RepoImpl["Repository Impl"]
-  DS["Data Source"]
-  Local["Room"]
-  Remote["Retrofit API"]
+  Local["DataStore (Room cache planned)"]
+  Remote["Retrofit CareerOpsApi"]
 
   Screen --> VM
-  VM --> UseCase
+  VM --> Repo
+  VM -.-> UseCase
   UseCase --> Repo
   Repo --> RepoImpl
-  RepoImpl --> DS
-  DS --> Local
-  DS --> Remote
+  RepoImpl --> Local
+  RepoImpl --> Remote
 ```
 
 Rules:
 
 - UI must not import data-layer DTOs/entities.
 - Repositories translate transport/storage models into domain models.
-- Room is local app state or projection cache, not Career Ops source of truth.
+- Room (when added) is a projection cache, not Career Ops source of truth.
+- Errors cross layers as `Either<AppError, T>`; details in
+  `android/docs/system-architecture.md`.
 
 ## Wrapper Request Flow
 
@@ -130,7 +131,7 @@ Planned route families:
 
 - Wrapper over direct Android workspace access.
 - Career Ops workspace as source of truth.
-- Android Room as app state/projection cache.
+- Android Room as a projection cache (planned, Story 2.6).
 - Fastify + Zod as API boundary.
 - Polling is acceptable for MVP scan lifecycle.
 - Local Pairing Token protects LAN/private wrapper use.

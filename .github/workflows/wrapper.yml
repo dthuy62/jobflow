@@ -1,0 +1,38 @@
+name: Wrapper
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "career-ops-wrapper/**"
+      - ".github/workflows/wrapper.yml"
+  pull_request:
+    paths:
+      - "career-ops-wrapper/**"
+      - ".github/workflows/wrapper.yml"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    working-directory: career-ops-wrapper
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: career-ops-wrapper/package-lock.json
+      - run: npm ci
+      - run: npm test
+      - run: npm run build

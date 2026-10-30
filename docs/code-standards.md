@@ -12,18 +12,17 @@
 ## Android Standards
 
 - Use Kotlin official formatting via ktlint. Run `cd android && ./gradlew ktlintFormat` before staging Kotlin changes.
-- Run `cd android && ./gradlew qualityCheck` to enforce ktlint and detekt; the tracked pre-commit hook runs this task automatically after `./gradlew installGitHooks`.
-- Preserve layer direction: `presentation -> domain -> data`.
-- UI calls ViewModels/use cases, not Retrofit services, Room DAOs, DTOs, or
-  entities.
-- DTOs live in `data/models/`; domain concepts live in `domain/model/`.
-- Repository implementations translate data-layer DTOs/entities to domain.
-- Keep `AppContainer` as the dependency locator until the project explicitly
-  adopts DI.
-- Preserve MVI-style screen structure: immutable state, sealed intents, and
-  one-shot effects.
-- Prefer `presentation/component/NeoBrutalist.kt` and `ui/theme/` before
-  creating new visual primitives.
+- The tracked pre-commit hook (`git config core.hooksPath .githooks`) runs ktlint and detekt; the full gate is `android/AGENTS.md`'s verify command.
+- Android code standards live in `android/docs/code-standards.md`; the short
+  version:
+  - Layer direction `ui -> domain <- data`, wired with Hilt in `di/`; Konsist
+    enforces it.
+  - DTOs live in `data/remote/dto/`; domain concepts live in `domain/model/`.
+  - Repositories return `Either<AppError, T>`; only data sources catch
+    exceptions; the UI maps errors once with `AppError.toUiError()`.
+  - MVVM-lite by default, MVI for screens with interdependent async state.
+  - Reuse `ui/components/` and `ui/theme/` before creating new visual
+    primitives.
 - Do not edit Android generated/build outputs such as `R`, `BuildConfig`,
   KSP output, or `build/`.
 
@@ -66,7 +65,8 @@
 | Android DTO/API/repository logic | `cd android && ./gradlew testDevDebugUnitTest` |
 | Android UI-only layout | `cd android && ./gradlew assembleDevDebug` |
 | Android Gradle/flavor/manifest | `cd android && ./gradlew assembleDevDebug` plus relevant lint/test |
-| Android Kotlin formatting/static analysis | `cd android && ./gradlew qualityCheck` |
+| Android Kotlin formatting/static analysis | `cd android && ./gradlew detekt ktlintCheck` |
+| Android full gate | `cd android && ./gradlew assembleDevDebug testDevDebugUnitTest lintDevDebug detekt ktlintCheck` |
 | Wrapper contract/service/security | `cd career-ops-wrapper && npm test` |
 | Wrapper TypeScript build/openapi | `cd career-ops-wrapper && npm run build` |
 

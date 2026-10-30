@@ -4,7 +4,7 @@ Status: Accepted (2026-10-16)
 
 ## Context
 
-Features differ a lot. A settings toggle and a streaming chat do not need the same number of layers, but a template that
+Features differ a lot. A settings toggle and a cached health check do not need the same number of layers, but a template that
 always shows the heaviest shape gets copied everywhere, by people and by agents. At the same time, the direction of
 dependencies is what keeps a codebase scalable, and it costs almost nothing to keep.
 
@@ -18,7 +18,7 @@ pain appears, not because a pattern says so.
 - **Level 0:** screen, ViewModel and a repository interface in `domain/`. The `domain/` model is also the UI model; no
   use case, no mapper. Example: `ui/settings`.
 - **Level 1:** add a use case for real logic or for logic several features share; split the Room entity or DTO from the
-  `domain/` model when their shapes differ. Example: `ui/chat`.
+  `domain/` model when their shapes differ. Example: `ui/home`.
 - **Level 2:** value objects, invariants and aggregates in `domain/` (DDD-lite) when business rules need guarding.
 - **Level 3:** extract Gradle modules (`:feature:x`, `:core:domain`, `:core:data`, `:core:ui`, `:core:common`) when build
   time, team ownership or compiler-enforced boundaries justify the cost. Use cases and repositories shared by several
