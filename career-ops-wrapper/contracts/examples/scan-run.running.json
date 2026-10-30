@@ -1,0 +1,16 @@
+{
+  "id": "scan-run-001",
+  "status": "running",
+  "stage": "parsing",
+  "startedAt": "2026-06-15T10:30:00.000Z",
+  "finishedAt": null,
+  "exitCode": null,
+  "active": true,
+  "summary": {
+    "offersFound": 12,
+    "offersProjected": 8,
+    "warnings": []
+  },
+  "failure": null,
+  "sourceRevision": "scan_20260615_103000"
+}

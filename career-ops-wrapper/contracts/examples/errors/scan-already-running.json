@@ -1,0 +1,9 @@
+{
+  "error": {
+    "code": "SCAN_ALREADY_RUNNING",
+    "message": "A scan is already running.",
+    "details": {
+      "activeScanRunId": "scan-run-001"
+    }
+  }
+}

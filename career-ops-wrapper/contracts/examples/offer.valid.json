@@ -1,0 +1,22 @@
+{
+  "id": "offer-001",
+  "company": "Example Co",
+  "title": "Android Engineer",
+  "url": "https://example.com/jobs/offer-001",
+  "location": "Da Nang",
+  "source": "career-ops",
+  "status": "tracked",
+  "firstSeenAt": "2026-06-15T10:30:00.000Z",
+  "lastSeenAt": null,
+  "scanRunId": "scan-run-001",
+  "salaryMin": 20000000,
+  "salaryMax": 45000000,
+  "salaryCurrency": "VND",
+  "workMode": "hybrid",
+  "score": 82.5,
+  "reportId": null,
+  "artifactIds": [],
+  "rawSource": "career-ops scanner",
+  "notes": null,
+  "warnings": []
+}

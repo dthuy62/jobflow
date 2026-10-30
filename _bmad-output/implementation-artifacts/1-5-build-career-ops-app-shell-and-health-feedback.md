@@ -7,7 +7,7 @@ baseline_commit: 47ac1279428c8e5e374fb036a9fcd2355a780e40
 
 # Story 1.5: Build Career Ops App Shell and Health Feedback
 
-Status: in-progress
+Status: done
 
 Owner: Hy
 
@@ -156,3 +156,4 @@ Use the Flutter bottom navigation source at `/Users/dthuy/Workspace/kollet/kolle
 - 2026-06-28: Story file created from Epic 1.5 and selected wireframe requirement.
 - 2026-06-28: Implemented Story 1.5 app shell and health feedback; status moved to review.
 - 2026-07-04: Reopened Story 1.5 implementation for the approved soft playful UI direction and Flutter-inspired Compose bottom navigation.
+- 2026-07-14: Marked Story 1.5 done after owner acceptance; implementation already committed and pushed by Hy.

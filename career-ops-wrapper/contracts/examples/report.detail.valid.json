@@ -1,0 +1,10 @@
+{
+  "id": "report-001",
+  "offerId": "offer-001",
+  "title": "Offer evaluation",
+  "kind": "evaluation",
+  "createdAt": "2026-06-15T10:35:00.000Z",
+  "updatedAt": "2026-06-15T10:36:00.000Z",
+  "sourceRevision": "scan_20260615_103000",
+  "markdown": "# Offer evaluation\n\nA sanitized contract example."
+}

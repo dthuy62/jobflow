@@ -1,0 +1,11 @@
+{
+  "id": "artifact-001",
+  "offerId": "offer-001",
+  "reportId": "report-001",
+  "filename": "offer-evaluation.md",
+  "contentType": "text/markdown",
+  "sizeBytes": 48,
+  "downloadUrl": "/api/v1/artifacts/artifact-001/download",
+  "createdAt": "2026-06-15T10:36:00.000Z",
+  "sourceRevision": "scan_20260615_103000"
+}

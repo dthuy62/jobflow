@@ -1,0 +1,6 @@
+{
+  "error": {
+    "code": "PATH_OUTSIDE_WORKSPACE",
+    "message": "The requested resource is outside the workspace."
+  }
+}
