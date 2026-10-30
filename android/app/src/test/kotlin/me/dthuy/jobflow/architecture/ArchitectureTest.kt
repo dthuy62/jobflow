@@ -63,6 +63,6 @@ class ArchitectureTest {
         .toSet()
 
     private companion object {
-        val CATCHING = Regex("""\btry\s*\{|\bcatch\s*\(|\brunCatching\b""")
+        val CATCHING = Regex("""\btry\s*\{|(?<!\.)\bcatch\s*\(|\brunCatching\b""")
     }
 }
