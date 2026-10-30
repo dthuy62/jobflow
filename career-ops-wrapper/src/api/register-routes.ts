@@ -1,6 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { registerCvRoutes } from "./cv-routes.js";
 import { registerHealthRoutes } from "./health-routes.js";
+import { registerOfferRoutes } from "./offer-routes.js";
 import { registerPortalRoutes } from "./portal-routes.js";
 import { registerProfileRoutes } from "./profile-routes.js";
 import { registerScanReadinessRoutes } from "./scan-readiness-routes.js";
@@ -9,6 +10,7 @@ import type { RuntimeConfig } from "../config/runtime-config.js";
 import { registerLocalPairingTokenGuard } from "../security/local-pairing-token.js";
 import { createCvService } from "../services/cv-service.js";
 import { createHealthService } from "../services/health-service.js";
+import { createOfferService } from "../services/offer-service.js";
 import { createPortalService } from "../services/portal-service.js";
 import { createProfileService } from "../services/profile-service.js";
 import { createScanReadinessService } from "../services/scan-readiness-service.js";
@@ -32,6 +34,7 @@ export async function registerApiRoutes(
       await registerPortalRoutes(apiV1, createPortalService(options.config));
       await registerScanReadinessRoutes(apiV1, createScanReadinessService(options.config));
       await registerScanRunRoutes(apiV1, createScanRunService(options.config));
+      await registerOfferRoutes(apiV1, createOfferService(options.config));
       await options.registerAdditionalRoutes?.(apiV1);
     },
     { prefix: "/api/v1" }

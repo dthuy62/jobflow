@@ -13,6 +13,7 @@
   "salaryMax": 45000000,
   "salaryCurrency": "VND",
   "workMode": "hybrid",
+  "evaluationStatus": "evaluated",
   "score": 82.5,
   "reportId": null,
   "artifactIds": [],
