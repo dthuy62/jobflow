@@ -35,6 +35,14 @@ describe("runtime configuration parsing", () => {
     }
   );
 
+  it("loads and validates the scan timeout from env", () => {
+    expect(loadEnvConfig({ CAREER_OPS_SCAN_TIMEOUT_MS: "120000" }).scanTimeoutMs).toBe(120000);
+    expect(loadRuntimeConfig({ argv: [], env: { CAREER_OPS_SCAN_TIMEOUT_MS: "5000" } }).scanTimeoutMs).toBe(5000);
+    expect(loadRuntimeConfig({ argv: [], env: {} }).scanTimeoutMs).toBeUndefined();
+    expect(() => loadEnvConfig({ CAREER_OPS_SCAN_TIMEOUT_MS: "10" })).toThrow();
+    expect(() => loadEnvConfig({ CAREER_OPS_SCAN_TIMEOUT_MS: "1e4" })).toThrow();
+  });
+
   it("loads local pairing token from env", () => {
     expect(
       loadEnvConfig({ CAREER_OPS_PAIRING_TOKEN: "local-secret" }).pairingToken
