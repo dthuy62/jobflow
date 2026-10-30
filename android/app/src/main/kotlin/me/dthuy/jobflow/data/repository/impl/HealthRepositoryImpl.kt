@@ -11,16 +11,18 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import me.dthuy.jobflow.core.common.Either
 import me.dthuy.jobflow.core.common.catch
+import me.dthuy.jobflow.core.common.getOrNull
 import me.dthuy.jobflow.core.common.map
 import me.dthuy.jobflow.data.remote.CareerOpsApi
 import me.dthuy.jobflow.data.remote.dto.toDomain
 import me.dthuy.jobflow.data.remote.toApiError
 import me.dthuy.jobflow.domain.model.HealthSnapshot
+import me.dthuy.jobflow.domain.model.HealthStatus
 import me.dthuy.jobflow.domain.repository.HealthRepository
 
 /**
- * App-scoped so every screen shares one cache. Only successes are cached: a failed check is retried on the next
- * refresh, so starting the wrapper and tapping "Check again" recovers at once.
+ * App-scoped so every screen shares one cache. Only a READY answer is reused: a failure or a not-ready workspace is
+ * checked again on the next refresh, so fixing the setup and reopening the app (or tapping "Check again") recovers.
  */
 @Singleton
 class HealthRepositoryImpl @Inject constructor(private val api: CareerOpsApi, private val clock: Clock) :
@@ -32,14 +34,14 @@ class HealthRepositoryImpl @Inject constructor(private val api: CareerOpsApi, pr
     private val mutex = Mutex()
 
     override suspend fun refresh(force: Boolean): HealthSnapshot = mutex.withLock {
-        _latest.value?.takeIf { !force && it.isFreshSuccess() }
+        _latest.value?.takeIf { !force && it.isFreshReady() }
             ?: HealthSnapshot(
                 result = Either.catch(onError = Throwable::toApiError) { api.getHealth() }.map { it.toDomain() },
                 checkedAt = clock.instant(),
             ).also { _latest.value = it }
     }
 
-    private fun HealthSnapshot.isFreshSuccess(): Boolean = result is Either.Right &&
+    private fun HealthSnapshot.isFreshReady(): Boolean = result.getOrNull()?.status == HealthStatus.READY &&
         Duration.between(checkedAt, clock.instant()).toMillis() <= FRESHNESS_WINDOW_MILLIS
 
     companion object {

@@ -12,9 +12,11 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.test.runTest
 import me.dthuy.jobflow.core.common.AppError
 import me.dthuy.jobflow.core.common.Either
+import me.dthuy.jobflow.core.common.getOrNull
 import me.dthuy.jobflow.data.remote.ApiJson
 import me.dthuy.jobflow.data.remote.CareerOpsApi
 import me.dthuy.jobflow.data.remote.dto.HealthDto
+import me.dthuy.jobflow.domain.model.HealthStatus
 import me.dthuy.jobflow.testing.contractFixture
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -72,6 +74,21 @@ class HealthRepositoryImplTest {
         assertEquals(Either.Left(AppError.Unreachable), first.result)
         assertTrue(second.result is Either.Right)
         assertEquals(2, api.calls)
+    }
+
+    @Test
+    fun `a not ready answer is never served from cache`() = runTest {
+        val notReadyDto = ApiJson.decodeFromString<HealthDto>(contractFixture("health.not-ready.json"))
+        var current = notReadyDto
+        val api = FakeCareerOpsApi { current }
+        val repository = HealthRepositoryImpl(api, clock)
+
+        repository.refresh()
+        current = readyDto
+        val second = repository.refresh()
+
+        assertEquals(2, api.calls)
+        assertEquals(HealthStatus.READY, second.result.getOrNull()?.status)
     }
 
     @Test

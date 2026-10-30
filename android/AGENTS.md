@@ -1,6 +1,6 @@
 # AGENTS.md
 
-JobFlow Android: one `:app` module, Jetpack Compose, Hilt, Retrofit + kotlinx.serialization, DataStore, Navigation 3.
+JobFlow Android: one `:app` module, Jetpack Compose, Hilt, Retrofit + kotlinx.serialization, Navigation 3.
 Package root = `namespace` in `app/build.gradle.kts`. Layers: `ui/` → `domain/` ← `data/`, wired in `di/`.
 Flavors: `dev` (emulator wrapper at `http://10.0.2.2:3000`, cleartext allowed) and `prod`. Workspace rules: `../AGENTS.md`.
 

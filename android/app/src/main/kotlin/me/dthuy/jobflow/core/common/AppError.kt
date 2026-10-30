@@ -13,10 +13,10 @@ sealed interface AppError {
     /** The wrapper requires a valid pairing token. */
     data object Unauthorized : AppError
 
-    /** The wrapper refused the request with a stable error code (4xx). */
+    /** The wrapper answered with one of its stable error codes (any 4xx, or a 5xx that carries a known code). */
     data class Rejected(val code: ApiErrorCode) : AppError
 
-    /** The wrapper failed (5xx). */
+    /** The wrapper failed (5xx) without a known error code. */
     data class ServerFailure(val status: Int) : AppError
 
     /** The response did not match the contract. */

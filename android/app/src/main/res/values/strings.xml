@@ -2,10 +2,6 @@
 <resources>
     <string name="app_name">JobFlow</string>
     <string name="settings_title">Settings</string>
-    <string name="settings_theme">Theme</string>
-    <string name="settings_theme_system">System default</string>
-    <string name="settings_theme_light">Light</string>
-    <string name="settings_theme_dark">Dark</string>
 
     <string name="page_subtitle">CAREER OPS LOCAL WORKFLOW</string>
     <string name="nav_home">Home</string>

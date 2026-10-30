@@ -3,6 +3,7 @@ package me.dthuy.jobflow.data.remote
 import java.io.IOException
 import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.SerializationException
+import me.dthuy.jobflow.core.common.ApiErrorCode
 import me.dthuy.jobflow.core.common.AppError
 import me.dthuy.jobflow.core.common.toApiErrorCode
 import me.dthuy.jobflow.core.common.unexpected
@@ -28,10 +29,17 @@ fun Throwable.toApiError(): AppError = when (this) {
     else -> unexpected(this)
 }
 
-private fun HttpException.toHttpError(): AppError = when (val status = code()) {
-    HTTP_UNAUTHORIZED -> AppError.Unauthorized
-    in CLIENT_ERRORS -> AppError.Rejected(wrapperErrorCode().toApiErrorCode())
-    else -> AppError.ServerFailure(status)
+// The wrapper sends its stable error code with 4xx and 5xx statuses alike (WORKSPACE_UNHEALTHY is a 503), so the
+// body is read for every failure; only a failure without a known code falls back to the status.
+private fun HttpException.toHttpError(): AppError {
+    val status = code()
+    val wrapperCode = wrapperErrorCode().toApiErrorCode()
+    return when {
+        status == HTTP_UNAUTHORIZED -> AppError.Unauthorized
+        wrapperCode != ApiErrorCode.UNKNOWN -> AppError.Rejected(wrapperCode)
+        status in CLIENT_ERRORS -> AppError.Rejected(ApiErrorCode.UNKNOWN)
+        else -> AppError.ServerFailure(status)
+    }
 }
 
 private fun HttpException.wrapperErrorCode(): String? {

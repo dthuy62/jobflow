@@ -5,6 +5,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.SerializationException
 import me.dthuy.jobflow.core.common.ApiErrorCode
 import me.dthuy.jobflow.core.common.AppError
+import me.dthuy.jobflow.testing.contractFixture
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.Assert.assertEquals
@@ -43,8 +44,16 @@ class ApiErrorsTest {
     }
 
     @Test
-    fun `http 5xx maps to ServerFailure`() {
-        assertEquals(AppError.ServerFailure(503), httpError(503, errorBody("UNEXPECTED_ERROR")).toApiError())
+    fun `http 5xx without a wrapper code maps to ServerFailure`() {
+        assertEquals(AppError.ServerFailure(503), httpError(503, "oops").toApiError())
+    }
+
+    @Test
+    fun `http 5xx with a wrapper code is rejected with that code`() {
+        assertEquals(
+            AppError.Rejected(ApiErrorCode.WORKSPACE_UNHEALTHY),
+            httpError(503, contractFixture("errors/workspace-unhealthy.json")).toApiError(),
+        )
     }
 
     @Test

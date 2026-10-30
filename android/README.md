@@ -5,7 +5,7 @@ never touches workspace files itself. Built from
 [android-agentic-starter](https://github.com/dthuy62/android-agentic-starter)
 ([ADR 8](docs/decisions/0008-rebuild-jobflow-android-from-starter.md)).
 
-Single module: Jetpack Compose, Hilt, Retrofit + kotlinx.serialization, DataStore, Navigation 3. Two presentation
+Single module: Jetpack Compose, Hilt, Retrofit + kotlinx.serialization, Navigation 3. Two presentation
 patterns, each used where it fits: **MVVM-lite** (default) and **MVI** (complex screens).
 
 ## Run it
@@ -31,8 +31,8 @@ change fails here until the DTOs follow.
 ```
 app/src/main/kotlin/me/dthuy/jobflow
 ├── core/        common (Either, AppError, ApiErrorCode, unexpected), mvi (MviViewModel)
-├── domain/      model (Health, HealthSnapshot, ThemeMode), repository (interfaces)
-├── data/        remote (CareerOpsApi, DTOs, toApiError), preferences (DataStore), repository/impl
+├── domain/      model (Health, HealthSnapshot), repository (interfaces)
+├── data/        remote (CareerOpsApi, DTOs, toApiError), repository/impl
 ├── di/          Hilt modules
 ├── navigation/  NavGraph, tabs, glass bottom bar
 └── ui/          theme, components, health (shared), home (MVI), inputs, settings (MVVM-lite)

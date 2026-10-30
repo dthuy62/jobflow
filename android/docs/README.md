@@ -1,6 +1,6 @@
 # JobFlow Android documentation
 
-The JobFlow Android app (Jetpack Compose, Hilt, Retrofit, DataStore, Navigation 3), built from android-agentic-starter
+The JobFlow Android app (Jetpack Compose, Hilt, Retrofit, Navigation 3), built from android-agentic-starter
 for human and AI-assisted feature work: clear layer boundaries, two presentation patterns used where they fit, and checks
 that enforce the rules. Workspace-wide product and architecture docs live in `../../docs/`.
 

@@ -23,7 +23,7 @@ flowchart LR
 | --- | --- |
 | Android presentation | Screens, UI state, intents, effects, user feedback |
 | Android domain | App models, repository contracts, use cases |
-| Android data | Retrofit, DTO mapping, error mapping, DataStore, repository implementations (Room cache planned) |
+| Android data | Retrofit, DTO mapping, error mapping, repository implementations (Room cache planned) |
 | Wrapper routes | HTTP endpoints, request parsing, response schema checks |
 | Wrapper services | Use-case behavior for health, CV, profile, portals, readiness |
 | Wrapper workspace adapters | File reads/writes, YAML/Markdown translation, backups |
@@ -39,7 +39,7 @@ flowchart TD
   UseCase["Use Case"]
   Repo["Repository Interface"]
   RepoImpl["Repository Impl"]
-  Local["DataStore (Room cache planned)"]
+  Local["Room cache (planned)"]
   Remote["Retrofit CareerOpsApi"]
 
   Screen --> VM

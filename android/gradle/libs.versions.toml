@@ -12,7 +12,6 @@ nav3 = "1.2.0"
 retrofit = "3.0.0"
 okhttp = "5.4.0"
 kyantBackdrop = "2.0.0"
-datastore = "1.2.1"
 coroutines = "1.11.0"
 serialization = "1.11.0"
 immutableCollections = "0.5.2"
@@ -32,7 +31,6 @@ androidx-lifecycle-viewmodel-ktx = { module = "androidx.lifecycle:lifecycle-view
 androidx-lifecycle-viewmodel-navigation3 = { module = "androidx.lifecycle:lifecycle-viewmodel-navigation3", version.ref = "lifecycle" }
 androidx-navigation3-runtime = { module = "androidx.navigation3:navigation3-runtime", version.ref = "nav3" }
 androidx-navigation3-ui = { module = "androidx.navigation3:navigation3-ui", version.ref = "nav3" }
-androidx-datastore-preferences = { module = "androidx.datastore:datastore-preferences", version.ref = "datastore" }
 
 # --- Compose
 androidx-compose-bom = { module = "androidx.compose:compose-bom", version.ref = "composeBom" }

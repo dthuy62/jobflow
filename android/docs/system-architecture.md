@@ -7,13 +7,13 @@ flowchart LR
     UI["ui/feature<br/>Screen + ViewModel"] --> UC["domain/usecase<br/>only for real or shared logic"]
     UI --> PORTS
     UC --> PORTS["domain/repository<br/>interfaces (ports)"]
-    DATA["data/<br/>Retrofit, DataStore"] -. implements .-> PORTS
+    DATA["data/<br/>Retrofit"] -. implements .-> PORTS
     DI["di/<br/>Hilt @Binds / @Provides"] -. wires .-> DATA
     DATA -- HTTP --> WRAPPER["career-ops-wrapper<br/>(local API)"]
 ```
 
 - `ui/` depends on `domain/`. `domain/` depends on Kotlin only. `data/` depends on `domain/`.
-- The domain defines ports (`HealthRepository`, `SettingsRepository`); `data/` implements them; `di/RepositoryModule`
+- The domain defines ports (`HealthRepository`); `data/` implements them; `di/RepositoryModule`
   binds them. Replacing Retrofit or adding a cache touches `data/` plus one binding.
 - The app never reads Career Ops workspace files. Everything goes through the wrapper API, which owns path containment,
   safe writes, command allowlists and pairing tokens (`../../docs/system-architecture.md`).
@@ -60,9 +60,9 @@ sequenceDiagram
     participant A as CareerOpsApi
     S->>V: created (init)
     V->>R: refresh(force = false)
-    alt fresh success cached (< 3 h)
+    alt fresh READY answer cached (< 3 h)
         R-->>V: cached HealthSnapshot
-    else stale, failed or forced
+    else stale, failed, not ready or forced
         R->>A: GET api/v1/health
         A-->>R: HealthDto or exception
         R->>R: Either.catch(Throwable::toApiError), toDomain(), checkedAt = clock
@@ -74,8 +74,9 @@ sequenceDiagram
     V-->>S: Effect NavigateToSettings
 ```
 
-`HealthRepositoryImpl` is an app singleton, so Home and Settings share one cache and one `latest` stream. Failures are
-never served from the cache: starting the wrapper and tapping Check again recovers at once.
+`HealthRepositoryImpl` is an app singleton, so Home and Settings share one cache and one `latest` stream. Only a
+READY answer is reused: failures and not-ready answers are checked again, so starting the wrapper or fixing the
+workspace and tapping Check again (or reopening the app) recovers at once.
 
 ## Network
 

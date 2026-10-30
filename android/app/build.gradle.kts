@@ -130,8 +130,6 @@ dependencies {
     implementation(libs.hilt.navigation.compose)
     ksp(libs.hilt.compiler)
 
-    implementation(libs.androidx.datastore.preferences)
-
     implementation(libs.timber)
 
     testImplementation(libs.junit)

@@ -24,9 +24,9 @@ The Android app is a single-module native app.
 | Area | Files |
 | --- | --- |
 | Build | `android/settings.gradle.kts`, `android/build.gradle.kts`, `android/app/build.gradle.kts`, `android/gradle/libs.versions.toml` |
-| App root | `MainApplication.kt` (Hilt), `MainActivity.kt`, `MainViewModel.kt` |
+| App root | `MainApplication.kt` (Hilt), `MainActivity.kt` |
 | Core | `core/common/` (`Either`, `AppError`, `ApiErrorCode`), `core/mvi/` |
-| Data | `data/remote/` (`CareerOpsApi`, DTOs, `toApiError`), `data/preferences/`, `data/repository/impl/` |
+| Data | `data/remote/` (`CareerOpsApi`, DTOs, `toApiError`), `data/repository/impl/` |
 | Domain | `domain/model/`, `domain/repository/` |
 | UI | `ui/home/`, `ui/inputs/`, `ui/settings/`, shared `ui/components/`, `ui/health/`, `ui/theme/`; `navigation/` |
 | DI | `di/` Hilt modules |
