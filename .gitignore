@@ -20,8 +20,8 @@
 local.properties
 .env
 debug.keystore
-.agents
-.claude
+/.agents
+/.claude
 .kiro
 .agent
 .github/*

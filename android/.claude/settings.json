@@ -1,0 +1,36 @@
+{
+  "extraKnownMarketplaces": {
+    "mobile-app-config": {
+      "source": { "source": "github", "repo": "dthuy62/mobile-app-config" }
+    }
+  },
+  "enabledPlugins": {
+    "mobile-app-config@mobile-app-config": true
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PROJECT_DIR}/tools/agents/hooks/guard_generated.py\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PROJECT_DIR}/tools/agents/hooks/file_length.py\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}
