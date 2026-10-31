@@ -42,6 +42,11 @@ npm run dev -- --workspace /path/to/career-ops
 npm test
 ```
 
+AI offer evaluation from the app is off by default. To enable it, log in the
+desktop `claude` CLI once (`claude auth login`) and set
+`CAREER_OPS_EVALUATION_PROVIDER=claude`; each evaluation uses the desktop's
+Claude subscription quota. See `career-ops-wrapper/README.md`.
+
 ## Documentation
 
 - `docs/project-overview-pdr.md` - Product overview and requirements.

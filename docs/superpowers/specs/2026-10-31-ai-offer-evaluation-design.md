@@ -693,6 +693,35 @@ the keychain from the wrapper's env. If any of these differ from this spec,
 the implementer adjusts the parser/classifier (agent's call) or stops and
 asks if the security posture would change (owner's call).
 
+### Spike results (2026-10-31, claude 2.1.309)
+
+Run on the owner's desktop with the exact argv and env allowlist above:
+
+- Every flag was accepted (no unknown-flag error).
+- The CLI was logged out ("OAuth session expired"), so no real evaluation ran.
+  The run failed closed: exit 1 and a JSON envelope with `type: "result"`,
+  `is_error: true`, `result: "Failed to authenticate: OAuth session expired
+  and could not be refreshed"`, `terminal_reason: "api_error"`.
+  `claude auth status --json` printed `loggedIn: false` and exited 1.
+- Still to confirm once the CLI is logged in again: `--json-schema` with
+  `--tools ""` (the parser accepts `structured_output` and JSON text in
+  `result`, so either outcome works) and the usage-limit message.
+
+### Implementation notes
+
+Choices made while building, inside the approved design:
+
+- The scan metadata (company, title, location, URL) is fenced like the
+  posting and named as untrusted in the system prompt: it also comes from the
+  internet.
+- When a posting page carries a schema.org `JobPosting` in JSON-LD, its
+  description is used as the posting text. It is parsed as data only, and it
+  helps boards that render with JavaScript.
+- Readiness also checks `reserve-report-num.mjs`, `merge-tracker.mjs` and
+  `data/applications.md`; an oversized required file reports `cv.too-large` or
+  `modes.too-large`.
+- `capabilities.geminiEvaluation` stays in the contract, always `false`.
+
 ## Docs to update
 
 - `README.md`: the new env vars, what evaluation does and costs (uses the

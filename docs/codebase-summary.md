@@ -61,6 +61,8 @@ The wrapper is a local TypeScript API.
 | Services | `src/services/` (incl. `career-ops-projection.ts`) |
 | Parsers | `src/parsers/` |
 | Scan engine | `src/career-ops-engine/`, `src/runs/` |
+| AI evaluation | `src/evaluation/` (posting fetch + SSRF guard, prompt, fixed CLI command, output parsing, writer), `src/services/evaluation-*.ts` |
+| Child processes | `src/process/bounded-process.ts` (no shell, process group, timeout, bounded output) |
 | Workspace IO | `src/workspace/` |
 | Output PDFs | `src/outputs/` |
 | Security | `src/security/` |
@@ -77,6 +79,7 @@ Implemented route families:
 - `GET /api/v1/portals`, `PUT /api/v1/portals`
 - `GET /api/v1/scan-readiness`
 - `POST /api/v1/scan-runs`, `GET /api/v1/scan-runs/latest`, `GET /api/v1/scan-runs/{id}`
+- `POST /api/v1/evaluations`, `GET /api/v1/evaluations/latest`, `GET /api/v1/evaluations/{id}`, `POST /api/v1/evaluations/{id}/cancel`
 - `GET /api/v1/offers`, `GET /api/v1/offers/{id}`
 - `GET /api/v1/reports`, `GET /api/v1/reports/{id}`
 - `GET /api/v1/artifacts`, `GET /api/v1/artifacts/{id}/download`

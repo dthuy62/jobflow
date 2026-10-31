@@ -39,10 +39,18 @@ Configuration order is CLI flags, `.env`, then defaults.
 CAREER_OPS_HOST=127.0.0.1
 CAREER_OPS_PORT=3000
 CAREER_OPS_PAIRING_TOKEN=
+CAREER_OPS_EVALUATION_PROVIDER=
 ```
 
 Use localhost mode for emulator development. Use LAN/private mode only with a
 pairing token.
+
+AI offer evaluation is off until `CAREER_OPS_EVALUATION_PROVIDER=claude` is
+set. Before enabling it, log in the desktop CLI once in a normal terminal
+(`claude auth login`; `claude auth status` should show `"loggedIn": true`).
+Each evaluation uses the desktop's Claude subscription quota. It works in
+localhost and LAN mode; in LAN mode the pairing token guards it like every
+other protected route, and health shows whether it is ready.
 
 ## Android Build Variants
 
@@ -74,4 +82,4 @@ debug builds only.
 - Prod Android base URL is still a placeholder and must not be treated as a
   real production backend.
 - Firebase/App Check/cloud auth are not part of the current MVP.
-- Scan execution endpoints are not implemented yet.
+- Scan and AI evaluation run only on the desktop that hosts the wrapper.
