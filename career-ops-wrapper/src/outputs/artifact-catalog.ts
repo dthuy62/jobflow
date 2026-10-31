@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { constants } from "node:fs";
 import { open } from "node:fs/promises";
 import { Readable } from "node:stream";
+import { SanitizedTextSchema } from "../contracts/index.js";
 import { ApiError } from "../errors/api-error.js";
 import { assertOpenedAtRealPath, listWorkspaceFiles } from "../workspace/workspace-reader.js";
 
@@ -27,7 +28,7 @@ export function artifactIdForFileName(fileName: string): string {
   return `artifact_${createHash("sha256").update(`output:${fileName}`).digest("hex").slice(0, 16)}`;
 }
 
-/** Lists regular, non-symlink PDFs directly inside `output/`. */
+/** Lists regular, non-symlink PDFs directly inside `output/` whose names the contract accepts. */
 export async function listArtifactFiles(workspacePath: string): Promise<ArtifactFile[]> {
   const entries = await listWorkspaceFiles(workspacePath, OUTPUT_DIR, isPdfFileName);
 
@@ -83,8 +84,9 @@ export async function openArtifactForDownload(
   }
 }
 
+/** A file name the artifact contract cannot return (e.g. `cv..\\old.pdf`) is skipped. */
 function isPdfFileName(name: string): boolean {
-  return /\.pdf$/i.test(name) && !name.startsWith(".");
+  return /\.pdf$/i.test(name) && !name.startsWith(".") && SanitizedTextSchema.safeParse(name).success;
 }
 
 function artifactNotFound(): ApiError {

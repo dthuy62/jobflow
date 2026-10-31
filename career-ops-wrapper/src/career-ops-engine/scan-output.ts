@@ -6,7 +6,7 @@ export const SCAN_OUTPUT_LINE_MAX_CHARS = 300;
 export type ScanOutputSanitizerOptions = LocalValueRedactionOptions;
 
 const FILE_URL = /file:\/\/\S*/gi;
-const ABSOLUTE_PATH_TOKEN = /(^|[\s"'(=,;:])(?:~\/|\/(?!\/)|[A-Za-z]:[\\/])[^\s"'),;]*/g;
+const ABSOLUTE_PATH_TOKEN = /(^|[\s"'`(\[=,;:])(?:~\/|\/(?!\/)|[A-Za-z]:[\\/])[^\s"'),;]*/g;
 const PROTOCOL_RELATIVE_TOKEN = /(^|\s)\/\/\S*/g;
 const PARENT_SEGMENT = /\.\.[\\/]/;
 

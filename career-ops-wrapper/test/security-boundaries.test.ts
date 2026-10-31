@@ -19,6 +19,14 @@ const sampleIds: Record<string, string> = {
   "/api/v1/artifacts/{id}/download": "artifact_0000000000000000"
 };
 
+// Route-specific, so Fastify's default 404 for an unregistered route cannot satisfy the traversal tests.
+const notFoundMessages: Record<string, string> = {
+  "/api/v1/scan-runs/{id}": "Scan run was not found.",
+  "/api/v1/offers/{id}": "Offer was not found.",
+  "/api/v1/reports/{id}": "Report was not found.",
+  "/api/v1/artifacts/{id}/download": "Artifact was not found."
+};
+
 const traversalIds = [
   "..%2F..%2Fetc%2Fpasswd",
   "%2e%2e%2f%2e%2e%2fetc%2fpasswd",
@@ -26,7 +34,7 @@ const traversalIds = [
   "%2Fetc%2Fpasswd",
   "report_001%2F..%2F..%2Fcv.md",
   "offer_%00",
-  "x".repeat(300)
+  "x".repeat(100)
 ];
 
 const protectedOperations = Object.entries(buildOpenApiDocument().paths).flatMap(([route, pathItem]) =>
@@ -96,13 +104,25 @@ describe("security boundaries", () => {
         headers: { "X-Career-Ops-Token": token }
       });
 
-      expect([400, 404]).toContain(response.statusCode);
-      expect(response.headers["content-type"]).toContain("application/json");
+      expect(response.statusCode).toBe(404);
+      expect(response.json()).toEqual({ error: { code: "NOT_FOUND", message: notFoundMessages[route] } });
       expect(response.body).not.toContain("root:");
       expect(response.body).not.toContain("Jane Doe");
       expect(response.body).not.toContain(workspaceRealPath);
     }
   );
+
+  // Fastify rejects path parameters over 100 characters before routing.
+  it.each(Object.keys(sampleIds))("returns 404 without leaking for an overlong id on %s", async (route) => {
+    const response = await server.inject({
+      method: "GET",
+      url: concreteUrl(route, "x".repeat(300)),
+      headers: { "X-Career-Ops-Token": token }
+    });
+
+    expect(response.statusCode).toBe(404);
+    expect(response.body).not.toContain(workspaceRealPath);
+  });
 
   it("never returns workspace paths, home paths, or the token from read routes", async () => {
     const urls = ["/api/v1/offers", "/api/v1/reports", "/api/v1/artifacts", "/api/v1/reports/report_001", "/api/v1/health"];

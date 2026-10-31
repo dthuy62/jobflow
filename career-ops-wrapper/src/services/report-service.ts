@@ -21,7 +21,7 @@ export interface ReportService {
 
 export function createReportService(config: RuntimeConfig): ReportService {
   async function loadReports(): Promise<{ items: ReportListItemDto[]; files: ReportFile[]; revisionHash: string }> {
-    const data = await readCareerOpsData(config.workspace, { tolerateOversizedSources: true });
+    const data = await readCareerOpsData(config.workspace, { tolerateUnreadableSources: true });
     const { offerIdByReportId } = projectCareerOps(data);
     const files = [...data.reports].reverse();
     return {

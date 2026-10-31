@@ -26,7 +26,9 @@ describe("sanitizeScanOutputLine", () => {
     ["load file:///opt/secret/x.js", "load [PATH]"],
     ["at C:/Users/bob/x", "at [PATH]"],
     ["Error:/opt/secret", "Error:[PATH]"],
-    ["at 10:30 https://a.example/b", "at 10:30 https://a.example/b"]
+    ["at 10:30 https://a.example/b", "at 10:30 https://a.example/b"],
+    ["✗ Acme: failed `/opt/secret/creds.json`", "✗ Acme: failed `[PATH]"],
+    ["Acme: [/opt/secret/creds.json] missing", "Acme: [[PATH] missing"]
   ])("sanitizes %j", (input, expected) => {
     expect(sanitizeScanOutputLine(input, options)).toBe(expected);
   });
