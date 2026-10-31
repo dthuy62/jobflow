@@ -14,21 +14,16 @@ export function registerLocalPairingTokenGuard(
   config: RuntimeConfig
 ): void {
   server.addHook("onRequest", async (request) => {
-    assertPairingToken(request, config);
+    if (!isProtectedApiV1Route(request) || !isPairingTokenRequiredForHost(config.host)) {
+      return;
+    }
+
+    const suppliedToken = readPairingTokenHeader(request);
+
+    if (!config.pairingToken || !suppliedToken || !tokensMatch(config.pairingToken, suppliedToken)) {
+      throw new ApiError("UNAUTHORIZED", "A valid local pairing token is required.");
+    }
   });
-}
-
-/** Throws UNAUTHORIZED unless the request may reach a /api/v1 route. */
-export function assertPairingToken(request: FastifyRequest, config: RuntimeConfig): void {
-  if (!isProtectedApiV1Route(request) || !isPairingTokenRequiredForHost(config.host)) {
-    return;
-  }
-
-  const suppliedToken = readPairingTokenHeader(request);
-
-  if (!config.pairingToken || !suppliedToken || !tokensMatch(config.pairingToken, suppliedToken)) {
-    throw new ApiError("UNAUTHORIZED", "A valid local pairing token is required.");
-  }
 }
 
 function isProtectedApiV1Route(request: FastifyRequest): boolean {

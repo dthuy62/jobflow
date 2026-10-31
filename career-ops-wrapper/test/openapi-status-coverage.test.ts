@@ -232,8 +232,7 @@ function derivedStatuses(operation: CoveredOperation, hasRequestBody: boolean): 
     codes.add("PAYLOAD_TOO_LARGE");
   }
   if (operation.path.includes("{id}")) {
-    // An ID too long for the router or with malformed percent-encoding gets
-    // the NOT_FOUND envelope (not-found handler and frameworkErrors).
+    // The /api/v1 not-found handler answers an ID too long for the router.
     codes.add("NOT_FOUND");
   }
 
