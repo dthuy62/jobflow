@@ -10,7 +10,7 @@
     "offersFound": 14,
     "offersProjected": 3,
     "warnings": [
-      "Globex Labs: HTTP 503 from careers page"
+      "Globex Labs: the careers page could not be fetched."
     ]
   },
   "failure": null

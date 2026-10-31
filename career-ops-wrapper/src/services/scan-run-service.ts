@@ -5,16 +5,14 @@ import {
   type RunScanArgs,
   type ScanProcessResult
 } from "../career-ops-engine/career-ops-engine-adapter.js";
-import { sanitizeScanOutputLine } from "../career-ops-engine/scan-output.js";
+import { buildScanWarnings, describeScanFailure, listScanCompanyNames } from "../career-ops-engine/scan-diagnostics.js";
 import { DEFAULT_SCAN_TIMEOUT_MS, type RuntimeConfig } from "../config/runtime-config.js";
 import type { ScanRunDto, StartScanRunRequestDto } from "../contracts/index.js";
 import { ApiError } from "../errors/api-error.js";
 import { parseScanOutput } from "../parsers/index.js";
 import { ScanRunStore } from "../runs/index.js";
-import { listWorkspacePathVariants } from "../workspace/workspace-paths.js";
+import { createPortalFileAdapter } from "../workspace/portal-file-adapter.js";
 import { createScanReadinessService, type ScanReadinessService } from "./scan-readiness-service.js";
-
-export const SCAN_WARNINGS_LIMIT = 20;
 
 export interface ScanRunService {
   startScan(request: StartScanRunRequestDto): Promise<ScanRunDto>;
@@ -53,8 +51,8 @@ export function createScanRunService(
     }
 
     store.update(id, { stage: "parsing" });
-    const sanitize = await createSanitizer(config);
-    store.update(id, finalRunPatch(result, args, timeoutMs, sanitize, now()));
+    const companies = await readScanCompanyNames(config);
+    store.update(id, finalRunPatch(result, args, timeoutMs, companies, now()));
   }
 
   return {
@@ -136,15 +134,11 @@ function finalRunPatch(
   result: ScanProcessResult | undefined,
   args: RunScanArgs,
   timeoutMs: number,
-  sanitize: (line: string) => string,
+  companies: readonly string[],
   finishedAt: Date
 ): Partial<ScanRunDto> {
   const parsed = parseScanOutput(result?.stdout ?? "");
-  const warnings = parsed.warnings
-    .map(sanitize)
-    .filter((line) => line.length > 0)
-    .slice(0, SCAN_WARNINGS_LIMIT);
-  const failure = failureFor(result, timeoutMs, sanitize);
+  const failure = describeScanFailure(result, timeoutMs);
 
   return {
     status: failure ? "failed" : "succeeded",
@@ -155,54 +149,20 @@ function finalRunPatch(
     summary: {
       offersFound: parsed.offersFound,
       offersProjected: failure || args.dryRun ? 0 : parsed.offersAdded,
-      warnings
+      warnings: buildScanWarnings(parsed, companies)
     },
     failure
   };
 }
 
-function failureFor(
-  result: ScanProcessResult | undefined,
-  timeoutMs: number,
-  sanitize: (line: string) => string
-): ScanRunDto["failure"] {
-  if (!result || result.spawnFailed) {
-    return { code: "SPAWN_FAILED", message: "Career Ops scan could not be started." };
+/** Company names from portals.yml; none when it cannot be read. */
+async function readScanCompanyNames(config: RuntimeConfig): Promise<string[]> {
+  try {
+    const file = await createPortalFileAdapter(config.workspace).readPortalConfig();
+    return listScanCompanyNames(file.parsedPortal);
+  } catch {
+    return [];
   }
-
-  if (result.timedOut) {
-    return {
-      code: "COMMAND_TIMEOUT",
-      message: `Career Ops scan exceeded the ${Math.round(timeoutMs / 1000)}-second timeout.`
-    };
-  }
-
-  if (result.exitCode !== 0) {
-    const lastError = lastNonEmptyLine(result.stderr);
-    const detail = lastError ? sanitize(lastError) : "";
-    const exit = result.exitCode === null ? `was stopped by ${result.signal ?? "a signal"}` : `exited with code ${result.exitCode}`;
-    return {
-      code: "COMMAND_FAILED",
-      message: `Career Ops scan ${exit}.${detail ? ` Last error: ${detail}` : ""}`
-    };
-  }
-
-  return null;
-}
-
-async function createSanitizer(config: RuntimeConfig): Promise<(line: string) => string> {
-  const workspacePaths = await listWorkspacePathVariants(config.workspace);
-  const secrets = config.pairingToken ? [config.pairingToken] : [];
-
-  return (line) => sanitizeScanOutputLine(line, { workspacePaths, secrets });
-}
-
-function lastNonEmptyLine(text: string): string | undefined {
-  return text
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0)
-    .at(-1);
 }
 
 function newScanRunId(date: Date): string {

@@ -219,7 +219,7 @@ describe("parseReportHeader", () => {
 });
 
 describe("parseScanOutput", () => {
-  it("extracts counts and error warnings", () => {
+  it("extracts counts, the handoff count, and raw error lines", () => {
     const output = [
       "Portal Scan — 2026-10-30",
       "Total jobs found:      14",
@@ -239,15 +239,12 @@ describe("parseScanOutput", () => {
     expect(parseScanOutput(output)).toEqual({
       offersFound: 14,
       offersAdded: 3,
-      warnings: [
-        "Agent/WebSearch handoff: 2 companies not handled by zero-token providers",
-        "Globex Labs: HTTP 503",
-        "Hooli: timeout"
-      ]
+      handoffCount: 2,
+      errorLines: ["Globex Labs: HTTP 503", "Hooli: timeout"]
     });
   });
 
   it("defaults missing counts to zero", () => {
-    expect(parseScanOutput("")).toEqual({ offersFound: 0, offersAdded: 0, warnings: [] });
+    expect(parseScanOutput("")).toEqual({ offersFound: 0, offersAdded: 0, handoffCount: 0, errorLines: [] });
   });
 });

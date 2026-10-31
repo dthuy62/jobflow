@@ -64,7 +64,7 @@ describe("scan run routes", () => {
       summary: {
         offersFound: 4,
         offersProjected: 1,
-        warnings: ["Globex Labs: HTTP 503 from careers page"]
+        warnings: ["Globex Labs: the careers page could not be fetched."]
       }
     });
     expect(finished.finishedAt).toEqual(expect.any(String));
@@ -115,14 +115,14 @@ describe("scan run routes", () => {
     await pollUntilDone(server, third.json().id);
   });
 
-  it("marks a failing scan as failed with redacted details", async () => {
+  it("marks a failing scan as failed with fixed sentences only", async () => {
     const workspace = await fixtureWorkspace();
     const workspaceRealPath = await realpath(workspace);
     await writeFile(
       path.join(workspace, "scan.mjs"),
       [
         "console.log('Errors (1):');",
-        `console.log('  ✗ Acme: cannot read ${workspaceRealPath}/portals.yml');`,
+        `console.log('  ✗ Acme Robotics: cannot read ${workspaceRealPath}/portals.yml');`,
         `console.error('Fatal: CAREER_OPS_PAIRING_TOKEN=pairing-secret at ${homedir()}/x and pairing-secret');`,
         "process.exit(3);"
       ].join("\n")
@@ -136,14 +136,13 @@ describe("scan run routes", () => {
       status: "failed",
       stage: "failed",
       exitCode: 3,
-      failure: { code: "COMMAND_FAILED" },
-      summary: { warnings: ["Acme: cannot read [WORKSPACE]/portals.yml"] }
+      failure: { code: "COMMAND_FAILED", message: "Career Ops scan exited with code 3." },
+      summary: { warnings: ["Acme Robotics: the scan failed for this company."] }
     });
     const serialized = JSON.stringify(finished);
     expect(serialized).not.toContain("pairing-secret");
     expect(serialized).not.toContain(workspaceRealPath);
     expect(serialized).not.toContain(homedir());
-    expect(finished.failure?.message).toContain("exited with code 3");
   });
 
   it("fails a scan that exceeds the timeout", async () => {
@@ -217,7 +216,7 @@ describe("scan run output that trips the text contract", () => {
       path.join(workspace, "scan.mjs"),
       [
         "console.log('Errors (3):');",
-        "console.log('  ✗ Acme: retrying....');",
+        "console.log('  ✗ Acme Robotics: retrying....');",
         "console.log('  ✗ //cdn.example.com/x.js');",
         "console.log('  ✗ ..');",
         "console.error('..');",
@@ -231,8 +230,65 @@ describe("scan run output that trips the text contract", () => {
     const latest = await server.inject({ method: "GET", url: "/api/v1/scan-runs/latest" });
 
     expect(latest.statusCode).toBe(200);
-    expect(finished.summary.warnings).toEqual(["Acme: retrying.", "[PATH]"]);
+    expect(finished.summary.warnings).toEqual([
+      "Acme Robotics: the scan failed for this company.",
+      "2 scan errors could not be matched to a company in portals.yml."
+    ]);
     expect(finished.failure?.message).toBe("Career Ops scan exited with code 2.");
+  });
+});
+
+describe("scan run output never leaves the wrapper", () => {
+  // The round-3 findings from PR #8 and earlier regex-redaction leaks.
+  const leaks = (workspace: string) => [
+    "fetch x-https://jane:hunter2@jobs.example.com/a failed",
+    "fetch 1https://jane:hunter2@jobs.example.com/a failed",
+    "fetch https://jane:hunter2?x@jobs.example.com/a failed",
+    "fetch https://jane:hunter2#x@jobs.example.com/a failed",
+    `cannot read ${workspace}-old/cv.pdf`,
+    `cannot read ${workspace} ../../etc/passwd`,
+    `cannot read ${workspace},../../etc/passwd`,
+    `cannot read ${workspace}/%2e%2e/%2e%2e/etc/passwd`,
+    `cannot read ${homedir()}/secret.txt`,
+    "CAREER_OPS_PAIRING_TOKEN=pairing-secret and pairing-secret"
+  ];
+
+  it("returns no path, credential, traversal, or token from stdout or stderr", async () => {
+    const workspace = await copyProjectionFixture();
+    workspaces.push(workspace);
+    const workspaceRealPath = await realpath(workspace);
+    const lines = leaks(workspaceRealPath);
+    await writeFile(
+      path.join(workspace, "scan.mjs"),
+      [
+        `console.log(${JSON.stringify("Errors (" + lines.length * 2 + "):")});`,
+        ...lines.map((line) => `console.log(${JSON.stringify(`  ✗ Acme Robotics: ${line}`)});`),
+        ...lines.map((line) => `console.log(${JSON.stringify(`  ✗ ${line}: HTTP 503`)});`),
+        ...lines.map((line) => `console.error(${JSON.stringify(`Fatal: ${line}`)});`),
+        "process.exit(1);"
+      ].join("\n")
+    );
+    const server = await serverFor(workspace, { pairingToken: "pairing-secret" });
+
+    const start = await server.inject({ method: "POST", url: "/api/v1/scan-runs", payload: {} });
+    const finished = await pollUntilDone(server, start.json().id);
+    const latest = await server.inject({ method: "GET", url: "/api/v1/scan-runs/latest" });
+
+    expect(finished).toMatchObject({
+      status: "failed",
+      failure: { code: "COMMAND_FAILED", message: "Career Ops scan exited with code 1." },
+      summary: {
+        warnings: [
+          "Acme Robotics: the scan failed for this company.",
+          "10 scan errors could not be matched to a company in portals.yml."
+        ]
+      }
+    });
+    for (const body of [JSON.stringify(finished), latest.body]) {
+      for (const marker of ["hunter2", "jane", "@", "-old", "..", "passwd", "%2e", "pairing-secret", homedir(), workspaceRealPath]) {
+        expect(body, marker).not.toContain(marker);
+      }
+    }
   });
 });
 
