@@ -6,5 +6,5 @@
   "createdAt": "2026-06-20T00:00:00.000Z",
   "updatedAt": "2026-06-22T08:00:00.000Z",
   "sourceRevision": "report_sha256_65a47347",
-  "markdown": "# Evaluation: Acme Robotics — Senior Android Engineer\n\n**Date:** 2026-06-20\n**URL:** https://jobs.example.com/acme-robotics/senior-android\n**Score:** 4.2/5\n**PDF:** output/cv-jane-doe-acme-robotics-2026-06-20.pdf\n\n---\n\n## A) Role Summary\n\nSynthetic evaluation. See the [tailored CV](../output/cv-jane-doe-acme-robotics-2026-06-20.pdf).\n"
+  "markdown": "# Evaluation: Acme Robotics — Senior Android Engineer\n\n**Date:** 2026-06-20\n**URL:** https://jobs.example.com/acme-robotics/senior-android\n**Score:** 4.2/5\n**PDF:** output/cv-jane-doe-acme-robotics-2026-06-20.pdf\n\n---\n\n## A) Role Summary\n\nSynthetic evaluation. See the [tailored CV](/api/v1/artifacts/artifact_df5d3e6d284aa3d7/download).\n"
 }

@@ -227,8 +227,8 @@ Android DTOs parse unchanged. Only the wording changes, from redacted raw text
 to the fixed sentences above. The categories are not exposed as a separate
 field **(builder's call: the issue keeps the contract shape)**.
 
-`redactLocalValues` stays for report Markdown; it is no longer used for scan
-output.
+Report Markdown no longer uses regex redaction either; see
+`2026-10-31-report-markdown-links-design.md`.
 
 ## Offers
 
@@ -318,11 +318,13 @@ Missing files are treated as empty.
 - `offerId`: from `**URL:**` (same hash as offers), else from a tracker row
   that links the report **(agreed)**.
 - `sourceRevision`: `report_sha256_<8 hex>` of the file.
-- `markdown`: the raw file, capped at 1 MiB (`PAYLOAD_TOO_LARGE` over it), with
-  the workspace path and home directory redacted. The contract's `markdown`
-  field changes from `SanitizedTextSchema` to a bounded string, because real
-  reports contain relative links such as `../output/x.pdf` that the path
-  pattern rejects **(builder's call)**.
+- `markdown`: the file, capped at 1 MiB (`PAYLOAD_TOO_LARGE` over it, or when
+  rewritten links push it over), sanitized as in
+  `2026-10-31-report-markdown-links-design.md`: links to listed PDFs point at
+  `/api/v1/artifacts/{id}/download`, other local links become their text, and
+  local paths become `[local path]`. The contract's `markdown` field is a
+  bounded string, not `SanitizedTextSchema`, because reports keep relative
+  paths such as `output/x.pdf` that the path pattern rejects **(builder's call)**.
 - `GET /reports` → `{ items: ReportListItemDto[], syncedAt, sourceRevision }`,
   newest number first.
 - `GET /reports/{id}`: the ID must match `^report_\d{1,6}$`. Anything else →

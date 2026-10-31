@@ -3,6 +3,7 @@ import { homedir, tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { ReportCollectionDtoSchema, ReportDetailDtoSchema } from "../src/contracts/index.js";
+import { artifactIdForFileName } from "../src/outputs/index.js";
 import { normalizeOfferUrl, offerIdForUrl } from "../src/parsers/index.js";
 import { createServer } from "../src/server.js";
 import { copyProjectionFixture, projectionFixturePath, removeWorkspaces } from "./support/fixture-workspace.js";
@@ -45,33 +46,71 @@ describe("report routes", () => {
     });
   });
 
-  it("returns report Markdown with relative links intact", async () => {
+  it("rewrites workspace links to artifact download links", async () => {
     await withServer(projectionFixturePath, async (server) => {
       const response = await server.inject({ method: "GET", url: "/api/v1/reports/report_001" });
 
       expect(response.statusCode).toBe(200);
       const report = ReportDetailDtoSchema.parse(response.json());
+      const artifactId = artifactIdForFileName("cv-jane-doe-acme-robotics-2026-06-20.pdf");
       expect(report.markdown).toContain("# Evaluation: Acme Robotics");
-      expect(report.markdown).toContain("(../output/cv-jane-doe-acme-robotics-2026-06-20.pdf)");
+      expect(report.markdown).toContain(`[tailored CV](/api/v1/artifacts/${artifactId}/download)`);
+      expect(report.markdown).not.toContain("../output");
+
+      const download = await server.inject({ method: "GET", url: `/api/v1/artifacts/${artifactId}/download` });
+      expect(download.statusCode).toBe(200);
     });
   });
 
-  it("redacts workspace and home paths inside report Markdown", async () => {
+  it("removes workspace and home paths from report Markdown", async () => {
     const workspace = await copyProjectionFixture();
     workspaces.push(workspace);
     const workspaceRealPath = await realpath(workspace);
     await writeFile(
       path.join(workspace, "reports/004-leaky-2026-07-01.md"),
-      `# Evaluation: Leaky — Role\n\nSaved at ${workspaceRealPath}/reports and ${homedir()}/Downloads.\n`
+      [
+        "# Evaluation: Leaky — Role",
+        "",
+        `Saved at ${workspaceRealPath}/reports and ${homedir()}/Downloads.`,
+        `Sibling ${workspaceRealPath}-old/cv.pdf and climb ${workspaceRealPath}/../secret.txt.`,
+        `Configured ${workspace}/../x and [old CV](${workspaceRealPath}-old/cv.pdf).`,
+        "[other](../output/notes.txt) and [outside](../../x.pdf)."
+      ].join("\n")
     );
 
     await withServer(workspace, async (server) => {
       const response = await server.inject({ method: "GET", url: "/api/v1/reports/report_004" });
 
       expect(response.statusCode).toBe(200);
-      expect(response.json().markdown).toContain("Saved at [WORKSPACE]/reports and [HOME]/Downloads.");
-      expect(response.body).not.toContain(workspaceRealPath);
-      expect(response.body).not.toContain(homedir());
+      expect(response.json().markdown).toBe(
+        [
+          "# Evaluation: Leaky — Role",
+          "",
+          "Saved at [local path] and [local path].",
+          "Sibling [local path] and climb [local path].",
+          "Configured [local path] and old CV.",
+          "other and outside."
+        ].join("\n")
+      );
+      for (const leak of [workspaceRealPath, workspace, homedir(), path.basename(workspace), "-old", "secret", "[WORKSPACE]", "[HOME]"]) {
+        expect(response.body).not.toContain(leak);
+      }
+    });
+  });
+
+  it("returns PAYLOAD_TOO_LARGE when rewritten links push a report over 1 MiB", async () => {
+    const workspace = await copyProjectionFixture();
+    workspaces.push(workspace);
+    const link = "[c](../output/cv-jane-doe-acme-robotics-2026-06-20.pdf)\n";
+    await writeFile(
+      path.join(workspace, "reports/004-links-2026-07-01.md"),
+      link.repeat(Math.floor((1024 * 1024 - 100) / link.length))
+    );
+
+    await withServer(workspace, async (server) => {
+      const response = await server.inject({ method: "GET", url: "/api/v1/reports/report_004" });
+      expect(response.statusCode).toBe(413);
+      expect(response.json().error.code).toBe("PAYLOAD_TOO_LARGE");
     });
   });
 
