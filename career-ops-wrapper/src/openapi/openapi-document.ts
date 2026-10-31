@@ -269,12 +269,15 @@ export function buildOpenApiDocument(options: BuildOpenApiDocumentOptions = {}):
             "200": jsonResponse("Current CV Markdown.", "CvDto", {
               current: { $ref: "#/components/examples/CvValid" }
             }),
+            "400": errorResponse("CV Markdown file is blank.", "validation", "ValidationError"),
             "401": jsonResponse("Missing or invalid Local Pairing Token.", "ErrorResponseDto", {
               unauthorized: { $ref: "#/components/examples/UnauthorizedError" }
             }),
+            "403": errorResponse("CV Markdown path is outside the workspace.", "outsideWorkspace", "PathOutsideWorkspaceError"),
             "404": jsonResponse("CV Markdown file is missing.", "ErrorResponseDto", {
               missing: { $ref: "#/components/examples/CvMissingError" }
             }),
+            "413": errorResponse("CV Markdown file is over 512 KiB.", "tooLarge", "PayloadTooLargeError"),
             "503": jsonResponse("Career Ops Workspace is not ready.", "ErrorResponseDto", {
               workspace: { $ref: "#/components/examples/WorkspaceUnhealthyError" }
             }),
@@ -308,6 +311,7 @@ export function buildOpenApiDocument(options: BuildOpenApiDocumentOptions = {}):
             "401": jsonResponse("Missing or invalid Local Pairing Token.", "ErrorResponseDto", {
               unauthorized: { $ref: "#/components/examples/UnauthorizedError" }
             }),
+            "403": errorResponse("CV Markdown path is outside the workspace.", "outsideWorkspace", "PathOutsideWorkspaceError"),
             "413": jsonResponse("CV Markdown payload is too large.", "ErrorResponseDto", {
               tooLarge: { $ref: "#/components/examples/PayloadTooLargeError" }
             }),
@@ -507,6 +511,7 @@ export function buildOpenApiDocument(options: BuildOpenApiDocumentOptions = {}):
             "400": errorResponse("Invalid scan request.", "validation", "ValidationError"),
             "401": unauthorizedResponse(),
             "409": errorResponse("A scan is already running.", "alreadyRunning", "ScanAlreadyRunningError"),
+            "413": errorResponse("Request body is too large.", "tooLarge", "PayloadTooLargeError"),
             "503": errorResponse("Scan readiness is not ready.", "notReady", "ScanNotReadyError"),
             "500": unexpectedResponse()
           }
@@ -577,7 +582,9 @@ export function buildOpenApiDocument(options: BuildOpenApiDocumentOptions = {}):
               notEvaluated: exampleRef("OfferNotEvaluated")
             }),
             "401": unauthorizedResponse(),
+            "403": errorResponse("A source file resolves outside the workspace.", "outsideWorkspace", "PathOutsideWorkspaceError"),
             "404": notFoundResponse("Offer was not found."),
+            "413": errorResponse("A source file is too large.", "tooLarge", "PayloadTooLargeError"),
             "503": workspaceResponse(),
             "500": unexpectedResponse()
           }
