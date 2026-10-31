@@ -1,0 +1,13 @@
+{
+  "id": "eval_20261031093000_a1b2c3",
+  "offerId": "offer_a1461f4e3225f9ea",
+  "provider": "claude",
+  "status": "running",
+  "stage": "evaluating",
+  "active": true,
+  "startedAt": "2026-10-31T09:30:00.000Z",
+  "finishedAt": null,
+  "result": null,
+  "warnings": [],
+  "failure": null
+}

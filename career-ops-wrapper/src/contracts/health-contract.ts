@@ -13,7 +13,9 @@ export const HealthCapabilitiesDtoSchema = z.object({
   reports: z.boolean(),
   artifacts: z.boolean(),
   cvConversion: z.boolean(),
-  geminiEvaluation: z.boolean()
+  /** Deprecated: always `false`; use `aiEvaluation`. */
+  geminiEvaluation: z.boolean(),
+  aiEvaluation: z.boolean()
 });
 
 export const WorkspaceHealthDtoSchema = z.object({
@@ -37,12 +39,22 @@ export const ScannerReadinessDtoSchema = z.object({
   messages: z.array(z.string())
 });
 
+export const EvaluatorStatusSchema = z.enum(["ready", "notReady", "disabled"]);
+
+export const EvaluatorReadinessDtoSchema = z.object({
+  status: EvaluatorStatusSchema,
+  provider: z.enum(["claude"]).nullable(),
+  missingRequirements: z.array(z.string())
+});
+
 export const CareerOpsReadinessDtoSchema = z.object({
   status: CareerOpsReadinessStatusSchema,
   executionMode: z.literal("local-script-runner"),
   providerApiKeyRequired: z.literal(false),
-  aiCliRequired: z.literal(false),
-  scanner: ScannerReadinessDtoSchema
+  /** `true` when an AI evaluation provider is configured on the desktop. */
+  aiCliRequired: z.boolean(),
+  scanner: ScannerReadinessDtoSchema,
+  evaluator: EvaluatorReadinessDtoSchema
 });
 
 export const HealthDtoSchema = z.object({
@@ -58,5 +70,6 @@ export type HealthCapabilitiesDto = z.infer<typeof HealthCapabilitiesDtoSchema>;
 export type WorkspaceHealthDto = z.infer<typeof WorkspaceHealthDtoSchema>;
 export type ScriptReadinessCheckDto = z.infer<typeof ScriptReadinessCheckDtoSchema>;
 export type ScannerReadinessDto = z.infer<typeof ScannerReadinessDtoSchema>;
+export type EvaluatorReadinessDto = z.infer<typeof EvaluatorReadinessDtoSchema>;
 export type CareerOpsReadinessDto = z.infer<typeof CareerOpsReadinessDtoSchema>;
 export type HealthDto = z.infer<typeof HealthDtoSchema>;

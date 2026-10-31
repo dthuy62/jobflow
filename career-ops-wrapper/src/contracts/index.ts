@@ -2,6 +2,7 @@ export * from "./artifact-contract.js";
 export * from "./shared-contract.js";
 export * from "./cv-contract.js";
 export * from "./error-contract.js";
+export * from "./evaluation-contract.js";
 export * from "./health-contract.js";
 export * from "./portal-contract.js";
 export * from "./profile-contract.js";

@@ -31,6 +31,10 @@ class ApiErrorsTest {
             AppError.Rejected(ApiErrorCode.SCAN_ALREADY_RUNNING),
             httpError(409, errorBody("SCAN_ALREADY_RUNNING")).toApiError(),
         )
+        assertEquals(
+            AppError.Rejected(ApiErrorCode.EVALUATION_ALREADY_RUNNING),
+            httpError(409, errorBody("EVALUATION_ALREADY_RUNNING")).toApiError(),
+        )
     }
 
     @Test

@@ -18,7 +18,11 @@ export function createHealthService(config: RuntimeConfig): HealthService {
         status: isReady ? "ready" : "notReady",
         apiVersion: "v1",
         workspace,
-        careerOps,
+        careerOps: {
+          ...careerOps,
+          aiCliRequired: false,
+          evaluator: { status: "disabled", provider: null, missingRequirements: ["evaluation.provider-not-configured"] }
+        },
         capabilities: {
           cv: workspace.status === "ready",
           profile: workspace.status === "ready",
@@ -27,7 +31,8 @@ export function createHealthService(config: RuntimeConfig): HealthService {
           reports: workspace.status === "ready",
           artifacts: workspace.status === "ready",
           cvConversion: false,
-          geminiEvaluation: false
+          geminiEvaluation: false,
+          aiEvaluation: false
         },
         serverTime: new Date().toISOString()
       };
