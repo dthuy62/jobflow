@@ -30,7 +30,8 @@ removed as a whole, and links are rebuilt from structured data (artifact IDs).
    with it up to the next `](`: `/Users/jane/career-ops-old/cv.pdf`,
    `/Users/jane/Job(s)/acme/cv.pdf` and `/Users/jane/Offer[Acme]/x.pdf` each
    become one `[local path]`, while `[/Users/jane/x.pdf](../output/cv.pdf)`
-   keeps its rewritten artifact link.
+   keeps its rewritten artifact link. A web URL that contains a replaced
+   value is removed as a whole (`https://example.com/Users/jane/x.pdf`).
 2. **Links.** Markdown links and images are rewritten or reduced to text (see
    below). This pass only adds one kind of path: the artifact download path.
 3. **Paths.** Every whitespace-separated token in the whole document,

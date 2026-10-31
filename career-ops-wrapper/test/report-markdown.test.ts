@@ -252,7 +252,9 @@ describe("local paths in report text", () => {
     ["see /Users/jane/Offer[Acme]/salary.pdf now", "see [local path] now"],
     ['see /Users/jane/a"b/x.pdf now', "see [local path] now"],
     ["(/Users/jane/Jobs/Acme)/Offers/cv.pdf", "([local path]"],
-    ["Sibling /Users/jane/career-ops-old/x and more", "Sibling [local path] and more"]
+    ["Sibling /Users/jane/career-ops-old/x and more", "Sibling [local path] and more"],
+    ["see http://localhost/Users/jane/career-ops/output/x.pdf now", "see [local path] now"],
+    ["see https://example.com/Users/jane/Documents/secret.pdf now", "see [local path] now"]
   ])("removes a home or workspace value wherever it appears, with the rest of its path: %s", (input, expected) => {
     expect(sanitize(input)).toBe(expected);
   });

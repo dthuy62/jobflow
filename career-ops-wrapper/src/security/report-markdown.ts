@@ -487,7 +487,9 @@ function scrubBody(body: string): { text: string; removed: boolean; climbs: bool
     }
     const limit = url?.start ?? body.length;
     const pathStart = findAbsolutePathStart(body, position, limit);
-    const removeFrom = pathStart ?? (url && !url.web ? url.start : undefined);
+    // A web URL that holds a removed home or workspace value goes as a whole.
+    const urlRemoved = url && (!url.web || url.span.includes(MARK)) ? url.start : undefined;
+    const removeFrom = pathStart ?? urlRemoved;
 
     if (removeFrom !== undefined) {
       const kept = body.slice(position, removeFrom);
@@ -505,17 +507,15 @@ function scrubBody(body: string): { text: string; removed: boolean; climbs: bool
     if (!url) {
       break;
     }
-    const next = body.indexOf(LINK_BOUNDARY, url.start);
-    const urlEnd = next === -1 ? body.length : next;
-    text += stripUserinfo(body.slice(url.start, urlEnd));
-    position = urlEnd;
+    text += stripUserinfo(url.span);
+    position = url.start + url.span.length;
   }
 
   return { text, removed, climbs };
 }
 
-/** The first `scheme://` at or after `from`, starting at the scheme's first letter. */
-function findUrl(body: string, from: number): { start: number; web: boolean } | undefined {
+/** The first `scheme://` at or after `from`, starting at the scheme's first letter. Its span runs to the end of the body or the next `](`. */
+function findUrl(body: string, from: number): { start: number; web: boolean; span: string } | undefined {
   const separator = body.indexOf("://", from);
   if (separator === -1) {
     return undefined;
@@ -527,11 +527,13 @@ function findUrl(body: string, from: number): { start: number; web: boolean } | 
   while (start < separator && !/[A-Za-z]/.test(body[start] as string)) {
     start += 1;
   }
+  const next = body.indexOf(LINK_BOUNDARY, start);
+  const span = body.slice(start, next === -1 ? body.length : next);
   if (start === separator) {
-    return { start: separator, web: false };
+    return { start: separator, web: false, span };
   }
   const scheme = body.slice(start, separator).toLowerCase();
-  return { start, web: scheme === "http" || scheme === "https" };
+  return { start, web: scheme === "http" || scheme === "https", span };
 }
 
 function stripUserinfo(url: string): string {
