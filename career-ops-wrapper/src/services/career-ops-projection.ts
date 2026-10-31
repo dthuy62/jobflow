@@ -3,6 +3,7 @@ import {
   type OfferDto
 } from "../contracts/index.js";
 import {
+  isCalendarDate,
   normalizeOfferUrl,
   offerIdForTrackerNumber,
   offerIdForUrl,
@@ -37,6 +38,7 @@ interface OfferAccumulator {
   scoreText?: string | undefined;
   reportNumber?: string | undefined;
   notes?: string | undefined;
+  readonly invalidDates: Set<string>;
   readonly sources: Set<SourceName>;
 }
 
@@ -94,7 +96,7 @@ export function projectCareerOps(data: CareerOpsData): CareerOpsProjection {
     offer.title ??= nonEmpty(row.title);
     offer.location ??= nonEmpty(row.location);
     offer.portal ??= nonEmpty(row.portal);
-    if (isIsoDate(row.firstSeen) && (!offer.firstSeen || row.firstSeen < offer.firstSeen)) {
+    if (checkedDate(offer, row.firstSeen) && (!offer.firstSeen || row.firstSeen < offer.firstSeen)) {
       offer.firstSeen = row.firstSeen;
     }
   }
@@ -129,7 +131,7 @@ export function projectCareerOps(data: CareerOpsData): CareerOpsProjection {
     offer.scoreText = row.scoreText ?? offer.scoreText;
     offer.reportNumber = row.reportNumber ?? offer.reportNumber;
     offer.notes = row.notes ?? offer.notes;
-    offer.trackerDate ??= isIsoDate(row.date) ? row.date : undefined;
+    offer.trackerDate ??= checkedDate(offer, row.date) ? row.date : undefined;
   }
 
   for (const report of data.reports) {
@@ -189,6 +191,10 @@ function toOfferDto(
     return undefined;
   };
 
+  for (const date of offer.invalidDates) {
+    warnings.push(`firstSeenAt omitted: ${date} is not a calendar date.`);
+  }
+
   const score = parseScoreToPercent(offer.scoreText) ?? parseScoreToPercent(report?.header.scoreText);
   const artifactId = report?.header.pdfFileName ? artifactIdByFileName.get(report.header.pdfFileName) : undefined;
   const firstSeen = offer.firstSeen ?? offer.trackerDate;
@@ -245,7 +251,7 @@ function workModeFor(location: string | undefined): OfferDto["workMode"] {
 function getOrCreate(offers: Map<string, OfferAccumulator>, id: string, url?: string): OfferAccumulator {
   let offer = offers.get(id);
   if (!offer) {
-    offer = { id, ...(url ? { url } : {}), sources: new Set() };
+    offer = { id, ...(url ? { url } : {}), invalidDates: new Set(), sources: new Set() };
     offers.set(id, offer);
   }
   return offer;
@@ -255,6 +261,13 @@ function nonEmpty(value: string): string | undefined {
   return value.trim() === "" ? undefined : value.trim();
 }
 
-function isIsoDate(value: string | undefined): value is string {
-  return value !== undefined && /^\d{4}-\d{2}-\d{2}$/.test(value);
+/** Records date-shaped values that are not real calendar dates so they surface as warnings. */
+function checkedDate(offer: OfferAccumulator, value: string | undefined): value is string {
+  if (isCalendarDate(value)) {
+    return true;
+  }
+  if (value !== undefined && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    offer.invalidDates.add(value);
+  }
+  return false;
 }

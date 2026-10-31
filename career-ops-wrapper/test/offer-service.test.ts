@@ -147,6 +147,35 @@ describe("offer service", () => {
     expect(offer).toMatchObject({ company: "Unknown company", title: "Lonely Role", warnings: [] });
   });
 
+  it("treats impossible calendar dates as missing with a warning", async () => {
+    const workspace = await mkdtemp(path.join(tmpdir(), "offers-dates-"));
+    workspaces.push(workspace);
+    await mkdir(path.join(workspace, "data"));
+    await writeFile(
+      path.join(workspace, "data/applications.md"),
+      "| # | Date | Company | Role | Status |\n|---|---|---|---|---|\n| 1 | 2026-06-31 | Co | Role | Evaluated |\n"
+    );
+    await writeFile(
+      path.join(workspace, "data/scan-history.tsv"),
+      "url\tfirst_seen\tportal\ttitle\tcompany\tstatus\tlocation\nhttps://jobs.example.com/x\t2026-02-30\tp\tT\tC\tadded\t\n"
+    );
+
+    const service = serviceFor(workspace);
+    const collection = await service.listOffers();
+    const tracker = await service.getOffer(offerIdForTrackerNumber("1"));
+    const scanned = await service.getOffer(urlId("https://jobs.example.com/x"));
+
+    expect(collection.items).toHaveLength(2);
+    expect(tracker).toMatchObject({
+      firstSeenAt: null,
+      warnings: ["firstSeenAt omitted: 2026-06-31 is not a calendar date."]
+    });
+    expect(scanned).toMatchObject({
+      firstSeenAt: null,
+      warnings: ["firstSeenAt omitted: 2026-02-30 is not a calendar date."]
+    });
+  });
+
   it.each([
     ["Evaluated", "tracked"],
     ["evaluada", "tracked"],

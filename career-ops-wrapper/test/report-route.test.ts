@@ -75,6 +75,31 @@ describe("report routes", () => {
     });
   });
 
+  it("returns null createdAt for impossible report dates instead of failing", async () => {
+    const workspace = await copyProjectionFixture();
+    workspaces.push(workspace);
+    await writeFile(
+      path.join(workspace, "reports/010-bad-date-2026-02-30.md"),
+      "# Evaluation: Bad — Date\n\n**Date:** 2026-06-31\n"
+    );
+    await writeFile(
+      path.join(workspace, "reports/011-header-bad-2026-07-02.md"),
+      "# Evaluation: Header — Bad\n\n**Date:** 2026-13-01\n"
+    );
+
+    await withServer(workspace, async (server) => {
+      const list = await server.inject({ method: "GET", url: "/api/v1/reports" });
+      const detail = await server.inject({ method: "GET", url: "/api/v1/reports/report_010" });
+
+      expect(list.statusCode).toBe(200);
+      const items = ReportCollectionDtoSchema.parse(list.json()).items;
+      expect(items.find((item) => item.id === "report_010")?.createdAt).toBeNull();
+      expect(items.find((item) => item.id === "report_011")?.createdAt).toBe("2026-07-02T00:00:00.000Z");
+      expect(detail.statusCode).toBe(200);
+      expect(detail.json().createdAt).toBeNull();
+    });
+  });
+
   it("still lists reports when scan history is over its size cap", async () => {
     const workspace = await copyProjectionFixture();
     workspaces.push(workspace);

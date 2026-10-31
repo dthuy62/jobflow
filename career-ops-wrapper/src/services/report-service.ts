@@ -7,6 +7,7 @@ import {
   type ReportListItemDto
 } from "../contracts/index.js";
 import { ApiError } from "../errors/api-error.js";
+import { isCalendarDate } from "../parsers/index.js";
 import { redactLocalValues } from "../security/redaction.js";
 import { readCareerOpsData } from "../workspace/career-ops-data-adapter.js";
 import type { ReportFile } from "../workspace/report-file-adapter.js";
@@ -62,7 +63,7 @@ export function createReportService(config: RuntimeConfig): ReportService {
 }
 
 function toListItem(report: ReportFile, offerId: string | null): ReportListItemDto {
-  const date = report.header.date ?? report.fileDate;
+  const date = [report.header.date, report.fileDate].find(isCalendarDate);
   const title = [report.header.title, `Report ${report.number}`].find(
     (candidate) => candidate !== undefined && SanitizedTextSchema.safeParse(candidate).success
   ) as string;
