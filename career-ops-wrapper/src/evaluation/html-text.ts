@@ -87,6 +87,16 @@ function scan(html: string, collectJsonLd: boolean): { text: string; jsonLd: str
       continue;
     }
 
+    if (html[open + 1] === "!" || html[open + 1] === "?") {
+      // `<!DOCTYPE …>`, `<?xml …?>`, `<![CDATA[…]]>`: markup, not text.
+      const declarationEnd = html.indexOf(">", open + 2);
+      if (declarationEnd === -1) {
+        break;
+      }
+      position = declarationEnd + 1;
+      continue;
+    }
+
     const name = TAG_NAME.exec(html.slice(open + 1, open + 64))?.[1]?.toLowerCase();
     if (!name) {
       // A bare `<` in text, such as "a < b".
@@ -103,6 +113,10 @@ function scan(html: string, collectJsonLd: boolean): { text: string; jsonLd: str
     position = tagEnd + 1;
 
     if (!isClosing && DROPPED_ELEMENTS.has(name)) {
+      if (html[tagEnd - 1] === "/") {
+        // Self-closing (`<svg … />`): no content to drop.
+        continue;
+      }
       const closing = findClosingTag(html, name, position);
       if (!closing) {
         break;

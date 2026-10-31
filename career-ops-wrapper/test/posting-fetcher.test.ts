@@ -253,6 +253,18 @@ describe("htmlToText", () => {
     expect(htmlToText("<SCRIPT>bad()</SCRIPT ><P>Ok</P>")).toBe("Ok");
   });
 
+  it("treats a self-closing dropped element as empty and keeps the text after it", () => {
+    const body = "Senior engineer role. ".repeat(40).trim();
+
+    expect(htmlToText(`<body><svg class="logo" viewBox="0 0 1 1"/><p>${body}</p></body>`)).toBe(body);
+    expect(htmlToText(`<p>A</p><svg/><p>B</p><svg><path d="x"/></svg><p>C</p>`)).toBe("A\nB\nC");
+  });
+
+  it("skips doctype, processing instructions and CDATA markers", () => {
+    expect(htmlToText("<!DOCTYPE html><html><body><p>Role</p></body></html>")).toBe("Role");
+    expect(htmlToText('<?xml version="1.0"?><p>Role</p><![CDATA[x]]>')).toBe("Role");
+  });
+
   it("uses a JobPosting description from JSON-LD when the page has one", () => {
     const html = `<html><head><script type="application/ld+json">${JSON.stringify({
       "@context": "https://schema.org",
