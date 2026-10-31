@@ -1,0 +1,17 @@
+{
+  "id": "scan_20261030101500_a1b2c3",
+  "status": "succeeded",
+  "stage": "completed",
+  "startedAt": "2026-10-30T10:15:00.000Z",
+  "finishedAt": "2026-10-30T10:16:12.000Z",
+  "exitCode": 0,
+  "active": false,
+  "summary": {
+    "offersFound": 14,
+    "offersProjected": 3,
+    "warnings": [
+      "Globex Labs: HTTP 503 from careers page"
+    ]
+  },
+  "failure": null
+}

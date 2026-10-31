@@ -49,6 +49,13 @@ async function main(): Promise<void> {
       host: config.host,
       port: config.port
     });
+
+    // Close cleanly so a running scan's process group is terminated, not orphaned.
+    for (const signal of ["SIGINT", "SIGTERM"] as const) {
+      process.once(signal, () => {
+        void server.close().finally(() => process.exit(0));
+      });
+    }
   } catch (error) {
     logStartupError(error, workspacePath);
     process.exitCode = 1;

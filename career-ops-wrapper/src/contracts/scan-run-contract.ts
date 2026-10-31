@@ -27,3 +27,21 @@ export const ScanRunDtoSchema = z.object({
 });
 
 export type ScanRunDto = z.infer<typeof ScanRunDtoSchema>;
+
+export const SCAN_COMPANY_MAX_LENGTH = 100;
+
+/** Company names forwarded as `scan.mjs --company <name>`; never a flag. */
+export const ScanCompanySchema = z
+  .string()
+  .min(1)
+  .max(SCAN_COMPANY_MAX_LENGTH)
+  .regex(/^[\p{L}\p{N}][\p{L}\p{N} .&'()+,-]*$/u, "company contains unsupported characters.");
+
+export const StartScanRunRequestDtoSchema = z
+  .object({
+    dryRun: z.boolean().default(false),
+    company: ScanCompanySchema.optional()
+  })
+  .strict();
+
+export type StartScanRunRequestDto = z.infer<typeof StartScanRunRequestDtoSchema>;

@@ -1,3 +1,1 @@
-export interface OutputModuleBoundary {
-  readonly module: "outputs";
-}
+export * from "./artifact-catalog.js";

@@ -3,15 +3,22 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
 import {
+  ArtifactCollectionDtoSchema,
   CvDtoSchema,
   ErrorResponseDtoSchema,
   HealthDtoSchema,
+  OfferCollectionDtoSchema,
+  OfferDtoSchema,
   PortalDtoSchema,
   ProfileDtoSchema,
+  ReportCollectionDtoSchema,
+  ReportDetailDtoSchema,
   SaveCvRequestDtoSchema,
   SavePortalRequestDtoSchema,
   SaveProfileRequestDtoSchema,
-  ScanReadinessDtoSchema
+  ScanReadinessDtoSchema,
+  ScanRunDtoSchema,
+  StartScanRunRequestDtoSchema
 } from "../contracts/index.js";
 
 export interface BuildOpenApiDocumentOptions {
@@ -33,169 +40,10 @@ export interface OpenApiDocument {
     readonly name: string;
     readonly description: string;
   }>;
-  readonly paths: {
-    readonly "/api/v1/health": {
-      readonly get: {
-        readonly operationId: "getHealth";
-        readonly tags: readonly ["Health"];
-        readonly summary: string;
-        readonly description: string;
-        readonly security: readonly [];
-        readonly responses: {
-          readonly "200": OpenApiJsonResponse;
-          readonly "500": OpenApiJsonResponse;
-        };
-      };
-    };
-    readonly "/api/v1/cv": {
-      readonly get: {
-        readonly operationId: "getCv";
-        readonly tags: readonly ["CV"];
-        readonly summary: string;
-        readonly description: string;
-        readonly security: readonly OpenApiSecurityRequirement[];
-        readonly responses: {
-          readonly "200": OpenApiJsonResponse;
-          readonly "401": OpenApiJsonResponse;
-          readonly "404": OpenApiJsonResponse;
-          readonly "503": OpenApiJsonResponse;
-          readonly "500": OpenApiJsonResponse;
-        };
-      };
-      readonly put: {
-        readonly operationId: "saveCv";
-        readonly tags: readonly ["CV"];
-        readonly summary: string;
-        readonly description: string;
-        readonly security: readonly OpenApiSecurityRequirement[];
-        readonly requestBody: OpenApiJsonRequestBody;
-        readonly responses: {
-          readonly "200": OpenApiJsonResponse;
-          readonly "400": OpenApiJsonResponse;
-          readonly "401": OpenApiJsonResponse;
-          readonly "413": OpenApiJsonResponse;
-          readonly "503": OpenApiJsonResponse;
-          readonly "500": OpenApiJsonResponse;
-        };
-      };
-    };
-    readonly "/api/v1/profile": {
-      readonly get: {
-        readonly operationId: "getProfile";
-        readonly tags: readonly ["Profile"];
-        readonly summary: string;
-        readonly description: string;
-        readonly security: readonly OpenApiSecurityRequirement[];
-        readonly responses: {
-          readonly "200": OpenApiJsonResponse;
-          readonly "400": OpenApiJsonResponse;
-          readonly "401": OpenApiJsonResponse;
-          readonly "403": OpenApiJsonResponse;
-          readonly "404": OpenApiJsonResponse;
-          readonly "503": OpenApiJsonResponse;
-          readonly "500": OpenApiJsonResponse;
-        };
-      };
-      readonly put: {
-        readonly operationId: "saveProfile";
-        readonly tags: readonly ["Profile"];
-        readonly summary: string;
-        readonly description: string;
-        readonly security: readonly OpenApiSecurityRequirement[];
-        readonly requestBody: OpenApiJsonRequestBody;
-        readonly responses: {
-          readonly "200": OpenApiJsonResponse;
-          readonly "400": OpenApiJsonResponse;
-          readonly "401": OpenApiJsonResponse;
-          readonly "403": OpenApiJsonResponse;
-          readonly "413": OpenApiJsonResponse;
-          readonly "503": OpenApiJsonResponse;
-          readonly "500": OpenApiJsonResponse;
-        };
-      };
-    };
-    readonly "/api/v1/portals": {
-      readonly get: {
-        readonly operationId: "getPortals";
-        readonly tags: readonly ["Portals"];
-        readonly summary: string;
-        readonly description: string;
-        readonly security: readonly OpenApiSecurityRequirement[];
-        readonly responses: {
-          readonly "200": OpenApiJsonResponse;
-          readonly "400": OpenApiJsonResponse;
-          readonly "401": OpenApiJsonResponse;
-          readonly "403": OpenApiJsonResponse;
-          readonly "404": OpenApiJsonResponse;
-          readonly "503": OpenApiJsonResponse;
-          readonly "500": OpenApiJsonResponse;
-        };
-      };
-      readonly put: {
-        readonly operationId: "savePortals";
-        readonly tags: readonly ["Portals"];
-        readonly summary: string;
-        readonly description: string;
-        readonly security: readonly OpenApiSecurityRequirement[];
-        readonly requestBody: OpenApiJsonRequestBody;
-        readonly responses: {
-          readonly "200": OpenApiJsonResponse;
-          readonly "400": OpenApiJsonResponse;
-          readonly "401": OpenApiJsonResponse;
-          readonly "403": OpenApiJsonResponse;
-          readonly "413": OpenApiJsonResponse;
-          readonly "503": OpenApiJsonResponse;
-          readonly "500": OpenApiJsonResponse;
-        };
-      };
-    };
-    readonly "/api/v1/scan-readiness": {
-      readonly get: {
-        readonly operationId: "getScanReadiness";
-        readonly tags: readonly ["Scan Readiness"];
-        readonly summary: string;
-        readonly description: string;
-        readonly security: readonly OpenApiSecurityRequirement[];
-        readonly responses: {
-          readonly "200": OpenApiJsonResponse;
-          readonly "401": OpenApiJsonResponse;
-          readonly "403": OpenApiJsonResponse;
-          readonly "503": OpenApiJsonResponse;
-          readonly "500": OpenApiJsonResponse;
-        };
-      };
-    };
-  };
+  readonly paths: Readonly<Record<string, OpenApiPathItem>>;
   readonly components: {
-    readonly schemas: {
-      readonly HealthDto: JsonSchemaObject;
-      readonly CvDto: JsonSchemaObject;
-      readonly ProfileDto: JsonSchemaObject;
-      readonly PortalDto: JsonSchemaObject;
-      readonly ScanReadinessDto: JsonSchemaObject;
-      readonly SaveCvRequestDto: JsonSchemaObject;
-      readonly SavePortalRequestDto: JsonSchemaObject;
-      readonly SaveProfileRequestDto: JsonSchemaObject;
-      readonly ErrorResponseDto: JsonSchemaObject;
-    };
-    readonly examples: {
-      readonly HealthReady: OpenApiExample;
-      readonly HealthNotReady: OpenApiExample;
-      readonly CvValid: OpenApiExample;
-      readonly ProfileValid: OpenApiExample;
-      readonly PortalValid: OpenApiExample;
-      readonly ScanReadinessReady: OpenApiExample;
-      readonly ScanReadinessNotReady: OpenApiExample;
-      readonly ValidationError: OpenApiExample;
-      readonly UnauthorizedError: OpenApiExample;
-      readonly PathOutsideWorkspaceError: OpenApiExample;
-      readonly WorkspaceUnhealthyError: OpenApiExample;
-      readonly CvMissingError: OpenApiExample;
-      readonly ProfileMissingError: OpenApiExample;
-      readonly PortalMissingError: OpenApiExample;
-      readonly PayloadTooLargeError: OpenApiExample;
-      readonly UnexpectedError: OpenApiExample;
-    };
+    readonly schemas: Readonly<Record<string, JsonSchemaObject>>;
+    readonly examples: Readonly<Record<string, OpenApiExample>>;
     readonly securitySchemes: {
       readonly LocalPairingToken: {
         readonly type: "apiKey";
@@ -205,6 +53,35 @@ export interface OpenApiDocument {
       };
     };
   };
+}
+
+type OpenApiPathItem = Partial<Record<"get" | "put" | "post", OpenApiOperation>>;
+
+interface OpenApiOperation {
+  readonly operationId: string;
+  readonly tags: readonly string[];
+  readonly summary: string;
+  readonly description: string;
+  readonly security: readonly OpenApiSecurityRequirement[];
+  readonly parameters?: readonly OpenApiParameter[];
+  readonly requestBody?: OpenApiJsonRequestBody;
+  readonly responses: Readonly<Record<string, OpenApiResponse>>;
+}
+
+interface OpenApiParameter {
+  readonly name: string;
+  readonly in: "path";
+  readonly required: true;
+  readonly description: string;
+  readonly schema: { readonly type: "string"; readonly pattern: string };
+}
+
+type OpenApiResponse = OpenApiJsonResponse | OpenApiBinaryResponse;
+
+interface OpenApiBinaryResponse {
+  readonly description: string;
+  readonly headers?: Readonly<Record<string, { readonly description: string; readonly schema: { readonly type: "string" } }>>;
+  readonly content: Readonly<Record<string, { readonly schema: { readonly type: "string"; readonly format: "binary" } }>>;
 }
 
 type JsonSchemaObject = Record<string, unknown>;
@@ -283,6 +160,22 @@ const examples = {
   payloadTooLargeError: ErrorResponseDtoSchema.parse(
     readJsonExample("contracts/examples/errors/payload-too-large.json")
   ),
+  scanRunRunning: ScanRunDtoSchema.parse(readJsonExample("contracts/examples/scan-run.running.json")),
+  scanRunSucceeded: ScanRunDtoSchema.parse(readJsonExample("contracts/examples/scan-run.succeeded.json")),
+  scanRunFailed: ScanRunDtoSchema.parse(readJsonExample("contracts/examples/scan-run.failed.json")),
+  offersCollection: OfferCollectionDtoSchema.parse(readJsonExample("contracts/examples/offers.collection.json")),
+  offerValid: OfferDtoSchema.parse(readJsonExample("contracts/examples/offer.valid.json")),
+  offerNotEvaluated: OfferDtoSchema.parse(readJsonExample("contracts/examples/offer.not-evaluated.json")),
+  reportsCollection: ReportCollectionDtoSchema.parse(readJsonExample("contracts/examples/reports.collection.json")),
+  reportDetail: ReportDetailDtoSchema.parse(readJsonExample("contracts/examples/report.detail.valid.json")),
+  artifactsCollection: ArtifactCollectionDtoSchema.parse(
+    readJsonExample("contracts/examples/artifacts.collection.json")
+  ),
+  scanAlreadyRunningError: ErrorResponseDtoSchema.parse(
+    readJsonExample("contracts/examples/errors/scan-already-running.json")
+  ),
+  scanNotReadyError: ErrorResponseDtoSchema.parse(readJsonExample("contracts/examples/errors/scan-not-ready.json")),
+  notFoundError: ErrorResponseDtoSchema.parse(readJsonExample("contracts/examples/errors/not-found.json")),
   unexpectedError: ErrorResponseDtoSchema.parse({
     error: {
       code: "UNEXPECTED_ERROR",
@@ -298,7 +191,7 @@ export function buildOpenApiDocument(options: BuildOpenApiDocumentOptions = {}):
       title: "Career Ops Wrapper API",
       version: "1.0.0",
       description:
-        "Local-first wrapper API for Career Ops Mobile. The current documented surface includes setup/readiness endpoints only. /docs and /openapi.json are public setup/developer endpoints and do not require the Local Pairing Token."
+        "Local-first wrapper API for Career Ops Mobile. The documented surface covers setup/readiness, career inputs, scan runs, and read-only offer, report, and artifact projections. /docs and /openapi.json are public setup/developer endpoints and do not require the Local Pairing Token."
     },
     servers: [
       {
@@ -326,6 +219,22 @@ export function buildOpenApiDocument(options: BuildOpenApiDocumentOptions = {}):
       {
         name: "Scan Readiness",
         description: "Compute read-only scan gating readiness from workspace inputs"
+      },
+      {
+        name: "Scan Runs",
+        description: "Start the local Career Ops scan.mjs with allowlisted options and poll its status"
+      },
+      {
+        name: "Offers",
+        description: "Read-only offer projection merged from scan history, pipeline, and tracker"
+      },
+      {
+        name: "Reports",
+        description: "Read-only Career Ops evaluation reports"
+      },
+      {
+        name: "Artifacts",
+        description: "Read-only generated PDFs from the workspace output folder"
       }
     ],
     paths: {
@@ -578,6 +487,178 @@ export function buildOpenApiDocument(options: BuildOpenApiDocumentOptions = {}):
             })
           }
         }
+      },
+      "/api/v1/scan-runs": {
+        post: {
+          operationId: "startScanRun",
+          tags: ["Scan Runs"],
+          summary: "Start a scan run",
+          description:
+            "Starts the workspace scan.mjs in the background with only the allowlisted dryRun and company options. Only one scan runs at a time. The scan finds job links; it does not run AI evaluation.",
+          security: protectedSecurity,
+          requestBody: jsonRequestBody("StartScanRunRequestDto", {
+            all: { summary: "Scan every tracked company", value: { dryRun: false } },
+            company: { summary: "Dry run for one company", value: { dryRun: true, company: "Acme Robotics" } }
+          }),
+          responses: {
+            "202": jsonResponse("Scan run accepted and running.", "ScanRunDto", {
+              running: exampleRef("ScanRunRunning")
+            }),
+            "400": errorResponse("Invalid scan request.", "validation", "ValidationError"),
+            "401": unauthorizedResponse(),
+            "409": errorResponse("A scan is already running.", "alreadyRunning", "ScanAlreadyRunningError"),
+            "503": errorResponse("Scan readiness is not ready.", "notReady", "ScanNotReadyError"),
+            "500": unexpectedResponse()
+          }
+        }
+      },
+      "/api/v1/scan-runs/latest": {
+        get: {
+          operationId: "getLatestScanRun",
+          tags: ["Scan Runs"],
+          summary: "Get the latest scan run",
+          description: "Returns the most recent scan run since the wrapper started. Runs are kept in memory only.",
+          security: protectedSecurity,
+          responses: {
+            "200": scanRunResponse(),
+            "401": unauthorizedResponse(),
+            "404": notFoundResponse("No scan run since wrapper startup."),
+            "500": unexpectedResponse()
+          }
+        }
+      },
+      "/api/v1/scan-runs/{id}": {
+        get: {
+          operationId: "getScanRun",
+          tags: ["Scan Runs"],
+          summary: "Get scan run status",
+          description: "Returns one scan run for polling.",
+          security: protectedSecurity,
+          parameters: [idParameter("Scan run ID.", "^scan_\\d{14}_[a-f0-9]{6}$")],
+          responses: {
+            "200": scanRunResponse(),
+            "401": unauthorizedResponse(),
+            "404": notFoundResponse("Scan run was not found."),
+            "500": unexpectedResponse()
+          }
+        }
+      },
+      "/api/v1/offers": {
+        get: {
+          operationId: "listOffers",
+          tags: ["Offers"],
+          summary: "List offers",
+          description:
+            "Merges data/scan-history.tsv, data/pipeline.md, data/applications.md, and report headers by URL. Scores map x/5 to 0-100. Offers without a score or report are notEvaluated.",
+          security: protectedSecurity,
+          responses: {
+            "200": jsonResponse("Offer projection.", "OfferCollectionDto", {
+              offers: exampleRef("OffersCollection")
+            }),
+            "401": unauthorizedResponse(),
+            "403": errorResponse("A source file resolves outside the workspace.", "outsideWorkspace", "PathOutsideWorkspaceError"),
+            "413": errorResponse("A source file is too large.", "tooLarge", "PayloadTooLargeError"),
+            "503": workspaceResponse(),
+            "500": unexpectedResponse()
+          }
+        }
+      },
+      "/api/v1/offers/{id}": {
+        get: {
+          operationId: "getOffer",
+          tags: ["Offers"],
+          summary: "Get one offer",
+          description: "Returns one projected offer by opaque ID.",
+          security: protectedSecurity,
+          parameters: [idParameter("Offer ID.", "^offer_[a-f0-9]{16}$")],
+          responses: {
+            "200": jsonResponse("One projected offer.", "OfferDto", {
+              evaluated: exampleRef("OfferValid"),
+              notEvaluated: exampleRef("OfferNotEvaluated")
+            }),
+            "401": unauthorizedResponse(),
+            "404": notFoundResponse("Offer was not found."),
+            "503": workspaceResponse(),
+            "500": unexpectedResponse()
+          }
+        }
+      },
+      "/api/v1/reports": {
+        get: {
+          operationId: "listReports",
+          tags: ["Reports"],
+          summary: "List reports",
+          description: "Lists numbered evaluation reports in reports/, newest first.",
+          security: protectedSecurity,
+          responses: {
+            "200": jsonResponse("Report list.", "ReportCollectionDto", {
+              reports: exampleRef("ReportsCollection")
+            }),
+            "401": unauthorizedResponse(),
+            "503": workspaceResponse(),
+            "500": unexpectedResponse()
+          }
+        }
+      },
+      "/api/v1/reports/{id}": {
+        get: {
+          operationId: "getReport",
+          tags: ["Reports"],
+          summary: "Get one report",
+          description: "Returns report Markdown with workspace and home paths redacted.",
+          security: protectedSecurity,
+          parameters: [idParameter("Report ID.", "^report_\\d{3,6}$")],
+          responses: {
+            "200": jsonResponse("Report detail.", "ReportDetailDto", {
+              report: exampleRef("ReportDetail")
+            }),
+            "401": unauthorizedResponse(),
+            "404": notFoundResponse("Report was not found."),
+            "413": errorResponse("Report Markdown is over 1 MiB.", "tooLarge", "PayloadTooLargeError"),
+            "503": workspaceResponse(),
+            "500": unexpectedResponse()
+          }
+        }
+      },
+      "/api/v1/artifacts": {
+        get: {
+          operationId: "listArtifacts",
+          tags: ["Artifacts"],
+          summary: "List artifacts",
+          description: "Lists regular PDF files directly inside output/. Symbolic links are skipped.",
+          security: protectedSecurity,
+          responses: {
+            "200": jsonResponse("Artifact list.", "ArtifactCollectionDto", {
+              artifacts: exampleRef("ArtifactsCollection")
+            }),
+            "401": unauthorizedResponse(),
+            "503": workspaceResponse(),
+            "500": unexpectedResponse()
+          }
+        }
+      },
+      "/api/v1/artifacts/{id}/download": {
+        get: {
+          operationId: "downloadArtifact",
+          tags: ["Artifacts"],
+          summary: "Download one artifact",
+          description: "Streams one listed PDF as an attachment.",
+          security: protectedSecurity,
+          parameters: [idParameter("Artifact ID.", "^artifact_[a-f0-9]{16}$")],
+          responses: {
+            "200": {
+              description: "PDF bytes.",
+              headers: {
+                "Content-Disposition": { description: "attachment; filename=...", schema: { type: "string" } }
+              },
+              content: { "application/pdf": { schema: { type: "string", format: "binary" } } }
+            },
+            "401": unauthorizedResponse(),
+            "404": notFoundResponse("Artifact was not found."),
+            "503": workspaceResponse(),
+            "500": unexpectedResponse()
+          }
+        }
       }
     },
     components: {
@@ -590,6 +671,13 @@ export function buildOpenApiDocument(options: BuildOpenApiDocumentOptions = {}):
         SaveCvRequestDto: schemaFromZod(SaveCvRequestDtoSchema),
         SavePortalRequestDto: schemaFromZod(SavePortalRequestDtoSchema),
         SaveProfileRequestDto: schemaFromZod(SaveProfileRequestDtoSchema),
+        StartScanRunRequestDto: schemaFromZod(StartScanRunRequestDtoSchema),
+        ScanRunDto: schemaFromZod(ScanRunDtoSchema),
+        OfferDto: schemaFromZod(OfferDtoSchema),
+        OfferCollectionDto: schemaFromZod(OfferCollectionDtoSchema),
+        ReportCollectionDto: schemaFromZod(ReportCollectionDtoSchema),
+        ReportDetailDto: schemaFromZod(ReportDetailDtoSchema),
+        ArtifactCollectionDto: schemaFromZod(ArtifactCollectionDtoSchema),
         ErrorResponseDto: schemaFromZod(ErrorResponseDtoSchema)
       },
       examples: {
@@ -653,6 +741,18 @@ export function buildOpenApiDocument(options: BuildOpenApiDocumentOptions = {}):
           summary: "Request payload is too large",
           value: examples.payloadTooLargeError
         },
+        ScanRunRunning: { summary: "Scan run in progress", value: examples.scanRunRunning },
+        ScanRunSucceeded: { summary: "Completed scan run", value: examples.scanRunSucceeded },
+        ScanRunFailed: { summary: "Failed scan run", value: examples.scanRunFailed },
+        OffersCollection: { summary: "Offer projection", value: examples.offersCollection },
+        OfferValid: { summary: "Evaluated offer", value: examples.offerValid },
+        OfferNotEvaluated: { summary: "Offer found by a scan, not evaluated yet", value: examples.offerNotEvaluated },
+        ReportsCollection: { summary: "Report list", value: examples.reportsCollection },
+        ReportDetail: { summary: "Evaluation report", value: examples.reportDetail },
+        ArtifactsCollection: { summary: "Generated PDFs", value: examples.artifactsCollection },
+        ScanAlreadyRunningError: { summary: "A scan is already running", value: examples.scanAlreadyRunningError },
+        ScanNotReadyError: { summary: "Scan readiness is not ready", value: examples.scanNotReadyError },
+        NotFoundError: { summary: "Resource was not found", value: examples.notFoundError },
         UnexpectedError: {
           summary: "Unexpected wrapper error response",
           value: examples.unexpectedError
@@ -669,6 +769,44 @@ export function buildOpenApiDocument(options: BuildOpenApiDocumentOptions = {}):
       }
     }
   };
+}
+
+const protectedSecurity: readonly OpenApiSecurityRequirement[] = [{ LocalPairingToken: [] }];
+
+function exampleRef(name: string): { readonly $ref: string } {
+  return { $ref: `#/components/examples/${name}` };
+}
+
+function errorResponse(description: string, key: string, exampleName: string): OpenApiJsonResponse {
+  return jsonResponse(description, "ErrorResponseDto", { [key]: exampleRef(exampleName) });
+}
+
+function unauthorizedResponse(): OpenApiJsonResponse {
+  return errorResponse("Missing or invalid Local Pairing Token.", "unauthorized", "UnauthorizedError");
+}
+
+function workspaceResponse(): OpenApiJsonResponse {
+  return errorResponse("Career Ops Workspace is not ready.", "workspace", "WorkspaceUnhealthyError");
+}
+
+function notFoundResponse(description: string): OpenApiJsonResponse {
+  return errorResponse(description, "notFound", "NotFoundError");
+}
+
+function unexpectedResponse(): OpenApiJsonResponse {
+  return errorResponse("Unexpected wrapper error response.", "unexpected", "UnexpectedError");
+}
+
+function scanRunResponse(): OpenApiJsonResponse {
+  return jsonResponse("Scan run status.", "ScanRunDto", {
+    running: exampleRef("ScanRunRunning"),
+    succeeded: exampleRef("ScanRunSucceeded"),
+    failed: exampleRef("ScanRunFailed")
+  });
+}
+
+function idParameter(description: string, pattern: string): OpenApiParameter {
+  return { name: "id", in: "path", required: true, description, schema: { type: "string", pattern } };
 }
 
 function jsonRequestBody(

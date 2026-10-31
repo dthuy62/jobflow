@@ -6,7 +6,11 @@ export interface RuntimeConfig {
   readonly port: number;
   readonly workspace: string;
   readonly pairingToken?: string;
+  /** Scan run timeout; defaults to {@link DEFAULT_SCAN_TIMEOUT_MS}. */
+  readonly scanTimeoutMs?: number;
 }
+
+export const DEFAULT_SCAN_TIMEOUT_MS = 10 * 60 * 1000;
 
 export interface LoadRuntimeConfigOptions {
   readonly argv?: readonly string[];
@@ -27,6 +31,10 @@ export function loadRuntimeConfig(options: LoadRuntimeConfigOptions = {}): Runti
 
   if (envConfig.pairingToken) {
     Object.assign(config, { pairingToken: envConfig.pairingToken });
+  }
+
+  if (envConfig.scanTimeoutMs) {
+    Object.assign(config, { scanTimeoutMs: envConfig.scanTimeoutMs });
   }
 
   return config;

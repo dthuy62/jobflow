@@ -56,12 +56,16 @@ The wrapper is a local TypeScript API.
 | Runtime | `src/server.ts`, `src/config/` |
 | Routes | `src/api/` |
 | Contracts | `src/contracts/`, `contracts/examples/` |
-| Services | `src/services/` |
+| Services | `src/services/` (incl. `career-ops-projection.ts`) |
+| Parsers | `src/parsers/` |
+| Scan engine | `src/career-ops-engine/`, `src/runs/` |
 | Workspace IO | `src/workspace/` |
+| Output PDFs | `src/outputs/` |
 | Security | `src/security/` |
 | Errors | `src/errors/` |
 | API docs | `src/openapi/openapi-document.ts`, `src/api/docs-routes.ts` |
 | Tests | `test/` |
+| Fixtures | `fixtures/workspaces/` (synthetic only) |
 
 Implemented route families:
 
@@ -70,6 +74,10 @@ Implemented route families:
 - `GET /api/v1/profile`, `PUT /api/v1/profile`
 - `GET /api/v1/portals`, `PUT /api/v1/portals`
 - `GET /api/v1/scan-readiness`
+- `POST /api/v1/scan-runs`, `GET /api/v1/scan-runs/latest`, `GET /api/v1/scan-runs/{id}`
+- `GET /api/v1/offers`, `GET /api/v1/offers/{id}`
+- `GET /api/v1/reports`, `GET /api/v1/reports/{id}`
+- `GET /api/v1/artifacts`, `GET /api/v1/artifacts/{id}/download`
 - `GET /docs`
 - `GET /openapi.json`
 
@@ -82,6 +90,12 @@ Security and safety mechanisms:
 - Safe file adapter writes through temp files, keeps backups when possible, and
   verifies written content.
 - Error mapping returns stable API error codes.
+- Scan execution spawns only `scan.mjs` with `--dry-run`/`--company`, no shell,
+  a timeout, and redacted bounded output.
+- Reads of `data/`, `reports/`, and `output/` are size-capped and skip
+  symlinks that leave the workspace.
+- `test/security-boundaries.test.ts` checks token enforcement on every
+  documented route, traversal IDs, and path/token leakage.
 
 ## Commands
 

@@ -6,12 +6,9 @@ import { buildOpenApiDocument } from "../src/openapi/openapi-document.js";
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
-const unimplementedEndpointFamilies = [
-  "/api/v1/scan-runs",
-  "/api/v1/offers",
-  "/api/v1/reports",
-  "/api/v1/artifacts",
-  "/api/v1/run",
+const forbiddenEndpointFamilies = [
+  "/api/v1/run\"",
+  "/api/v1/run/",
   "/api/v1/exec",
   "/api/v1/command"
 ];
@@ -35,7 +32,16 @@ describe("OpenAPI document", () => {
       "/api/v1/cv",
       "/api/v1/profile",
       "/api/v1/portals",
-      "/api/v1/scan-readiness"
+      "/api/v1/scan-readiness",
+      "/api/v1/scan-runs",
+      "/api/v1/scan-runs/latest",
+      "/api/v1/scan-runs/{id}",
+      "/api/v1/offers",
+      "/api/v1/offers/{id}",
+      "/api/v1/reports",
+      "/api/v1/reports/{id}",
+      "/api/v1/artifacts",
+      "/api/v1/artifacts/{id}/download"
     ]);
     expect(document.paths["/api/v1/health"].get).toMatchObject({
       operationId: "getHealth",
@@ -99,7 +105,7 @@ describe("OpenAPI document", () => {
     expect(document.paths["/api/v1/scan-readiness"].get.responses).toHaveProperty("500");
 
     const serialized = JSON.stringify(document);
-    for (const endpoint of unimplementedEndpointFamilies) {
+    for (const endpoint of forbiddenEndpointFamilies) {
       expect(serialized).not.toContain(endpoint);
     }
   });
@@ -286,6 +292,40 @@ describe("OpenAPI document", () => {
         })
       }
     });
+  });
+
+  it("documents scan, offer, report and artifact routes with contract examples", async () => {
+    const document = buildOpenApiDocument();
+
+    expect(document.paths["/api/v1/scan-runs"].post).toMatchObject({
+      operationId: "startScanRun",
+      requestBody: { content: { "application/json": { schema: { $ref: "#/components/schemas/StartScanRunRequestDto" } } } }
+    });
+    expect(Object.keys(document.paths["/api/v1/scan-runs"].post.responses)).toEqual(
+      expect.arrayContaining(["202", "400", "401", "409", "503"])
+    );
+    expect(document.paths["/api/v1/artifacts/{id}/download"].get.responses["200"].content).toHaveProperty(
+      "application/pdf"
+    );
+    expect(Object.keys(document.components.schemas.StartScanRunRequestDto.properties ?? {})).toEqual([
+      "dryRun",
+      "company"
+    ]);
+    expect(Object.keys(document.components.schemas.OfferDto.properties ?? {})).toContain("evaluationStatus");
+    expect(document.components.examples.OffersCollection.value).toEqual(
+      await readJsonFixture<unknown>("contracts/examples/offers.collection.json")
+    );
+    expect(document.components.examples.ScanAlreadyRunningError.value).toEqual(
+      await readJsonFixture<unknown>("contracts/examples/errors/scan-already-running.json")
+    );
+
+    for (const [route, pathItem] of Object.entries(document.paths)) {
+      for (const operation of Object.values(pathItem)) {
+        if (route !== "/api/v1/health") {
+          expect(operation.security, route).toEqual([{ LocalPairingToken: [] }]);
+        }
+      }
+    }
   });
 
   it("documents Local Pairing Token without applying it to public health", () => {

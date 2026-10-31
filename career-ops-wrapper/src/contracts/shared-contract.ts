@@ -19,3 +19,12 @@ export const CollectionDtoSchema = z.object({
 });
 
 export type CollectionDto = z.infer<typeof CollectionDtoSchema>;
+
+/** Typed variant of {@link CollectionDtoSchema} for a concrete item contract. */
+export function collectionDtoSchema<Item extends z.ZodType>(item: Item) {
+  return z.object({
+    items: z.array(item),
+    syncedAt: z.iso.datetime(),
+    sourceRevision: SourceRevisionSchema
+  });
+}

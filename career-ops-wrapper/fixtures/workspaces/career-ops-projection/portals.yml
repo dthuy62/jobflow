@@ -1,0 +1,11 @@
+tracked_companies:
+  - name: Acme Robotics
+    careers_url: https://jobs.example.com/acme-robotics
+    enabled: true
+  - name: Globex Labs
+    careers_url: https://jobs.example.com/globex-labs
+    enabled: true
+search_queries:
+  - name: Android
+    query: "site:jobs.example.com Android"
+    enabled: true

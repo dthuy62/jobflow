@@ -5,6 +5,7 @@ export interface EnvConfig {
   readonly host?: string;
   readonly port?: number;
   readonly pairingToken?: string;
+  readonly scanTimeoutMs?: number;
 }
 
 export function loadEnvConfig(env: NodeJS.ProcessEnv = process.env): EnvConfig {
@@ -26,5 +27,17 @@ export function loadEnvConfig(env: NodeJS.ProcessEnv = process.env): EnvConfig {
     Object.assign(config, { pairingToken: env.CAREER_OPS_PAIRING_TOKEN });
   }
 
+  if (env.CAREER_OPS_SCAN_TIMEOUT_MS) {
+    Object.assign(config, { scanTimeoutMs: parseScanTimeoutMs(env.CAREER_OPS_SCAN_TIMEOUT_MS) });
+  }
+
   return config;
+}
+
+export function parseScanTimeoutMs(value: string): number {
+  if (!/^\d+$/.test(value) || Number(value) < 1000 || Number(value) > 3_600_000) {
+    throw new Error("CAREER_OPS_SCAN_TIMEOUT_MS must be an integer between 1000 and 3600000.");
+  }
+
+  return Number(value);
 }

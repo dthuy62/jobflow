@@ -1,0 +1,18 @@
+{
+  "id": "scan_20261030102000_d4e5f6",
+  "status": "failed",
+  "stage": "failed",
+  "startedAt": "2026-10-30T10:20:00.000Z",
+  "finishedAt": "2026-10-30T10:20:01.000Z",
+  "exitCode": 1,
+  "active": false,
+  "summary": {
+    "offersFound": 0,
+    "offersProjected": 0,
+    "warnings": []
+  },
+  "failure": {
+    "code": "COMMAND_FAILED",
+    "message": "Career Ops scan exited with code 1. Last error: Error: failed to parse portals.yml"
+  }
+}

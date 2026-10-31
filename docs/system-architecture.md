@@ -25,8 +25,11 @@ flowchart LR
 | Android domain | App models, repository contracts, use cases |
 | Android data | Retrofit, DTO mapping, error mapping, repository implementations (Room cache planned) |
 | Wrapper routes | HTTP endpoints, request parsing, response schema checks |
-| Wrapper services | Use-case behavior for health, CV, profile, portals, readiness |
-| Wrapper workspace adapters | File reads/writes, YAML/Markdown translation, backups |
+| Wrapper services | Use-case behavior for health, CV, profile, portals, readiness, scan runs, offer/report/artifact projection |
+| Wrapper parsers | Pure parsing of Career Ops tracker, pipeline, scan history, reports, scan output |
+| Wrapper workspace adapters | File reads/writes, bounded symlink-safe reads, YAML/Markdown translation, backups |
+| Wrapper engine adapter | Spawns `scan.mjs` with allowlisted args, timeout, bounded output |
+| Wrapper runs | In-memory scan run registry (one active run) |
 | Wrapper security | Path containment, pairing token guard, redaction |
 | Career Ops workspace | Source-of-truth files and local scripts |
 
@@ -87,6 +90,34 @@ Rules:
   host.
 - Workspace writes go through safe adapters.
 - Generic command execution endpoints are forbidden.
+- Offers, reports, and artifacts are read-only projections; their IDs are
+  opaque hashes or report numbers, matched against listings, never joined
+  into paths.
+
+## Scan Run Lifecycle
+
+```mermaid
+sequenceDiagram
+  participant App as Android app
+  participant API as Wrapper
+  participant Scan as node scan.mjs
+  App->>API: POST /api/v1/scan-runs {dryRun, company}
+  API->>API: reserve single slot, check scan readiness
+  API->>Scan: spawn (no shell, allowlisted argv, CAREER_OPS_* stripped)
+  API-->>App: 202 ScanRunDto running
+  loop polling
+    App->>API: GET /api/v1/scan-runs/{id}
+    API-->>App: ScanRunDto
+  end
+  Scan-->>API: exit code, bounded stdout/stderr
+  API->>API: parse summary, redact warnings
+  App->>API: GET /api/v1/offers
+```
+
+`scan.mjs` only finds job links and writes `data/pipeline.md` and
+`data/scan-history.tsv`. Scores and reports come from AI evaluation on the
+desktop; the wrapper never runs AI CLIs. Offers found from the phone show
+`evaluationStatus: "notEvaluated"` until that evaluation runs.
 
 ## Runtime Configuration
 
@@ -119,13 +150,10 @@ Current wrapper route families:
 - Profile config read/write.
 - Portal config read/write.
 - Scan readiness.
+- Scan run start/status (`/scan-runs`).
+- Offers projection (`/offers`).
+- Reports (`/reports`) and artifacts (`/artifacts`, PDF download).
 - API docs/OpenAPI.
-
-Planned route families:
-
-- Scan run start/status.
-- Offers projection.
-- Reports and artifacts.
 
 ## Key Architecture Decisions
 
@@ -135,7 +163,9 @@ Planned route families:
 - Fastify + Zod as API boundary.
 - Polling is acceptable for MVP scan lifecycle.
 - Local Pairing Token protects LAN/private wrapper use.
-- Opaque backend IDs should be used for future reports/artifacts/offers.
+- Opaque backend IDs for offers (`offer_<hash>`), reports (`report_NNN`),
+  artifacts (`artifact_<hash>`), and scan runs (`scan_<time>_<hex>`).
+- Scan runs are kept in memory; a wrapper restart forgets them.
 
 ## Risk Areas
 
