@@ -13,8 +13,9 @@ export const HealthCapabilitiesDtoSchema = z.object({
   reports: z.boolean(),
   artifacts: z.boolean(),
   cvConversion: z.boolean(),
-  /** Deprecated: always `false`; use `aiEvaluation`. */
-  geminiEvaluation: z.boolean(),
+  geminiEvaluation: z
+    .boolean()
+    .meta({ deprecated: true, description: "Deprecated: always false; use aiEvaluation." }),
   aiEvaluation: z.boolean()
 });
 

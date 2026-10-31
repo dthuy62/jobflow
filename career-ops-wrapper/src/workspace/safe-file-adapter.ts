@@ -54,9 +54,18 @@ async function writeWorkspaceFileSafelyUnlocked(
     await assertSafeExistingPath(workspaceRoot, targetPath);
     if (createOnly) {
       await writeFile(tempPath, content, { encoding: "utf8", flag: "wx" });
-      // link() fails with EEXIST instead of replacing, atomically.
-      await link(tempPath, targetPath);
-      await rm(tempPath, { force: true });
+      try {
+        // link() fails with EEXIST instead of replacing, atomically.
+        await link(tempPath, targetPath);
+      } catch (error) {
+        if (!isLinkUnsupportedError(error)) {
+          throw error;
+        }
+        // Volumes without hard links: still create-only, just not atomic.
+        await writeFile(targetPath, content, { encoding: "utf8", flag: "wx" });
+      } finally {
+        await rm(tempPath, { force: true });
+      }
       return { targetPath: await realpath(targetPath) };
     }
 
@@ -155,6 +164,15 @@ async function assertSafeExistingPath(workspaceRoot: string, filePath: string): 
       "Requested path is outside the configured Career Ops Workspace."
     );
   }
+}
+
+function isLinkUnsupportedError(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    ["EPERM", "ENOTSUP", "EOPNOTSUPP", "EXDEV", "ENOSYS"].includes(String(error.code))
+  );
 }
 
 function isMissingFileError(error: unknown): boolean {

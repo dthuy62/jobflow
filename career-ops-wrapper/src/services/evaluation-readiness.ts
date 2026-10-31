@@ -3,7 +3,7 @@ import type { RuntimeConfig } from "../config/runtime-config.js";
 import type { EvaluatorReadinessDto } from "../contracts/index.js";
 import { resolveCliPath } from "../evaluation/claude-command.js";
 import { createCliAuthChecker, type CliAuthChecker } from "../evaluation/cli-auth.js";
-import { readEvaluationInputs } from "../evaluation/evaluation-prompt.js";
+import { checkEvaluationInputs } from "../evaluation/evaluation-prompt.js";
 import { resolveWorkspaceRelativePath } from "../security/path-guard.js";
 
 export interface EvaluationReadinessResult extends EvaluatorReadinessDto {
@@ -51,7 +51,7 @@ export function createEvaluationReadiness(config: RuntimeConfig): EvaluationRead
         }
       }
 
-      missingRequirements.push(...(await readEvaluationInputs(config.workspace)).missingRequirements);
+      missingRequirements.push(...(await checkEvaluationInputs(config.workspace)));
       for (const file of REQUIRED_WORKSPACE_FILES) {
         if (!(await isWorkspaceFile(config.workspace, file.path))) {
           missingRequirements.push(file.missing);

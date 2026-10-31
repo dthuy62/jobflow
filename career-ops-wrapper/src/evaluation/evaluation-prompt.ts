@@ -1,5 +1,7 @@
 import { randomBytes } from "node:crypto";
+import { stat } from "node:fs/promises";
 import { ApiError } from "../errors/api-error.js";
+import { resolveWorkspaceRelativePath } from "../security/path-guard.js";
 import { readOptionalWorkspaceText } from "../workspace/workspace-reader.js";
 
 // Builds the stdin body for the AI CLI. Workspace files are the candidate's
@@ -88,6 +90,28 @@ export async function readEvaluationInputs(workspace: string): Promise<ReadEvalu
     missingRequirements,
     warnings
   };
+}
+
+/**
+ * Readiness keys for the required input files, from their size only: public
+ * health calls this, so it must not read the CV or the rubric.
+ */
+export async function checkEvaluationInputs(workspace: string): Promise<string[]> {
+  const missingRequirements: string[] = [];
+  for (const file of REQUIRED_FILES) {
+    let size: number | undefined;
+    try {
+      const fileStat = await stat(await resolveWorkspaceRelativePath(workspace, file.path));
+      size = fileStat.isFile() ? fileStat.size : undefined;
+    } catch {
+      size = undefined;
+    }
+    const key = size === undefined || size === 0 ? file.missing : size > REQUIRED_INPUT_MAX_BYTES ? file.tooLarge : undefined;
+    if (key && !missingRequirements.includes(key)) {
+      missingRequirements.push(key);
+    }
+  }
+  return missingRequirements;
 }
 
 export function buildEvaluationPrompt(
