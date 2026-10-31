@@ -18,6 +18,20 @@ finding is reproduced before anyone fixes it (Layer 3).
 A full run costs about five single-reviewer reviews (see `EVALUATION.md`).
 The impact map, not your sense of the change's size, decides which reviewers run.
 
+## Docs-only light mode
+
+When the impact map says `Mode: docs-only`, run Layer 0 and the Spec reviewer
+only (no Impact or Tests reviewer), then Layers 3–5 for its findings as usual.
+The script decides, not you. A change is docs-only when every changed path
+(including the old path of a rename) is documentation:
+
+- a `.md` file anywhere, or any file under `docs/`;
+- but never a file under `.claude/` (skill prompts are instructions agents
+  run), `.github/` (workflows, PR template), or any `src/` or `contracts/`
+  directory (shipped content and contract examples).
+
+One non-documentation file in the diff means a full run.
+
 ## Setup
 
 1. Commit the change (a WIP commit is fine). Reviewers read git, not your
@@ -31,6 +45,9 @@ The impact map, not your sense of the change's size, decides which reviewers run
 ```bash
 node .claude/skills/review-change/scripts/impact-map.mjs --base $BASE > $SCRATCH/impact.md
 ```
+
+The map needs the wrapper's TypeScript compiler: run `npm ci` in
+`career-ops-wrapper/` first (exit 2 says so when it is missing).
 
 Run every command under "Layer 0 gates" in `impact.md` (wrapper:
 `npm test && npm run build`; Android when `android/**` or `contracts/**`
@@ -55,6 +72,12 @@ reviewer checks Android tests by reading them.
 matches, contract examples and their users, workspace path literals, risk
 areas with the question each must answer, and **Mandatory reviewers**.
 
+TypeScript and JavaScript symbols come from the TypeScript compiler: a
+changed line belongs to the top-level declaration whose span, including the
+comments above it, contains it (added lines in the head tree, removed lines
+in the base tree). Changes to statements that declare nothing, such as calls
+and imports, have no symbol. Kotlin symbols are still matched line by line.
+
 ## Layer 2: independent reviewers
 
 Dispatch every mandatory reviewer **in one message** as parallel `Agent`
@@ -74,8 +97,8 @@ Do not invoke skills.
 | Role | File | Runs |
 | --- | --- | --- |
 | Spec | `reviewer-spec.md` | always |
-| Impact | `reviewer-impact.md` | always |
-| Tests | `reviewer-tests.md` | always |
+| Impact | `reviewer-impact.md` | full mode |
+| Tests | `reviewer-tests.md` | full mode |
 | Security | `reviewer-security.md` | when listed in Mandatory reviewers |
 
 A reviewer prompt contains: the role file, the paths, the format. It does not
@@ -84,23 +107,6 @@ checked, or what you expect them to find.
 
 Android diffs: the Impact reviewer also gets
 `android/.claude/skills/android-agentic-starter/references/review-checklist.md`.
-
-**Optional second model.** It sends the diff and impact map to Google, so
-run it only when the owner has allowed that for this repository. If allowed,
-start a background Bash call in the same message:
-
-```bash
-git diff $BASE..$HEAD > $SCRATCH/diff.patch
-node .claude/skills/review-change/scripts/second-model.mjs \
-  --role .claude/skills/review-change/references/reviewer-impact.md \
-  --input .claude/skills/review-change/references/finding-format.md \
-  --set REPO=$PWD --set BASE=$BASE --set HEAD=$HEAD --set IMPACT_MAP=$SCRATCH/impact.md \
-  --input $SCRATCH/impact.md --input $SCRATCH/diff.patch > $SCRATCH/gemini.md
-```
-
-Exit 3 means Gemini is unavailable: note "second model: skipped" and go on.
-It runs in `--approval-mode plan` (read-only); never give it yolo or edit
-modes. Its findings go through Layer 3 like any other.
 
 ## Layer 3: verification
 
@@ -136,6 +142,7 @@ reviewer / Verification) or a PR comment.
 | "This finding is wrong, I'll drop it" | Only a verifier drops findings. |
 | "I'll give the reviewer context so it's faster" | Context from the writer anchors the reviewer. Paths only. |
 | "Round 4 will fix it" | Three rounds, then escalate. |
+| "It's mostly docs, light mode is enough" | Only `Mode: docs-only` in the map allows it. |
 
 ## Common mistakes
 

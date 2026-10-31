@@ -1,6 +1,6 @@
-// Run: node --test .claude/skills/review-change/scripts/impact-map.test.mjs
+// Run: node --test '.claude/skills/review-change/scripts/*.test.mjs'
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -172,7 +172,7 @@ test("keeps changed lines that start with ++ or --", () => {
 
 test("gates changes to the review skill's scripts with their own test", () => {
   const report = mapAfterCommit({ ".claude/skills/review-change/scripts/x.mjs": { before: "a\n", after: "b\n" } });
-  assert.deepEqual(report.gates, ["node --test .claude/skills/review-change/scripts/impact-map.test.mjs"]);
+  assert.deepEqual(report.gates, ["node --test '.claude/skills/review-change/scripts/*.test.mjs'"]);
 });
 
 test("attributes a comment inside a declaration to that declaration", () => {
@@ -207,4 +207,69 @@ test("attributes a Kotlin member KDoc edit to its class", () => {
   const before = "class Repo {\n    /**\n     * Loads offers.\n     */\n    fun load() = Unit\n}\n";
   const report = mapAfterCommit({ [file]: { before, after: before.replace("Loads offers.", "Loads offers once.") } });
   assert.deepEqual(report.symbols.map((symbol) => symbol.name), ["Repo"]);
+});
+
+test("does not charge a doc comment on a top-level statement to the declaration above", () => {
+  const before = "export function alphaFirst() {\n  return 1;\n}\n/** Registers the plugin. */\nregister(1);\n";
+  const after = before.replace("Registers the plugin.", "Registers the plugin once.");
+  assert.deepEqual(mapAfterEdit(before, after).symbols, []);
+});
+
+test("attributes a JSDoc separated from its declaration by a // line to that declaration", () => {
+  const withNote = [...A_TS.slice(0, 6), "// eslint-disable-next-line no-magic-numbers", ...A_TS.slice(6)];
+  const docEdit = withNote.map((line) => (line === " * Doubles x." ? " * Doubles x; throws on NaN." : line));
+  const noteEdit = withNote.map((line) => (line.startsWith("// eslint") ? "// eslint-disable-next-line" : line));
+  assert.deepEqual(mapAfterEdit(withNote.join("\n"), docEdit.join("\n")).symbols.map((symbol) => symbol.name), ["betaSecond"]);
+  assert.deepEqual(mapAfterEdit(withNote.join("\n"), noteEdit.join("\n")).symbols.map((symbol) => symbol.name), ["betaSecond"]);
+});
+
+test("keeps references for a $-prefixed symbol exported later with export { $name }", () => {
+  const before = "function $double(x: number) {\n  return x * 2;\n}\nexport { $double };\n";
+  const report = mapAfterCommit({
+    "career-ops-wrapper/src/a.ts": { before, after: before.replace("x * 2", "x + x") },
+    "career-ops-wrapper/src/b.ts": { before: "import { $double } from './a.js';\n$double(1);\n", after: "import { $double } from './a.js';\n$double(1);\n" }
+  });
+  const symbol = report.symbols.find((entry) => entry.name === "$double");
+  assert.deepEqual(symbol.reasons, ["body changed"]);
+  assert.ok(symbol.references.some((ref) => ref.startsWith("career-ops-wrapper/src/b.ts:")));
+});
+
+test("attributes a removed exported declaration from the base tree", () => {
+  const after = A_TS.slice(0, 3).join("\n") + "\n";
+  const symbol = mapAfterEdit(A_TS.join("\n"), after).symbols.find((entry) => entry.name === "betaSecond");
+  assert.ok(symbol.reasons.includes("declaration changed"));
+  assert.ok(symbol.references.some((ref) => ref.startsWith("career-ops-wrapper/src/b.ts:")));
+});
+
+test("rejects a flag whose value is missing or another flag", () => {
+  for (const argv of [["--base", "--json"], ["--base"], ["--base", "HEAD", "--head"], ["--base", "HEAD", "--bogus"]]) {
+    const result = spawnSync("node", [script, ...argv], { encoding: "utf8" });
+    assert.equal(result.status, 2, `${argv.join(" ")} should be a usage error`);
+    assert.match(result.stderr, /usage:/);
+  }
+});
+
+test("runs Layer 0 and the Spec reviewer only for a docs-only change", () => {
+  const report = mapAfterCommit({
+    "docs/workflow/backend-delivery.md": { before: "# A\n", after: "# B\n" },
+    "README.md": { before: "a\n", after: "b\n" },
+    "career-ops-wrapper/README.md": { before: "a\n", after: "b\n" }
+  });
+  assert.equal(report.mode, "docs-only");
+  assert.deepEqual(report.reviewers, ["spec"]);
+  assert.deepEqual(report.gates, []);
+});
+
+test("keeps the full review when a Markdown change is not plain documentation", () => {
+  const cases = [
+    { ".claude/skills/review-change/SKILL.md": { before: "a\n", after: "b\n" } },
+    { ".github/pull_request_template.md": { before: "a\n", after: "b\n" } },
+    { "career-ops-wrapper/src/notes.md": { before: "a\n", after: "b\n" } },
+    { "docs/a.md": { before: "a\n", after: "b\n" }, "career-ops-wrapper/src/x.ts": { before: "export const a = 1;\n", after: "export const a = 2;\n" } }
+  ];
+  for (const files of cases) {
+    const report = mapAfterCommit(files);
+    assert.equal(report.mode, "full", Object.keys(files).join(", "));
+    assert.deepEqual(report.reviewers.slice(0, 3), ["spec", "impact", "tests"]);
+  }
 });

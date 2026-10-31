@@ -96,8 +96,8 @@ the skill on recall. What the skill added:
   (two confirmed by an independent verifier, three verified by their reviewer);
 - five spec divergences separated out as owner decisions.
 
-It did this at roughly 5× the cost. Whether docs-only changes should get a
-lighter run is an open owner decision; for now the impact map decides.
+It did this at roughly 5× the cost. Docs-only changes now get a lighter run
+(Layer 0 and the Spec reviewer); see "Changes after the evaluation".
 
 ## Known limits
 
@@ -109,5 +109,25 @@ lighter run is an open owner decision; for now the impact map decides.
 - Cost: the skill used about 5× the baseline's tokens on Case 1 (four
   reviewers at 110–155k tokens each, against one reviewer at 119k), plus
   about 75k tokens per verifier.
-- The second-model (Gemini) path was not exercised: sending repository code
-  to Google needs the owner's approval.
+- Kotlin symbols are still attributed line by line; only TypeScript and
+  JavaScript use the compiler.
+
+## Changes after the evaluation (issue #5)
+
+The cases above were not re-run; these changes target the round-3 leftovers
+and cost, not reviewer recall.
+
+- The impact map attributes TS/JS lines with the TypeScript compiler API
+  (the wrapper's pinned `typescript`) instead of walking lines. The round-3
+  findings have regression tests: a doc comment on a top-level statement, a
+  `//` line between a JSDoc and its declaration, and `export { $name }`. The
+  malformed `--set` finding was in `second-model.mjs`, which is gone; the
+  remaining scripts now reject a flag whose value is missing or is another
+  flag. On Case 1 the new map reported 172 symbols against 176; the four it
+  dropped were false positives (a blank line after a declaration charged to
+  it).
+- Docs-only light mode: Layer 0 and the Spec reviewer only, when the impact
+  map classifies every changed path as documentation.
+- The Gemini second-model path was removed: the owner decided not to use
+  Gemini for code review.
+- CI runs the scripts' tests on changes under `.claude/skills/**`.
