@@ -161,7 +161,11 @@ function buildReport(fileReports) {
   }
   const symbolImpact = [...symbols.values()].map((symbol) => ({
     ...symbol,
-    references: symbol.name.length < 4 ? [] : references(symbol.name, symbol.file)
+    // File-local JS/TS symbols cannot be imported, so a repo-wide grep only finds namesakes.
+    references:
+      symbol.name.length < 4 || (!symbol.file.endsWith(".kt") && symbol.reasons.every((reason) => reason.startsWith("file-local")))
+        ? []
+        : references(symbol.name, symbol.file)
   }));
 
   const schemas = symbolImpact
@@ -264,11 +268,18 @@ function renderMarkdown(report) {
 }
 
 function changedFiles() {
-  const output = git(["diff", "--name-status", "-M", `${args.base}..${head}`]);
-  return output.split("\n").filter(Boolean).map((line) => {
-    const [status, first, second] = line.split("\t");
-    return status.startsWith("R") ? { status: "R", oldPath: first, path: second } : { status: status[0], path: first };
-  });
+  // -z prints paths raw; without it git quotes non-ASCII paths and every path rule misses them.
+  const fields = git(["diff", "--name-status", "-z", "-M", `${args.base}..${head}`]).split("\0").filter(Boolean);
+  const files = [];
+  for (let index = 0; index < fields.length; ) {
+    const status = fields[index++];
+    if (status.startsWith("R") || status.startsWith("C")) {
+      files.push({ status: status[0], oldPath: fields[index++], path: fields[index++] });
+    } else {
+      files.push({ status: status[0], path: fields[index++] });
+    }
+  }
+  return files;
 }
 
 function diffLines(path) {
@@ -278,22 +289,27 @@ function diffLines(path) {
   const addedLineNumbers = [];
   let newLine = 0;
   let oldLine = 0;
+  let inHunk = false;
   for (const line of output.split("\n")) {
     const hunk = line.match(/^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/);
     if (hunk) {
       oldLine = Number(hunk[1]);
       newLine = Number(hunk[2]);
+      inHunk = true;
       continue;
     }
-    if (line.startsWith("+++") || line.startsWith("---")) continue;
+    // Inside a hunk, `---i` is a removed `--i`, not a file header.
+    if (!inHunk) continue;
     if (line.startsWith("+")) {
       added.push({ text: line.slice(1), line: newLine });
       addedLineNumbers.push(newLine);
       newLine += 1;
     } else if (line.startsWith("-")) {
       removed.push({ text: line.slice(1), line: oldLine });
-      // A pure deletion still changes the enclosing declaration at this point.
-      addedLineNumbers.push(Math.max(newLine - 1, 1));
+      // Removed lines come first in a -U0 hunk, so newLine is the first
+      // replacement line, or for a pure deletion (`+N,0`) the line before it;
+      // walking up from there finds the declaration that held the deletion.
+      addedLineNumbers.push(Math.max(newLine, 1));
       oldLine += 1;
     }
   }
@@ -305,20 +321,37 @@ function enclosingDeclarations(path, content, lineNumbers) {
   if (!/\.(ts|mts|mjs|js|kt)$/.test(path)) return [];
   const lines = content.split("\n");
   const found = new Map();
+  const add = (text) => {
+    const exported = matchDecl(path, text, true);
+    const name = exported ?? matchDecl(path, text, false);
+    if (name && !found.has(name)) found.set(name, { name, exported: Boolean(exported) || path.endsWith(".kt") });
+    return Boolean(name);
+  };
   for (const lineNumber of lineNumbers) {
-    for (let index = Math.min(lineNumber, lines.length) - 1; index >= 0; index -= 1) {
-      const text = lines[index];
-      if (/^\s/.test(text) || text.trim() === "") continue;
-      const exported = matchDecl(path, text, true);
-      const local = exported ? null : matchDecl(path, text, false);
-      if (exported || local) {
-        const name = exported ?? local;
-        if (!found.has(name)) found.set(name, { name, exported: Boolean(exported) || path.endsWith(".kt") });
+    const start = Math.min(lineNumber, lines.length) - 1;
+    if (isDocComment(lines[start])) {
+      // A doc comment belongs to the declaration below it.
+      for (let index = start + 1; index < lines.length; index += 1) {
+        if (isDocComment(lines[index]) || /^\s*@/.test(lines[index])) continue;
+        add(lines[index]);
         break;
       }
+      continue;
+    }
+    for (let index = start; index >= 0; index -= 1) {
+      const text = lines[index];
+      if (/^\s/.test(text) || text.trim() === "" || isDocComment(text) || /^\/\//.test(text)) continue;
+      if (add(text)) break;
+      // Closing lines of the declaration above (`}`, `});`) keep the walk going;
+      // any other top-level statement means the change is outside a declaration.
+      if (!/^[})\]]/.test(text)) break;
     }
   }
   return [...found.values()];
+}
+
+function isDocComment(text) {
+  return /^\s*(\/\*\*|\*\/|\*(\s|$))/.test(text ?? "");
 }
 
 function matchDecl(path, text, exportedOnly) {

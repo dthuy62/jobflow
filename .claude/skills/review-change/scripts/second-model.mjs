@@ -2,14 +2,15 @@
 // Optional second-model reviewer: runs one role prompt through the Gemini CLI
 // in read-only plan mode. Exit 3 means "not available"; the caller continues
 // without it. Never passes --yolo or an edit approval mode.
-// Usage: node second-model.mjs --role <prompt.md> --input <file> [--input <file>…] [--timeout-ms 600000]
+// Usage: node second-model.mjs --role <prompt.md> --input <file> [--input <file>…]
+//          [--set KEY=VALUE…] [--timeout-ms 600000]
 
 import { spawn, spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 
 const args = parseArgs(process.argv.slice(2));
-if (!args.role || args.inputs.length === 0) {
-  console.error("usage: node second-model.mjs --role <prompt.md> --input <file> [--input <file>…] [--timeout-ms N]");
+if (!args.role || args.inputs.length === 0 || !Number.isFinite(args.timeoutMs) || args.timeoutMs <= 0) {
+  console.error("usage: node second-model.mjs --role <prompt.md> --input <file> [--input <file>…] [--set KEY=VALUE…] [--timeout-ms N]");
   process.exit(2);
 }
 
@@ -19,7 +20,8 @@ if (probe.error || probe.status !== 0) {
   process.exit(3);
 }
 
-const role = readFileSync(args.role, "utf8");
+// Fill the role file's {{KEY}} placeholders, as the Agent-tool reviewers get them.
+const role = readFileSync(args.role, "utf8").replace(/\{\{(\w+)\}\}/g, (match, key) => args.values[key] ?? match);
 const context = args.inputs.map((file) => `===== ${file} =====\n${readFileSync(file, "utf8")}`).join("\n\n");
 const prompt = `${role}\n\nYou are in read-only plan mode. Do not propose to edit files. The review inputs follow on stdin.`;
 
@@ -42,12 +44,16 @@ child.on("close", (code, signal) => {
 });
 
 function parseArgs(argv) {
-  const parsed = { inputs: [], timeoutMs: 600_000 };
+  const parsed = { inputs: [], values: {}, timeoutMs: 600_000 };
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
     if (arg === "--role") parsed.role = argv[++index];
     else if (arg === "--input") parsed.inputs.push(argv[++index]);
     else if (arg === "--timeout-ms") parsed.timeoutMs = Number(argv[++index]);
+    else if (arg === "--set") {
+      const [key, ...value] = argv[++index].split("=");
+      parsed.values[key] = value.join("=");
+    }
   }
   return parsed;
 }

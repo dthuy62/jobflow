@@ -17,11 +17,11 @@ Fix rounds: <n>/3
 | --- | --- | --- | --- | --- |
 | F1 | MEDIUM | fixed (test: <name>) | path:line | ... |
 | F2 | LOW | suspected, not fixed | path:line | ... |
-| F3 | HIGH | not reproduced, dropped | path:line | ... |
+| F3 | HIGH | disproved, dropped | path:line | ... |
 
 Decisions made without the owner: <list or "none">
 Needs the owner: <open questions, escalations, or "nothing">
 ```
 
-Status values: fixed, confirmed-open, suspected, not reproduced, won't fix
+Status values: fixed, confirmed-open, suspected, disproved, won't fix
 (with reason), escalated.

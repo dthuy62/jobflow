@@ -72,9 +72,8 @@ the skill on recall. What the skill added:
   (two confirmed by an independent verifier, three verified by their reviewer);
 - five spec divergences separated out as owner decisions.
 
-It did this at roughly 5× the cost. Use it for changes that touch risk
-areas or contracts; for a docs-only or one-line change, the
-gates plus a single reviewer are proportionate.
+It did this at roughly 5× the cost. Whether docs-only changes should get a
+lighter run is an open owner decision; for now the impact map decides.
 
 ## Known limits
 

@@ -80,3 +80,97 @@ test("adds the Android gate when shared contract examples change", () => {
     rmSync(root, { recursive: true, force: true });
   }
 });
+
+function mapAfterEdit(before, after) {
+  const root = mkdtempSync(path.join(tmpdir(), "impact-map-"));
+  try {
+    git(root, "init", "-q");
+    write(root, "career-ops-wrapper/src/a.ts", before);
+    write(root, "career-ops-wrapper/src/b.ts", "import { alphaFirst, betaSecond } from './a.js';\nbetaSecond(alphaFirst(1));\n");
+    git(root, "add", "-A");
+    git(root, "commit", "-qm", "base");
+    write(root, "career-ops-wrapper/src/a.ts", after);
+    git(root, "commit", "-qam", "head");
+    return JSON.parse(execFileSync("node", [script, "--base", "HEAD~1", "--json"], { cwd: root, encoding: "utf8" }));
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+}
+
+const A_TS = [
+  "export function alphaFirst(x: number) {",
+  "  return x;",
+  "}",
+  "/**",
+  " * Doubles x.",
+  " */",
+  "export function betaSecond(x: number) {",
+  "  const y = x * 2;",
+  "  return y;",
+  "}",
+  ""
+];
+
+test("attributes a pure deletion to the declaration that contained it", () => {
+  const after = A_TS.filter((line) => line !== "  const y = x * 2;");
+  const names = mapAfterEdit(A_TS.join("\n"), after.join("\n")).symbols.map((symbol) => symbol.name);
+  assert.deepEqual(names, ["betaSecond"]);
+});
+
+test("attributes a JSDoc edit to the declaration it documents", () => {
+  const after = A_TS.map((line) => (line === " * Doubles x." ? " * Doubles x; throws on NaN." : line));
+  const names = mapAfterEdit(A_TS.join("\n"), after.join("\n")).symbols.map((symbol) => symbol.name);
+  assert.deepEqual(names, ["betaSecond"]);
+});
+
+test("does not grep the repository for file-local TypeScript symbols", () => {
+  // b.ts mentions the same name, but a file-local symbol cannot be imported from there.
+  const before = "const betaSecond = 1;\nexport const kept = betaSecond;\n";
+  const after = "const betaSecond = 2;\nexport const kept = betaSecond;\n";
+  const report = mapAfterEdit(before, after);
+  const local = report.symbols.find((symbol) => symbol.name === "betaSecond");
+  assert.deepEqual(local.references, []);
+});
+
+function mapAfterCommit(files) {
+  const root = mkdtempSync(path.join(tmpdir(), "impact-map-"));
+  try {
+    git(root, "init", "-q");
+    for (const [file, content] of Object.entries(files)) write(root, file, content.before);
+    git(root, "add", "-A");
+    git(root, "commit", "-qm", "base");
+    for (const [file, content] of Object.entries(files)) write(root, file, content.after);
+    git(root, "commit", "-qam", "head");
+    return JSON.parse(execFileSync("node", [script, "--base", "HEAD~1", "--json"], { cwd: root, encoding: "utf8" }));
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+}
+
+test("classifies non-ASCII paths instead of git's quoted form", () => {
+  const report = mapAfterCommit({
+    "career-ops-wrapper/src/security/pairing-tokén.ts": {
+      before: "export function checkToken() {\n  return false;\n}\n",
+      after: "export function checkToken() {\n  return true;\n}\n"
+    }
+  });
+  assert.ok(report.reviewers.includes("security"));
+  assert.deepEqual(report.symbols.map((symbol) => symbol.name), ["checkToken"]);
+});
+
+test("keeps changed lines that start with ++ or --", () => {
+  const report = mapAfterCommit({
+    "career-ops-wrapper/src/services/x.ts": {
+      // Unindented, so the diff line reads `---i; …` like a file header.
+      before: "export function g(i: number) {\n--i; spawn(\"sh\");\n  return i;\n}\n",
+      after: "export function g(i: number) {\n  return i;\n}\n"
+    }
+  });
+  assert.ok(report.risks["process-spawn"]);
+  assert.deepEqual(report.symbols.map((symbol) => symbol.name), ["g"]);
+});
+
+test("gates changes to the review skill's scripts with their own test", () => {
+  const report = mapAfterCommit({ ".claude/skills/review-change/scripts/x.mjs": { before: "a\n", after: "b\n" } });
+  assert.deepEqual(report.gates, ["node --test .claude/skills/review-change/scripts/impact-map.test.mjs"]);
+});

@@ -17,17 +17,18 @@ finding. Your job is to prove or disprove one finding, not to agree with it.
 1. Write the smallest reproduction: preferably a vitest test that should pass
    when the code is correct and fails now. Run it.
 2. If it fails the way the finding says: CONFIRMED. Keep the test text.
-3. If it passes, or fails for a different reason: NOT REPRODUCED. Say what
-   you saw.
-4. If you cannot build a reproduction (needs a race, a device, real data):
-   SUSPECTED, with the reason.
+3. If you can show the claimed failure cannot happen (the input is rejected
+   earlier, the path is unreachable): DISPROVED, with that evidence.
+4. If the reproduction passes for a reason you cannot explain, fails for a
+   different reason, or cannot be built (needs a race, a device, real data):
+   SUSPECTED, with what you saw.
 5. Remove your worktree (`git worktree remove --force <tmp>`) and temp
    files. Run `git status --short` in {{REPO}} and confirm it is unchanged.
 
 ## Output
 
 ```
-F<n>: CONFIRMED | NOT REPRODUCED | SUSPECTED
+F<n>: CONFIRMED | SUSPECTED | DISPROVED
 Severity: <unchanged or corrected, with reason>
 Reproduction: <test or command, ≤30 lines>
 Observed: <the failing output, ≤10 lines>

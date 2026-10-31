@@ -16,8 +16,7 @@ Impact comes from tools first (Layer 1), judgment second (Layer 2). Every
 finding is reproduced before anyone fixes it (Layer 3).
 
 A full run costs about five single-reviewer reviews (see `EVALUATION.md`).
-When the impact map lists only `docs` or `other` components and no risk
-areas, run Layer 0 and one Spec reviewer instead.
+The impact map, not your sense of the change's size, decides which reviewers run.
 
 ## Setup
 
@@ -95,6 +94,7 @@ git diff $BASE..$HEAD > $SCRATCH/diff.patch
 node .claude/skills/review-change/scripts/second-model.mjs \
   --role .claude/skills/review-change/references/reviewer-impact.md \
   --input .claude/skills/review-change/references/finding-format.md \
+  --set REPO=$PWD --set BASE=$BASE --set HEAD=$HEAD --set IMPACT_MAP=$SCRATCH/impact.md \
   --input $SCRATCH/impact.md --input $SCRATCH/diff.patch > $SCRATCH/gemini.md
 ```
 
@@ -109,8 +109,10 @@ verifier (`references/verifier.md`, parallel, one finding each, or one per
 file when there are many). Outcomes:
 
 - CONFIRMED: goes to Layer 4 with its reproduction.
-- SUSPECTED: reported to the owner, not fixed unless trivial and safe.
-- NOT REPRODUCED: dropped, listed in the report.
+- SUSPECTED (no reproduction could be built, or the attempt did not show the
+  failure): stays open, reported to the owner, not fixed unless trivial and safe.
+- DISPROVED (the verifier showed the claimed failure cannot happen): dropped,
+  listed in the report with the evidence.
 
 ## Layer 4: bounded fix loop
 
