@@ -26,8 +26,8 @@ The map prints `Tier: S|M|L (reasons)`:
 | Tier | When (decided by the script) | Reviewers | Rounds | Verify |
 | --- | --- | --- | --- | --- |
 | S | docs-only (below) | Spec | 1 | MEDIUM and above |
-| M | only tier-M risk areas (`routes` edits without route changes, `openapi`, `untrusted-input`, `schema-parse`) or none, ≤ 300 changed non-test lines, not spanning wrapper and Android | Standard (`reviewer-standard.md`: spec, tests and the map's risk questions in one pass) | 1 | MEDIUM and above |
-| L | any other risk area (security, process spawn, workspace IO/writes, auth/token, env, redaction, config, contracts, Android remote, CI), routes added/removed/changed, wrapper + Android together, or > 300 changed non-test lines | Spec, Impact, Tests, plus mandatory reviewers | up to 3 | all |
+| M | only tier-M risk areas (`openapi`, `untrusted-input`, `schema-parse`) or none, ≤ 300 changed non-test lines, not spanning wrapper and Android | Standard (`reviewer-standard.md`: spec, tests and the map's risk questions in one pass) | 1 | MEDIUM and above |
+| L | any other risk area (route wiring under `src/api/`, security, process spawn, workspace IO/writes, auth/token, env, redaction, config, contracts, Android remote, CI), routes added/removed/changed, wrapper + Android together, or > 300 changed non-test lines | Spec, Impact, Tests, plus mandatory reviewers | up to 3 | all |
 
 Rules for every tier:
 

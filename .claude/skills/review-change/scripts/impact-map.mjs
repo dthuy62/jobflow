@@ -55,7 +55,7 @@ const MANDATORY_REVIEWER = {
 };
 
 /** Risk areas a tier M change may touch; any other risk area makes it tier L. */
-const TIER_M_RISKS = new Set(["routes", "openapi", "untrusted-input", "schema-parse"]);
+const TIER_M_RISKS = new Set(["openapi", "untrusted-input", "schema-parse"]);
 /** Non-test changed lines above which a change is tier L regardless of area. */
 const TIER_L_LINES = 300;
 

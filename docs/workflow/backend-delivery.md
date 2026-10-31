@@ -17,6 +17,7 @@ The owner can always ask for a higher tier.
 | L | Features, security/contract/process/workspace-write changes, wrapper + Android, large diffs, unclear design | Issue + spec in `docs/superpowers/specs/` + plan | Its own session and worktree | Full `review-change`, up to 3 rounds |
 
 LOW findings never start another review round; they go to a follow-up issue.
+Out-of-scope notes are recorded in the PR, not fixed.
 Status updates go to the owner only when a PR is ready, a decision is needed,
 or a real risk turns up.
 

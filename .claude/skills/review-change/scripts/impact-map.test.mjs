@@ -302,6 +302,13 @@ test("uses tier L with the full panel for high-risk areas, contracts, Android, C
   const cases = [
     { "career-ops-wrapper/src/security/redaction.ts": { before: "export const a = 1;\n", after: "export const a = 2;\n" } },
     { "career-ops-wrapper/src/career-ops-engine/x.ts": { before: "export const a = 1;\n", after: "export const a = 2;\n" } },
+    // Moving a registration outside the token-guarded plugin touches no route literal.
+    {
+      "career-ops-wrapper/src/api/register-routes.ts": {
+        before: "export async function registerRoutes() {\n  await apiV1(registerOfferRoutes);\n}\n",
+        after: "export async function registerRoutes() {\n  await sibling(registerOfferRoutes);\n}\n"
+      }
+    },
     { "career-ops-wrapper/contracts/examples/offer.valid.json": { before: "{}\n", after: "{\"id\":\"o\"}\n" } },
     { ".github/workflows/x.yml": { before: "a: 1\n", after: "a: 2\n" } },
     { "android/app/src/main/kotlin/me/x/data/remote/Api.kt": { before: "val a = 1\n", after: "val a = 2\n" } },
