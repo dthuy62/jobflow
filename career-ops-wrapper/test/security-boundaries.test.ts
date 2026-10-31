@@ -112,16 +112,27 @@ describe("security boundaries", () => {
     }
   );
 
-  // Fastify rejects path parameters over 100 characters before routing.
-  it.each(Object.keys(sampleIds))("returns 404 without leaking for an overlong id on %s", async (route) => {
-    const response = await server.inject({
-      method: "GET",
-      url: concreteUrl(route, "x".repeat(300)),
-      headers: { "X-Career-Ops-Token": token }
-    });
+  // Fastify rejects path parameters over 100 characters before routing; the
+  // /api/v1 not-found handler still answers with the error envelope.
+  it.each(Object.keys(sampleIds))("returns NOT_FOUND without leaking for an overlong id on %s", async (route) => {
+    for (const id of ["x".repeat(101), "x".repeat(300), `${sampleIds[route]}${"0".repeat(100)}`]) {
+      const response = await server.inject({
+        method: "GET",
+        url: concreteUrl(route, id),
+        headers: { "X-Career-Ops-Token": token }
+      });
 
-    expect(response.statusCode).toBe(404);
-    expect(response.body).not.toContain(workspaceRealPath);
+      expect(response.statusCode, id).toBe(404);
+      expect(response.json()).toEqual({ error: { code: "NOT_FOUND", message: "Resource was not found." } });
+      expect(response.body).not.toContain(workspaceRealPath);
+    }
+  });
+
+  it("requires the pairing token before answering an overlong id", async () => {
+    const response = await server.inject({ method: "GET", url: concreteUrl("/api/v1/offers/{id}", "x".repeat(300)) });
+
+    expect(response.statusCode).toBe(401);
+    expect(response.json().error.code).toBe("UNAUTHORIZED");
   });
 
   it("never returns workspace paths, home paths, or the token from read routes", async () => {

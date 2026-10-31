@@ -283,7 +283,9 @@ Regression tests:
    document's paths so a future route cannot skip it.
 2. ID and path traversal: `..%2F..%2Fetc%2Fpasswd`, `%2e%2e`, absolute paths,
    `report_001/../../x`, backslashes, NUL bytes, and over-long IDs on every
-   `{id}` route → 404 with no file content.
+   `{id}` route → 404 `NOT_FOUND` error envelope with no file content. An ID
+   over Fastify's 100-character path parameter limit never reaches its route;
+   the `/api/v1` not-found handler returns the same envelope.
 3. Symlinks: a `reports/` file or `output/` PDF symlinked outside the workspace
    is never listed or served.
 4. No workspace path, home path, or token in any response body, error, scan
@@ -291,6 +293,10 @@ Regression tests:
 5. Scan concurrency: two simultaneous POSTs → one 202, one 409.
 6. Contract examples for every new DTO are validated by tests and used as
    OpenAPI examples.
+7. OpenAPI lists every status each `{id}` route and new route can return. The
+   test derives the statuses from the `ApiError` codes reachable through the
+   route and service imports; codes that are imported but unreachable for an
+   operation are listed with a reason.
 
 ## Contract examples
 

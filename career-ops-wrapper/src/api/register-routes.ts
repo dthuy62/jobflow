@@ -9,6 +9,7 @@ import { registerReportRoutes } from "./report-routes.js";
 import { registerScanReadinessRoutes } from "./scan-readiness-routes.js";
 import { registerScanRunRoutes } from "./scan-run-routes.js";
 import type { RuntimeConfig } from "../config/runtime-config.js";
+import { ApiError } from "../errors/api-error.js";
 import { registerLocalPairingTokenGuard } from "../security/local-pairing-token.js";
 import { createArtifactService } from "../services/artifact-service.js";
 import { createCvService } from "../services/cv-service.js";
@@ -32,6 +33,11 @@ export async function registerApiRoutes(
   await server.register(
     async (apiV1) => {
       registerLocalPairingTokenGuard(apiV1, options.config);
+      // Also answers an {id} over Fastify's 100-character path parameter limit,
+      // which never reaches its route, with the error envelope.
+      apiV1.setNotFoundHandler(async () => {
+        throw new ApiError("NOT_FOUND", "Resource was not found.");
+      });
       await registerHealthRoutes(apiV1, createHealthService(options.config));
       await registerCvRoutes(apiV1, createCvService(options.config));
       await registerProfileRoutes(apiV1, createProfileService(options.config));

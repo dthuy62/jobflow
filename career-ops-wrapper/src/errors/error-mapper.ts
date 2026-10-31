@@ -6,7 +6,7 @@ export interface MappedApiError {
   readonly body: ErrorResponseDto;
 }
 
-const errorStatusByCode = {
+export const errorStatusByCode = {
   VALIDATION_ERROR: 400,
   UNAUTHORIZED: 401,
   WORKSPACE_UNHEALTHY: 503,
