@@ -15,9 +15,13 @@ listed under [Owner decisions](#owner-decisions).
    [Branch names](#branch-names).
 4. **Build.** Plan, then test-first implementation. Run `npm test`,
    `npm run build`, and a smoke run against a fixture workspace.
-5. **Self-review.** Run independent reviewers on the diff: code quality,
-   silent failures, test coverage, type design, comments, and security.
-   Fix confirmed findings test-first and re-run the checks.
+5. **Self-review.** Run the `review-change` skill
+   (`.claude/skills/review-change/`) on the committed branch. It runs the
+   machine gates and a tests-prove-the-change check, builds a tool-generated
+   impact map, dispatches independent Spec, Impact, Tests and (for risk
+   areas) Security reviewers, and verifies every finding by reproducing it.
+   The writer fixes confirmed findings test-first, in at most three rounds,
+   then escalates. Put the skill's owner report in the PR.
 6. **Pull request.** Use the PR template, link the issue, and keep the title in
    Conventional Commits form.
 7. **CI.** Wait for the `Wrapper` workflow (and `Android` when contracts

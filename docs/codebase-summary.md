@@ -15,7 +15,9 @@ jobflow/
 
 Generated/cache directories such as `android/build/`,
 `career-ops-wrapper/dist/`, `.gradle/`, `.idea/`, `.agents/`, `.claude/`, and
-`.kiro/` are not source-of-truth code.
+`.kiro/` are not source-of-truth code. The one tracked exception is
+`.claude/skills/review-change/`, the multi-layer review skill used in step 5
+of `docs/workflow/backend-delivery.md`.
 
 ## Android
 

@@ -21,7 +21,12 @@ local.properties
 .env
 debug.keystore
 /.agents
-/.claude
+/.claude/*
+# Track only the project review skill; other local skills, settings and
+# worktrees under .claude/ stay ignored.
+!/.claude/skills/
+/.claude/skills/*
+!/.claude/skills/review-change/
 .kiro
 .agent
 .github/*

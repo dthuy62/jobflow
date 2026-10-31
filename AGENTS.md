@@ -71,6 +71,9 @@ curl http://127.0.0.1:3000/api/v1/health
 - Keep diffs scoped to the request.
 - Respect dirty worktrees; never revert user changes unless explicitly asked.
 - Update docs when architecture, commands, contracts, or boundaries change.
+- Before opening a PR, run the multi-layer review skill
+  `.claude/skills/review-change/` (wrapper, contracts and Android). The writer
+  orchestrates; fresh reviewers find, verifiers reproduce, the writer fixes.
 - Final response must name changed files and checks run.
 
 ## Branches, Commits, PRs
