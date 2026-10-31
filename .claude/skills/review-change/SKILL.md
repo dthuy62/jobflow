@@ -28,8 +28,8 @@ The script decides, not you. A change is docs-only when every changed path
 - a `.md` file anywhere, or any file under `docs/`;
 - but never agent instructions (`AGENTS.md`, `CLAUDE.md`, or a file under
   any `.claude/` directory), a file under any `.github/` directory
-  (workflows, PR template), or a file under any `src/` or `contracts/`
-  directory (shipped content and contract examples).
+  (workflows, PR template), or a file under any `src/`, `contracts/` or
+  `fixtures/` directory (shipped content, contract examples, test input).
 
 One non-documentation file in the diff means a full run.
 
