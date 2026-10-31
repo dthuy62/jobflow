@@ -232,8 +232,10 @@ function derivedStatuses(operation: CoveredOperation, hasRequestBody: boolean): 
     codes.add("PAYLOAD_TOO_LARGE");
   }
   if (operation.path.includes("{id}")) {
-    // The /api/v1 not-found handler answers an ID too long for the router.
+    // The /api/v1 not-found handler answers an ID too long for the router, and
+    // Fastify answers malformed percent-encoding with its own 400 before routing.
     codes.add("NOT_FOUND");
+    codes.add("VALIDATION_ERROR");
   }
 
   return [operation.successStatus, ...[...codes].map((code) => String(errorStatusByCode[code]))].sort();

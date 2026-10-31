@@ -128,6 +128,21 @@ describe("security boundaries", () => {
     }
   });
 
+  // Fastify rejects malformed percent-encoding before routing with its default
+  // 400 body; the owner accepted that instead of a custom handler (issue #10).
+  it.each(Object.keys(sampleIds))("rejects a malformed percent-encoded id with a documented 400 on %s", async (route) => {
+    const response = await server.inject({
+      method: "GET",
+      url: concreteUrl(route, "%zz"),
+      headers: { "X-Career-Ops-Token": token }
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.body).not.toContain(workspaceRealPath);
+    expect(response.body).not.toContain(token);
+    expect(buildOpenApiDocument().paths[route]?.get?.responses).toHaveProperty("400");
+  });
+
   it("requires the pairing token before answering an overlong id", async () => {
     const response = await server.inject({ method: "GET", url: concreteUrl("/api/v1/offers/{id}", "x".repeat(300)) });
 
