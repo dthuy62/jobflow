@@ -265,6 +265,9 @@ test("keeps the full review when a Markdown change is not plain documentation", 
     { ".claude/skills/review-change/SKILL.md": { before: "a\n", after: "b\n" } },
     { ".github/pull_request_template.md": { before: "a\n", after: "b\n" } },
     { "career-ops-wrapper/src/notes.md": { before: "a\n", after: "b\n" } },
+    { "android/.claude/rules/testing.md": { before: "a\n", after: "b\n" } },
+    { "AGENTS.md": { before: "a\n", after: "b\n" } },
+    { "android/CLAUDE.md": { before: "a\n", after: "b\n" } },
     { "docs/a.md": { before: "a\n", after: "b\n" }, "career-ops-wrapper/src/x.ts": { before: "export const a = 1;\n", after: "export const a = 2;\n" } }
   ];
   for (const files of cases) {
