@@ -213,4 +213,55 @@ describe("local paths in report text", () => {
   it("does not let the artifact path hide a climb", () => {
     expect(sanitize(`${CV_URL}/../../../etc/passwd`)).not.toContain("passwd");
   });
+
+  it.each([
+    ["item 1)/Users/bob/cv.pdf"],
+    ["(see)/Users/bob/secret.txt"],
+    ["#/Users/bob/x"],
+    ["50%/Users/bob/x"],
+    ["C++/Users/bob/x"],
+    ["😀/Users/bob/x"],
+    ["a/Users/bob/x"],
+    ["x/home/bob/x"],
+    ["x\\Users\\bob\\x"],
+    ["x/Volumes/Backup/x"]
+  ])("removes a known absolute root glued to a word: %s", (input) => {
+    const sanitized = sanitize(input);
+    expect(sanitized).toContain("[local path]");
+    expect(sanitized).not.toContain("bob");
+    expect(sanitized).not.toContain("Backup");
+  });
+
+  it("keeps words that only look like roots", () => {
+    expect(sanitize("QA/dev/prod, Users/Groups, home/office")).toBe("QA/dev/prod, Users/Groups, home/office");
+  });
+
+  it("removes escaped or emphasis-split local values", () => {
+    expect(sanitize("see x\\/Users\\/jane\\/career-ops\\/cv.md")).not.toContain("jane");
+    expect(sanitize("see x/Users/j**a**ne/notes")).toBe("see [local path]");
+    expect(sanitize("see x\\/Users\\/bob\\/cv.md")).not.toContain("bob");
+  });
+
+  it("redacts an escaped secret", () => {
+    expect(
+      sanitizeReportMarkdown("token tok\\_secret\\_1 and tok_secret_1", { ...context, secrets: ["tok_secret_1"] })
+    ).toBe("token [REDACTED] and [REDACTED]");
+  });
+
+  it.each([
+    ["Saved at /Users/jane/Career Ops.", "Saved at [local path]."],
+    ["Saved at /Users/jane/career ops/reports/x.md now", "Saved at [local path] now"],
+    ["Sibling /Users/jane/Career Ops-old/x and more", "Sibling [local path] and more"],
+    ["Home is /Users/Jane Doe.", "Home is [local path]."]
+  ])("removes local values that contain spaces: %s", (input, expected) => {
+    expect(
+      sanitizeReportMarkdown(input, { ...context, localValues: ["/Users/Jane Doe", "/Users/jane/Career Ops"] })
+    ).toBe(expected);
+  });
+
+  it("stays linear on a long token of removed paths", () => {
+    const started = performance.now();
+    sanitize(`${"/a](".repeat(262_144)}https://x.com`);
+    expect(performance.now() - started).toBeLessThan(1000);
+  });
 });

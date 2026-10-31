@@ -67,7 +67,10 @@ export function createReportService(config: RuntimeConfig): ReportService {
         secrets: config.pairingToken ? [config.pairingToken] : []
       });
       if (markdown.length > REPORT_MARKDOWN_MAX_CHARS) {
-        throw new ApiError("PAYLOAD_TOO_LARGE", "Report Markdown must be 1 MiB or smaller.");
+        throw new ApiError(
+          "PAYLOAD_TOO_LARGE",
+          "Report Markdown must be 1 MiB or smaller after local links and paths are rewritten."
+        );
       }
       return { ...item, markdown: markdown.trim() === "" ? "(empty report)" : markdown };
     }

@@ -1,4 +1,4 @@
-import { chmod, mkdir, mkdtemp, realpath, rm, symlink, writeFile } from "node:fs/promises";
+import { chmod, cp, mkdir, mkdtemp, realpath, rm, symlink, writeFile } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -98,6 +98,24 @@ describe("report routes", () => {
     });
   });
 
+  it("serves a report whose workspace path contains a space", async () => {
+    const parent = await mkdtemp(path.join(tmpdir(), "report-space-"));
+    workspaces.push(parent);
+    const workspace = path.join(parent, "Career Ops");
+    await cp(projectionFixturePath, workspace, { recursive: true });
+    const real = await realpath(workspace);
+    await writeFile(
+      path.join(workspace, "reports/004-leaky-2026-07-01.md"),
+      `# Evaluation: Leaky — Role\n\nSaved at ${real}/reports/x.md and at ${real}.\n`
+    );
+
+    await withServer(workspace, async (server) => {
+      const response = await server.inject({ method: "GET", url: "/api/v1/reports/report_004" });
+      expect(response.statusCode).toBe(200);
+      expect(response.json().markdown).toBe("# Evaluation: Leaky — Role\n\nSaved at [local path] and at [local path].\n");
+    });
+  });
+
   it("returns PAYLOAD_TOO_LARGE when rewritten links push a report over 1 MiB", async () => {
     const workspace = await copyProjectionFixture();
     workspaces.push(workspace);
@@ -110,7 +128,10 @@ describe("report routes", () => {
     await withServer(workspace, async (server) => {
       const response = await server.inject({ method: "GET", url: "/api/v1/reports/report_004" });
       expect(response.statusCode).toBe(413);
-      expect(response.json().error.code).toBe("PAYLOAD_TOO_LARGE");
+      expect(response.json().error).toEqual({
+        code: "PAYLOAD_TOO_LARGE",
+        message: "Report Markdown must be 1 MiB or smaller after local links and paths are rewritten."
+      });
     });
   });
 

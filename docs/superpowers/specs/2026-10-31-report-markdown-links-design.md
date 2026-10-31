@@ -18,8 +18,14 @@ removed as a whole, and links are rebuilt from structured data (artifact IDs).
 `sanitizeReportMarkdown(markdown, context)` in
 `src/security/report-markdown.ts`, three passes in order:
 
-1. **Secrets.** The pairing-token patterns from `redactSensitiveText` and the
-   literal pairing token become `[REDACTED]` (unchanged behavior).
+1. **Secrets and local values.** The pairing-token patterns from
+   `redactSensitiveText` and the literal pairing token become `[REDACTED]`;
+   the literal also matches when Markdown escapes its punctuation
+   (`tok\_x`). Then every occurrence of the home directory or a workspace
+   path variant (case-insensitive), together with the rest of its
+   whitespace-free run, becomes `[local path]`. This runs on the whole text
+   because a value can contain a space (`/Users/jane/Career Ops`), which
+   the token pass below cannot see as one token.
 2. **Links.** Markdown links and images are rewritten or reduced to text (see
    below). This pass only adds one kind of path: the artifact download path.
 3. **Paths.** Every whitespace-separated token in the whole document,
@@ -75,7 +81,9 @@ Punctuation is kept so sentences still read; it never carries a path.
 The body is replaced by `[local path]` when any of these hold:
 
 1. **Local value.** It contains, case-insensitively, the home directory or
-   any workspace path variant (configured, resolved, real). This catches
+   any workspace path variant (configured, resolved, real), also after
+   decoding (rule 4) and after removing `*`, `_` and backticks
+   (`x/Users/j**a**ne`). This catches
    `foo/Users/jane/...`, `http://localhost/Users/jane/...` and sibling folders
    under home, whatever comes after.
 2. **Absolute path start.** The body contains a position where an absolute
@@ -85,7 +93,12 @@ The body is replaced by `[local path]` when any of these hold:
      emoji, or one or two dots (looking past `*`, `_` and backtick runs), and
      followed by a letter, digit, `.`, `_`, `~`, `$`, `%` or `{` (after any
      further slashes). A run of backslashes alone must be followed by a letter
-     or digit, so Markdown escapes such as `\_` stay. So
+     or digit, so Markdown escapes such as `\_` stay.
+   - A known system root, whatever comes before it: `/` or `\` followed by
+     `Users`, `home`, `private`, `var`, `tmp`, `etc`, `opt`, `mnt`,
+     `Volumes`, `srv`, `root`, `usr` or `cygdrive` and another slash
+     (case-insensitive). This catches `item 1)/Users/bob/x` and
+     `a/Users/bob/x`, while `QA/dev/prod` and `Users/Groups` stay. So
      `4.2/5`, `CI/CD`, `C++/Kotlin`, `C#/.NET`, `**Kotlin**/Java` and `+/-`
      stay, while `/Users/x`, `(/opt/x)`, `` `/etc` ``, `"/srv/x"`,
      `=/home/x`, `x-/Users/x` and `\\server\share` go.
@@ -102,8 +115,9 @@ The body is replaced by `[local path]` when any of these hold:
    detail, so `output/x.pdf`, `../output/x.pdf` and `iOS/Android` are kept
    **(builder's call)**.
 4. **Encoded forms.** Rules 1–3 are also checked on a decoded copy of the body
-   (percent escapes such as `%2F` and `%2e`, and HTML character references
-   such as `&#47;` and `&sol;`, decoded up to three times). A hit on the
+   (Markdown backslash escapes such as `\/`, percent escapes such as `%2F`
+   and `%2e`, and HTML character references such as `&#47;` and `&sol;`,
+   decoded up to three times). A hit on the
    decoded copy removes the whole body.
 5. **Continuation.** The previous token on the same line was replaced by
    rules 1–4 and this body contains `/` or `\` (raw or decoded). This removes
@@ -145,7 +159,11 @@ returns the existing `PAYLOAD_TOO_LARGE` **(builder's call)**.
 5. Link titles over 256 characters, and link destinations with `[`, `]` or a
    line break, are not recognized as links (keeps the scan linear); pass 3
    still removes any path in them.
-6. Over-long output after rewriting → `PAYLOAD_TOO_LARGE`.
+6. Over-long output after rewriting → `PAYLOAD_TOO_LARGE` with the message
+   "Report Markdown must be 1 MiB or smaller after local links and paths are
+   rewritten."
+7. The known-root list above; other roots glued to a word (`a/foo/bar`) are
+   relative text.
 
 ## Out of scope (follow-ups)
 

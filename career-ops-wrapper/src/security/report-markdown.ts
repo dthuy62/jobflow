@@ -23,24 +23,55 @@ export interface ReportMarkdownContext {
   readonly secrets: readonly string[];
 }
 
+/** Stands for `[local path]` while sanitizing, so a placeholder is one whitespace-free token. */
+const MARK = "\uE000";
+
 export function sanitizeReportMarkdown(markdown: string, context: ReportMarkdownContext): string {
-  let text = redactSensitiveText(markdown);
+  let text = redactSensitiveText(markdown.replaceAll(MARK, ""));
   for (const secret of context.secrets) {
     if (secret) {
-      text = text.split(secret).join("[REDACTED]");
+      text = text.replace(escapedLiteralPattern(secret), "[REDACTED]");
     }
   }
 
-  const localValues = context.localValues
-    .filter((value) => value.length > 1)
-    .map((value) => value.toLowerCase());
+  const localValues = context.localValues.filter((value) => value.length > 1);
+  // A value with a space spans tokens, so remove each value with the rest of its token first.
+  for (const value of [...localValues].sort((left, right) => right.length - left.length)) {
+    text = text.replace(new RegExp(`${escapeRegExp(value)}\\S*`, "giu"), (match) => {
+      let end = match.length;
+      while (end > value.length && TRAILING.has(match[end - 1] as string)) {
+        end -= 1;
+      }
+      return MARK + match.slice(end);
+    });
+  }
+
+  const lowerValues = localValues.map((value) => value.toLowerCase());
+  const plainValues = lowerValues.map(stripEmphasis);
   const containsLocalValue = (value: string): boolean => {
     const lower = value.toLowerCase();
-    return localValues.some((localValue) => lower.includes(localValue));
+    const plain = stripEmphasis(lower);
+    return lowerValues.some((localValue, index) => lower.includes(localValue) || plain.includes(plainValues[index] as string));
   };
 
   const linked = rewriteLinks(text, (destination) => classifyDestination(destination, context, containsLocalValue));
-  return removeLocalPaths(linked, containsLocalValue);
+  return removeLocalPaths(linked, containsLocalValue).replaceAll(MARK, LOCAL_PATH_PLACEHOLDER);
+}
+
+/** Matches `literal` also when Markdown escapes its punctuation (`tok\_x`). */
+function escapedLiteralPattern(literal: string): RegExp {
+  const pattern = [...literal]
+    .map((char) => (ESCAPABLE.test(char) ? `\\\\?${escapeRegExp(char)}` : escapeRegExp(char)))
+    .join("");
+  return new RegExp(pattern, "gu");
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&");
+}
+
+function stripEmphasis(value: string): string {
+  return value.replace(/[*_`]/g, "");
 }
 
 // ---------------------------------------------------------------------------
@@ -61,6 +92,9 @@ function classifyDestination(
   containsLocalValue: (value: string) => boolean
 ): LinkAction {
   const destination = rawDestination.replace(/\\([!-/:-@[-`{-~])/g, "$1");
+  if (destination.includes(MARK)) {
+    return { kind: "reduce" };
+  }
   if (destination.startsWith("#")) {
     return { kind: "keep" };
   }
@@ -347,6 +381,8 @@ const HOME_TILDE = /~(?:[A-Za-z][\w.-]*)?[/\\]/y;
 const HOME_VARIABLE = /(?:\$HOME|\$\{HOME\})[/\\]|%(?:USERPROFILE|HOMEPATH|HOMEDRIVE|APPDATA|LOCALAPPDATA)%/iy;
 const DRIVE_OR_FILE = /[A-Za-z]:[/\\]|file:/iy;
 const LINK_BOUNDARY = "](";
+/** A system root that starts an absolute path even when glued to a word (`a/Users/bob`). */
+const KNOWN_ROOT = /[/\\](?:users|home|private|var|tmp|etc|opt|mnt|volumes|srv|root|usr|cygdrive)[/\\]/iy;
 
 function removeLocalPaths(markdown: string, containsLocalValue: (value: string) => boolean): string {
   const parts = markdown.split(/(\s+)/);
@@ -391,7 +427,7 @@ function scrubToken(token: string, continuing: boolean, containsLocalValue: (val
     return { text: token, removed: false };
   }
 
-  const whole = { text: `${lead}${LOCAL_PATH_PLACEHOLDER}${trail}`, removed: true };
+  const whole = { text: `${lead}${MARK}${trail}`, removed: true };
   const decoded = decodeForDetection(body);
   if (containsLocalValue(body) || containsLocalValue(decoded)) {
     return whole;
@@ -413,7 +449,7 @@ function scrubToken(token: string, continuing: boolean, containsLocalValue: (val
       return whole;
     }
   }
-  return { text: `${lead}${scrubbed.text}${trail}`, removed: false };
+  return { text: `${lead}${scrubbed.text}${trail}`, removed: body.includes(MARK) };
 }
 
 /**
@@ -426,9 +462,13 @@ function scrubBody(body: string): { text: string; removed: boolean; climbs: bool
   let removed = false;
   let climbs = false;
   let position = 0;
+  // Found once and reused until passed, so a long token is scanned in linear time.
+  let url = findUrl(body, 0);
 
   while (position < body.length) {
-    const url = findUrl(body, position);
+    if (url && url.start < position) {
+      url = findUrl(body, position);
+    }
     const limit = url?.start ?? body.length;
     const pathStart = findAbsolutePathStart(body, position, limit);
     const removeFrom = pathStart ?? (url && !url.web ? url.start : undefined);
@@ -436,7 +476,7 @@ function scrubBody(body: string): { text: string; removed: boolean; climbs: bool
     if (removeFrom !== undefined) {
       const kept = body.slice(position, removeFrom);
       climbs ||= climbsOutOfWorkspace(kept);
-      text += kept + LOCAL_PATH_PLACEHOLDER;
+      text += kept + MARK;
       removed = true;
       const next = body.indexOf(LINK_BOUNDARY, removeFrom);
       position = next === -1 ? body.length : next;
@@ -498,7 +538,8 @@ function findAbsolutePathStart(body: string, from: number, to: number): number |
       }
       const after = body[runEnd] ?? "";
       const isPath = hasSlash ? PATH_AFTER.test(after) : ALPHANUMERIC.test(after);
-      if (isPath && startsPath(body, index)) {
+      KNOWN_ROOT.lastIndex = runEnd - 1;
+      if (isPath && (startsPath(body, index) || KNOWN_ROOT.test(body))) {
         const allowed = matchArtifactDownloadPath(body, index);
         if (allowed === undefined) {
           return index;
@@ -593,11 +634,15 @@ const NAMED_REFERENCES: Readonly<Record<string, string>> = {
   apos: "'"
 };
 
-/** Decodes percent escapes and HTML character references, up to three layers, for detection only. */
+/**
+ * Removes Markdown backslash escapes and decodes percent escapes and HTML
+ * character references, up to three layers, for detection only.
+ */
 function decodeForDetection(value: string): string {
   let current = value;
   for (let layer = 0; layer < 3; layer += 1) {
     const next = current
+      .replace(/\\([!-/:-@[-`{-~])/g, "$1")
       .replace(/%([0-9A-Fa-f]{2})/g, (_match, hex: string) => String.fromCharCode(Number.parseInt(hex, 16)))
       .replace(/&#(\d{1,7});/g, (match, decimal: string) => fromCodePoint(Number.parseInt(decimal, 10), match))
       .replace(/&#[xX]([0-9A-Fa-f]{1,6});/g, (match, hex: string) => fromCodePoint(Number.parseInt(hex, 16), match))
