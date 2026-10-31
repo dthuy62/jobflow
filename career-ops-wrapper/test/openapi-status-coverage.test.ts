@@ -9,7 +9,7 @@ import { buildOpenApiDocument } from "../src/openapi/openapi-document.js";
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 interface CoveredOperation {
-  readonly method: "get" | "post";
+  readonly method: "get" | "put" | "post";
   readonly path: string;
   readonly successStatus: string;
   /** Route module plus the service it calls; routes import services as types only. */
@@ -33,6 +33,74 @@ const scanRunReads: Partial<Record<ErrorCode, string>> = {
 const toleratedSources = "readCareerOpsData is called with tolerateUnreadableSources; file listings skip bad entries.";
 
 const operations: readonly CoveredOperation[] = [
+  {
+    method: "get",
+    path: "/api/v1/health",
+    successStatus: "200",
+    sources: ["src/api/health-routes.ts", "src/services/health-service.ts"]
+  },
+  {
+    method: "get",
+    path: "/api/v1/cv",
+    successStatus: "200",
+    sources: ["src/api/cv-routes.ts", "src/services/cv-service.ts"]
+  },
+  {
+    method: "put",
+    path: "/api/v1/cv",
+    successStatus: "200",
+    sources: ["src/api/cv-routes.ts", "src/services/cv-service.ts"],
+    unreachable: {
+      NOT_FOUND: "Only reads resolve an existing cv.md; saves create it."
+    }
+  },
+  {
+    method: "get",
+    path: "/api/v1/profile",
+    successStatus: "200",
+    sources: ["src/api/profile-routes.ts", "src/services/profile-service.ts"],
+    unreachable: {
+      PAYLOAD_TOO_LARGE: "Only saves check the payload size; reads have no size cap."
+    }
+  },
+  {
+    method: "put",
+    path: "/api/v1/profile",
+    successStatus: "200",
+    sources: ["src/api/profile-routes.ts", "src/services/profile-service.ts"],
+    unreachable: {
+      NOT_FOUND: "Saves fall back to the default config path when no file exists."
+    }
+  },
+  {
+    method: "get",
+    path: "/api/v1/portals",
+    successStatus: "200",
+    sources: ["src/api/portal-routes.ts", "src/services/portal-service.ts"],
+    unreachable: {
+      PAYLOAD_TOO_LARGE: "Only saves check the payload size; reads have no size cap."
+    }
+  },
+  {
+    method: "put",
+    path: "/api/v1/portals",
+    successStatus: "200",
+    sources: ["src/api/portal-routes.ts", "src/services/portal-service.ts"],
+    unreachable: {
+      NOT_FOUND: "Saves fall back to the default config path when no file exists."
+    }
+  },
+  {
+    method: "get",
+    path: "/api/v1/scan-readiness",
+    successStatus: "200",
+    sources: ["src/api/scan-readiness-routes.ts", "src/services/scan-readiness-service.ts"],
+    unreachable: {
+      VALIDATION_ERROR: "Readiness input errors become checklist entries.",
+      NOT_FOUND: "Readiness input errors become checklist entries.",
+      PAYLOAD_TOO_LARGE: "Readiness input errors become checklist entries."
+    }
+  },
   {
     method: "post",
     path: "/api/v1/scan-runs",
@@ -111,11 +179,10 @@ const operations: readonly CoveredOperation[] = [
   }
 ];
 
-/** Every `ApiError("CODE"` in the modules reachable through value imports from `sources`. */
-function reachableErrorCodes(sources: readonly string[]): Set<ErrorCode> {
+/** Modules reachable from `sources` through value imports and re-exports. */
+function reachableModules(sources: readonly string[]): Set<string> {
   const seen = new Set<string>();
   const pending = sources.map((source) => resolve(packageRoot, source));
-  const codes = new Set<ErrorCode>();
 
   for (let file = pending.pop(); file !== undefined; file = pending.pop()) {
     if (seen.has(file)) {
@@ -124,19 +191,26 @@ function reachableErrorCodes(sources: readonly string[]): Set<ErrorCode> {
     seen.add(file);
     const text = readFileSync(file, "utf8");
 
-    for (const match of text.matchAll(/ApiError\(\s*"([A-Z_]+)"/g)) {
-      codes.add(match[1] as ErrorCode);
-    }
-    for (const match of text.matchAll(/^import\s+(?!type\s)[^;]*?from\s+"(\.[^"]+)\.js";/gm)) {
+    for (const match of text.matchAll(/^(?:import|export)\s+(?!type\s)[^;]*?from\s+"(\.[^"]+)\.js";/gm)) {
       const target = resolve(dirname(file), `${match[1]}.ts`);
-      if (existsSync(target)) {
-        pending.push(target);
-      } else {
+      if (!existsSync(target)) {
         throw new Error(`Cannot resolve ${match[1]} from ${relative(packageRoot, file)}`);
       }
+      pending.push(target);
     }
   }
 
+  return seen;
+}
+
+/** Every `ApiError("CODE"` in the modules reachable from `sources`. */
+function reachableErrorCodes(sources: readonly string[]): Set<ErrorCode> {
+  const codes = new Set<ErrorCode>();
+  for (const file of reachableModules(sources)) {
+    for (const match of readFileSync(file, "utf8").matchAll(/ApiError\(\s*"([A-Z_]+)"/g)) {
+      codes.add(match[1] as ErrorCode);
+    }
+  }
   return codes;
 }
 
@@ -148,7 +222,9 @@ function derivedStatuses(operation: CoveredOperation, hasRequestBody: boolean): 
   }
   // The pairing-token guard covers every /api/v1 route except GET /health, and
   // the error mapper turns any unknown failure into UNEXPECTED_ERROR.
-  codes.add("UNAUTHORIZED");
+  if (operation.path !== "/api/v1/health") {
+    codes.add("UNAUTHORIZED");
+  }
   codes.add("UNEXPECTED_ERROR");
   if (hasRequestBody) {
     // Fastify body parsing: malformed JSON and the body size limit.
@@ -166,11 +242,19 @@ function derivedStatuses(operation: CoveredOperation, hasRequestBody: boolean): 
 describe("OpenAPI status coverage", () => {
   const document = buildOpenApiDocument();
 
-  it("covers every {id} route", () => {
-    const idPaths = Object.keys(document.paths).filter((path) => path.includes("{id}"));
-    const covered = operations.map((operation) => operation.path);
+  it("covers every documented operation", () => {
+    const documented = Object.entries(document.paths).flatMap(([path, item]) =>
+      Object.keys(item).map((method) => `${method} ${path}`)
+    );
+    const covered = operations.map((operation) => `${operation.method} ${operation.path}`);
 
-    expect(covered).toEqual(expect.arrayContaining(idPaths));
+    expect(covered.sort()).toEqual(documented.sort());
+  });
+
+  it("follows re-exports through barrel modules", () => {
+    const modules = reachableModules(["src/services/offer-service.ts"]);
+
+    expect(modules).toContain(resolve(packageRoot, "src/parsers/applications-parser.ts"));
   });
 
   it.each(operations)("documents every status $method $path can return", (operation) => {
