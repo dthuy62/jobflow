@@ -213,7 +213,9 @@ describe("CV routes", () => {
 
       expect(response.statusCode).toBe(status);
       expect(ErrorResponseDtoSchema.parse(response.json()).error.code).toBe(code);
-      expect(await readFile(path.join(outside, "cv.md"), "utf8").catch(() => "# Outside CV")).toBe("# Outside CV");
+      if (cv === "outside") {
+        expect(await readFile(path.join(outside, "cv.md"), "utf8")).toBe("# Outside CV");
+      }
     } finally {
       await server.close();
     }

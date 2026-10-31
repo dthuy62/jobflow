@@ -1,9 +1,11 @@
 import { fileURLToPath } from "node:url";
-import Fastify, { type FastifyInstance } from "fastify";
+import Fastify, { type FastifyError, type FastifyInstance, type FastifyReply, type FastifyRequest } from "fastify";
 import { registerDocsRoutes } from "./api/docs-routes.js";
 import { registerApiRoutes } from "./api/register-routes.js";
 import { loadRuntimeConfig, type RuntimeConfig } from "./config/runtime-config.js";
+import { ApiError } from "./errors/api-error.js";
 import { mapErrorToResponse } from "./errors/error-mapper.js";
+import { assertPairingToken } from "./security/local-pairing-token.js";
 import { redactSensitiveText } from "./security/redaction.js";
 
 export interface CreateServerOptions {
@@ -17,6 +19,7 @@ export async function createServer(options: CreateServerOptions = {}): Promise<F
     routerOptions: {
       ignoreTrailingSlash: true
     },
+    frameworkErrors: (error, request, reply) => answerBadUrl(error, request, reply, config),
     logger: false
   });
 
@@ -35,6 +38,28 @@ export async function createServer(options: CreateServerOptions = {}): Promise<F
   });
 
   return server;
+}
+
+/**
+ * Malformed percent-encoding (FST_ERR_BAD_URL) fails before routing, so /api/v1
+ * hooks and its not-found handler never run. Answer like an unknown /api/v1
+ * path: token check first, then the NOT_FOUND envelope. This early context
+ * does not use the server error handler, so the error is mapped here.
+ */
+function answerBadUrl(error: FastifyError, request: FastifyRequest, reply: FastifyReply, config: RuntimeConfig): void {
+  if (!new URL(request.url, "http://local").pathname.startsWith("/api/v1/")) {
+    void reply.code(400).send({ error: "Bad Request", code: error.code, message: error.message, statusCode: 400 });
+    return;
+  }
+
+  let apiError: unknown = new ApiError("NOT_FOUND", "Resource was not found.");
+  try {
+    assertPairingToken(request, config);
+  } catch (tokenError) {
+    apiError = tokenError;
+  }
+  const response = mapErrorToResponse(apiError);
+  void reply.code(response.statusCode).send(response.body);
 }
 
 async function main(): Promise<void> {

@@ -288,8 +288,10 @@ Regression tests:
    the `/api/v1` not-found handler returns the same envelope. That handler
    answers every unmatched `/api/v1` request (unknown path or wrong method)
    with `NOT_FOUND` and runs behind the pairing-token guard, so in LAN mode a
-   request without a valid token gets 401 first. Paths outside `/api/v1` keep
-   Fastify's default 404.
+   request without a valid token gets 401 first. An ID with malformed
+   percent-encoding (`%zz`) fails before routing; `frameworkErrors` answers it
+   the same way (token check, then `NOT_FOUND`). Paths outside `/api/v1` keep
+   Fastify's default 404 and 400.
 3. Symlinks: a `reports/` file or `output/` PDF symlinked outside the workspace
    is never listed or served.
 4. No workspace path, home path, or token in any response body, error, scan

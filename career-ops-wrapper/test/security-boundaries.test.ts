@@ -128,11 +128,31 @@ describe("security boundaries", () => {
     }
   });
 
-  it("requires the pairing token before answering an overlong id", async () => {
-    const response = await server.inject({ method: "GET", url: concreteUrl("/api/v1/offers/{id}", "x".repeat(300)) });
+  it.each(["x".repeat(300), "%zz", "offer_%E0%A4%A"])("requires the pairing token before answering id %s", async (id) => {
+    const response = await server.inject({ method: "GET", url: concreteUrl("/api/v1/offers/{id}", id) });
 
     expect(response.statusCode).toBe(401);
     expect(response.json().error.code).toBe("UNAUTHORIZED");
+  });
+
+  // Malformed percent-encoding fails before routing (FST_ERR_BAD_URL).
+  it.each(Object.keys(sampleIds))("returns NOT_FOUND for a malformed percent-encoded id on %s", async (route) => {
+    for (const id of ["%zz", "offer_%E0%A4%A", "%"]) {
+      const response = await server.inject({
+        method: "GET",
+        url: concreteUrl(route, id),
+        headers: { "X-Career-Ops-Token": token }
+      });
+
+      expect(response.statusCode, id).toBe(404);
+      expect(response.json()).toEqual({ error: { code: "NOT_FOUND", message: "Resource was not found." } });
+    }
+  });
+
+  it("keeps Fastify's 400 for a malformed URL outside /api/v1", async () => {
+    const response = await server.inject({ method: "GET", url: "/docs/%zz" });
+
+    expect(response.statusCode).toBe(400);
   });
 
   it("never returns workspace paths, home paths, or the token from read routes", async () => {
