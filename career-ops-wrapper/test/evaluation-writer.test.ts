@@ -113,8 +113,7 @@ describe("writeEvaluation", () => {
       offer: offer(),
       output,
       provider: "claude",
-      date: DATE,
-      hasTrackerRow: false
+      date: DATE
     });
 
     expect(result).toEqual({
@@ -140,8 +139,13 @@ describe("writeEvaluation", () => {
     expect(projected).toMatchObject({ evaluationStatus: "evaluated", score: 86, status: "tracked" });
   });
 
-  it("does not touch the tracker when the offer already has a row", async () => {
+  it("does not touch the tracker when it already has a row for the same company and role", async () => {
     const dir = await workspace();
+    const { appendFile } = await import("node:fs/promises");
+    await appendFile(
+      path.join(dir, "data/applications.md"),
+      "| 4 | 2026-10-01 | wayne enterprises ltd | Android  Engineer | | Applied | ❌ | | mine |\n"
+    );
     const before = await readFile(path.join(dir, "data/applications.md"), "utf8");
 
     const result = await writeEvaluation({
@@ -149,8 +153,7 @@ describe("writeEvaluation", () => {
       offer: offer(),
       output,
       provider: "claude",
-      date: DATE,
-      hasTrackerRow: true
+      date: DATE
     });
 
     expect(result.warnings).toEqual(["The offer is already in the tracker; it was not changed."]);
@@ -168,7 +171,6 @@ describe("writeEvaluation", () => {
       output,
       provider: "claude",
       date: DATE,
-      hasTrackerRow: false,
       runScript: runScript("⏭️  Skip: Wayne — Android (existing #2)")
     });
     expect(skipped.warnings).toEqual(["The tracker already had a similar row; no row was added."]);
@@ -179,7 +181,6 @@ describe("writeEvaluation", () => {
       output,
       provider: "claude",
       date: DATE,
-      hasTrackerRow: false,
       runScript: runScript("🔄 Update: #2 Wayne — Android")
     });
     expect(updated.warnings).toEqual(["The tracker updated a similar existing row instead of adding one."]);
@@ -190,7 +191,6 @@ describe("writeEvaluation", () => {
       output,
       provider: "claude",
       date: DATE,
-      hasTrackerRow: false,
       runScript: async (script, args) =>
         script === "merge-tracker.mjs" ? { ...ok(), exitCode: 1 } : defaultScripts(dir)(script, args)
     });
@@ -206,7 +206,6 @@ describe("writeEvaluation", () => {
       output,
       provider: "claude",
       date: DATE,
-      hasTrackerRow: true,
       runScript: async (script, args) =>
         args[0] === "--release" ? { ...ok(), exitCode: 1 } : defaultScripts(dir)(script, args)
     });
@@ -223,8 +222,7 @@ describe("writeEvaluation", () => {
       offer: offer(),
       output,
       provider: "claude",
-      date: DATE,
-      hasTrackerRow: true
+      date: DATE
     });
 
     expect(result.reportFileName).toBe("1000-wayne-enterprises-ltd-2026-10-31.md");
@@ -243,7 +241,7 @@ describe("writeEvaluation", () => {
     };
 
     await expect(
-      writeEvaluation({ workspace: dir, offer: offer(), output, provider: "claude", date: DATE, hasTrackerRow: false, runScript })
+      writeEvaluation({ workspace: dir, offer: offer(), output, provider: "claude", date: DATE, runScript })
     ).rejects.toBeInstanceOf(EvaluationWriteError);
 
     expect(await readFile(path.join(dir, "reports/004-wayne-enterprises-ltd-2026-10-31.md"), "utf8")).toBe("existing");
@@ -261,7 +259,7 @@ describe("writeEvaluation", () => {
     };
 
     await expect(
-      writeEvaluation({ workspace: dir, offer: offer(), output, provider: "claude", date: DATE, hasTrackerRow: false, runScript })
+      writeEvaluation({ workspace: dir, offer: offer(), output, provider: "claude", date: DATE, runScript })
     ).rejects.toBeInstanceOf(EvaluationWriteError);
     expect((await listReports(dir)).filter((name) => name.includes("RESERVED"))).toEqual([]);
   });

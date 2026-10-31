@@ -30,8 +30,6 @@ export interface WriteEvaluationInput {
   readonly output: EvaluationModelOutput;
   readonly provider: "claude";
   readonly date: Date;
-  /** The offer already has a `data/applications.md` row: write the report only. */
-  readonly hasTrackerRow: boolean;
   readonly runScript?: ScriptRunner;
 }
 
@@ -81,7 +79,8 @@ export async function writeEvaluation(input: WriteEvaluationInput): Promise<Writ
     await releaseReportNumber(input.workspace, reportNumber, runScript);
   }
 
-  const warnings = input.hasTrackerRow
+  // Owner decision 8: never touch a row the owner already has for this offer.
+  const warnings = (await hasTrackerRow(input.workspace, input.offer))
     ? [TRACKER_WARNINGS.alreadyTracked]
     : await mergeTrackerRow(input, runScript, { reportNumber, reportFileName, scoreText, date });
   return { reportFileName, scoreText, warnings };
@@ -246,12 +245,31 @@ async function mergeTrackerRow(
   }
 }
 
-/** A hint only: merge-tracker picks the final row number itself. */
-async function nextTrackerNumber(workspace: string): Promise<number> {
+/**
+ * Whether `data/applications.md` already has a row with the offer's company
+ * and role (merge-tracker's own duplicate rule). The projection cannot tell:
+ * it links a tracker row to a URL offer only through a report, so a
+ * hand-added row stays a separate offer.
+ */
+async function hasTrackerRow(workspace: string, offer: OfferDto): Promise<boolean> {
+  const key = (value: string | undefined): string => cleanTrackerCell(value ?? "").toLowerCase();
+  const company = key(offer.company);
+  const role = key(offer.title);
+  return (await readTrackerRows(workspace)).some(
+    (row) => key(row.company) === company && key(row.role) === role
+  );
+}
+
+async function readTrackerRows(workspace: string): Promise<ReturnType<typeof parseApplications>> {
   const tracker = await readOptionalWorkspaceText(workspace, "data/applications.md", TRACKER_MAX_BYTES).catch(
     () => undefined
   );
-  const numbers = parseApplications(tracker?.content ?? "")
+  return parseApplications(tracker?.content ?? "");
+}
+
+/** A hint only: merge-tracker picks the final row number itself. */
+async function nextTrackerNumber(workspace: string): Promise<number> {
+  const numbers = (await readTrackerRows(workspace))
     .map((row) => Number(row.number))
     .filter(Number.isFinite);
   return Math.max(0, ...numbers) + 1;

@@ -162,8 +162,7 @@ export function createEvaluationService(
         offer,
         output: parsed.output,
         provider: "claude",
-        date: now(),
-        hasTrackerRow: (offer.rawSource ?? "").split(", ").includes("tracker")
+        date: now()
       });
       warnings.push(...written.warnings);
       const report = (await listReportFiles(config.workspace)).find((file) => file.fileName === written.reportFileName);

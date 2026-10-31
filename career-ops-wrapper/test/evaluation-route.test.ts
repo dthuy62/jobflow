@@ -288,6 +288,21 @@ describe("evaluation routes", () => {
     expect(missingUrl.json().error.details).toEqual({ reason: "offer-has-no-url" });
   });
 
+  it("leaves a tracker row the owner added by hand alone, even when it is not linked to the offer", async () => {
+    const { server, workspace } = await setup();
+    await appendFile(
+      path.join(workspace, "data/applications.md"),
+      "| 4 | 2026-06-27 | Vandelay Industries | iOS Engineer | | Applied | ❌ | | hand-added |\n"
+    );
+    const trackerBefore = await readFile(path.join(workspace, "data/applications.md"), "utf8");
+
+    const finished = await pollUntilDone(server, (await start(server)).json().id);
+
+    expect(finished.status).toBe("succeeded");
+    expect(finished.warnings).toEqual(["The offer is already in the tracker; it was not changed."]);
+    expect(await readFile(path.join(workspace, "data/applications.md"), "utf8")).toBe(trackerBefore);
+  });
+
   it("kills a CLI that runs past the timeout and writes nothing", async () => {
     const { server, workspace } = await setup({ behaviour: { run: { hang: true } }, timeoutMs: 300 });
     const before = await reportFiles(workspace);
