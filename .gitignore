@@ -26,6 +26,7 @@ debug.keystore
 .agent
 .github/*
 !.github/workflows/
+!.github/pull_request_template.md
 _bmad
 /.idea/
 /android/.idea/
