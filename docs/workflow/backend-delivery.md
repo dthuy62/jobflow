@@ -41,7 +41,8 @@ listed under [Owner decisions](#owner-decisions).
 | `doc` | Documentation only |
 
 Examples: `feature/wrapper-ai-evaluation`, `bugfix/scan-timeout-cleanup`.
-The `Branch name` workflow rejects other names.
+The `Branch name` workflow fails PRs from other names and is a required
+check on `main`.
 
 ## Commits and PRs
 
