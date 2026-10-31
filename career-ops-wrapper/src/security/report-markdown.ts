@@ -35,9 +35,11 @@ export function sanitizeReportMarkdown(markdown: string, context: ReportMarkdown
   }
 
   const localValues = context.localValues.filter((value) => value.length > 1);
-  // A value with a space spans tokens, so remove each value with the rest of its token first.
+  // A value with a space spans tokens, so remove each value with the rest of its
+  // token first. The run stops at a character that closes link or HTML syntax,
+  // so a surrounding or following link survives.
   for (const value of [...localValues].sort((left, right) => right.length - left.length)) {
-    text = text.replace(new RegExp(`${escapeRegExp(value)}\\S*`, "giu"), (match) => {
+    text = text.replace(new RegExp(`${escapeRegExp(value)}[^\\s)\\]>"\`]*`, "giu"), (match) => {
       let end = match.length;
       while (end > value.length && TRAILING.has(match[end - 1] as string)) {
         end -= 1;
@@ -381,8 +383,12 @@ const HOME_TILDE = /~(?:[A-Za-z][\w.-]*)?[/\\]/y;
 const HOME_VARIABLE = /(?:\$HOME|\$\{HOME\})[/\\]|%(?:USERPROFILE|HOMEPATH|HOMEDRIVE|APPDATA|LOCALAPPDATA)%/iy;
 const DRIVE_OR_FILE = /[A-Za-z]:[/\\]|file:/iy;
 const LINK_BOUNDARY = "](";
-/** A system root that starts an absolute path even when glued to a word (`a/Users/bob`). */
-const KNOWN_ROOT = /[/\\](?:users|home|private|var|tmp|etc|opt|mnt|volumes|srv|root|usr|cygdrive)[/\\]/iy;
+/**
+ * A system root, in its real casing, followed by a directory and another
+ * separator: an absolute path even when glued to a word (`a/Users/bob/x`).
+ * Prose such as `Office/Home/Remote` or `office/home/remote` does not match.
+ */
+const KNOWN_ROOT = /[/\\](?:Users|Volumes|home|private|var|tmp|etc|opt|mnt|srv|root|usr|cygdrive)[/\\][^\s/\\]+[/\\]/y;
 
 function removeLocalPaths(markdown: string, containsLocalValue: (value: string) => boolean): string {
   const parts = markdown.split(/(\s+)/);

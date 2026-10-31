@@ -23,7 +23,8 @@ removed as a whole, and links are rebuilt from structured data (artifact IDs).
    the literal also matches when Markdown escapes its punctuation
    (`tok\_x`). Then every occurrence of the home directory or a workspace
    path variant (case-insensitive), together with the rest of its
-   whitespace-free run, becomes `[local path]`. This runs on the whole text
+   whitespace-free run, becomes `[local path]`. The run stops at `)`, `]`,
+   `>`, `"` or a backtick, so a surrounding or following link survives. This runs on the whole text
    because a value can contain a space (`/Users/jane/Career Ops`), which
    the token pass below cannot see as one token.
 2. **Links.** Markdown links and images are rewritten or reduced to text (see
@@ -95,10 +96,12 @@ The body is replaced by `[local path]` when any of these hold:
      further slashes). A run of backslashes alone must be followed by a letter
      or digit, so Markdown escapes such as `\_` stay.
    - A known system root, whatever comes before it: `/` or `\` followed by
-     `Users`, `home`, `private`, `var`, `tmp`, `etc`, `opt`, `mnt`,
-     `Volumes`, `srv`, `root`, `usr` or `cygdrive` and another slash
-     (case-insensitive). This catches `item 1)/Users/bob/x` and
-     `a/Users/bob/x`, while `QA/dev/prod` and `Users/Groups` stay. So
+     `Users`, `Volumes`, `home`, `private`, `var`, `tmp`, `etc`, `opt`,
+     `mnt`, `srv`, `root`, `usr` or `cygdrive` in that exact casing, then a
+     directory and another separator. This catches `item 1)/Users/bob/x` and
+     `a/home/bob/x`, while prose such as `Office/Home/Remote`,
+     `office/home/remote`, `Public/Private/Nonprofit` and
+     `Admin/Users/Roles` stays. So
      `4.2/5`, `CI/CD`, `C++/Kotlin`, `C#/.NET`, `**Kotlin**/Java` and `+/-`
      stay, while `/Users/x`, `(/opt/x)`, `` `/etc` ``, `"/srv/x"`,
      `=/home/x`, `x-/Users/x` and `\\server\share` go.
@@ -164,6 +167,31 @@ returns the existing `PAYLOAD_TOO_LARGE` **(builder's call)**.
    rewritten."
 7. The known-root list above; other roots glued to a word (`a/foo/bar`) are
    relative text.
+
+## Protection level (owner ruling)
+
+The owner chose reasonable protection, not absolute zero leakage.
+
+Guaranteed and tested: no plainly written local path reaches the response.
+That covers absolute paths (including those under known roots glued to a
+word), the home directory, every workspace path variant (also with spaces on
+one line), and relative links into the workspace.
+
+Residual risk, documented and not chased: deliberately obfuscated paths.
+Some forms are caught because simple, tested checks already exist (Markdown
+escapes such as `\/`, emphasis inside a home or workspace value, percent and
+HTML escapes). Others are known to get through:
+
+- A home or workspace path with a space, wrapped onto the next line at that
+  space (`/Users/Jane\nDoe/x`): the part after the line break stays.
+- The pairing token written with HTML character references or percent
+  escapes (`tok&#95;secret`).
+- An absolute path outside the known roots, glued to a word
+  (`a/srv2/data/x`).
+
+The design also does not trade leaks for mangled prose: rules that removed
+ordinary text were narrowed (known roots are case-sensitive and need two
+more segments).
 
 ## Out of scope (follow-ups)
 

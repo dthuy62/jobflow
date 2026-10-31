@@ -232,8 +232,20 @@ describe("local paths in report text", () => {
     expect(sanitized).not.toContain("Backup");
   });
 
-  it("keeps words that only look like roots", () => {
-    expect(sanitize("QA/dev/prod, Users/Groups, home/office")).toBe("QA/dev/prod, Users/Groups, home/office");
+  it.each([
+    "QA/dev/prod, Users/Groups, home/office",
+    "Company type: Public/Private/Nonprofit",
+    "Work mode: Office/Home/Remote",
+    "Work mode: office/home/remote",
+    "Stack: Ops/Var/Etc",
+    "Roles: Admin/Users/Roles"
+  ])("keeps prose that only looks like a root: %s", (text) => {
+    expect(sanitize(text)).toBe(text);
+  });
+
+  it("keeps a rewritten link when its text or a neighbour holds the home path", () => {
+    expect(sanitize(`[/Users/jane/x.pdf](../output/${CV})`)).toBe(`[[local path]](${CV_URL})`);
+    expect(sanitize(`[a](/Users/jane/x.pdf)[cv](output/${CV})`)).toBe(`a[cv](${CV_URL})`);
   });
 
   it("removes escaped or emphasis-split local values", () => {
