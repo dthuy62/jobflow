@@ -10,7 +10,8 @@ Risk: LOW | MEDIUM | HIGH — <one sentence why>
 Components: <wrapper, contracts, android, docs>
 Gates: <each gate> PASS/FAIL; tests-prove-change: <n> failed without change, <n> new tests prove nothing
 Impact: <changed routes/schemas/contracts>; Android DTOs touched: <yes/no, which>
-Reviewers run: spec, impact, tests[, security][, second-model: gemini]
+Mode: full | docs-only
+Reviewers run: spec[, impact, tests][, security]
 Fix rounds: <n>/3
 
 | ID | Severity | Status | Location | Summary |

@@ -19,6 +19,8 @@
 .cxx
 local.properties
 .env
+# Personal agent instructions; never committed.
+CLAUDE.local.md
 debug.keystore
 /.agents
 /.claude/*

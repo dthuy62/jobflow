@@ -13,7 +13,7 @@ import path from "node:path";
 
 const WRAPPER = "career-ops-wrapper";
 const args = parseArgs(process.argv.slice(2));
-if (!args.base) {
+if (!args?.base) {
   console.error("usage: node tests-prove-change.mjs --base <rev> [--head <rev>] [--json]");
   process.exit(2);
 }
@@ -141,13 +141,17 @@ function git(gitArgs, cwd) {
   return execFileSync("git", gitArgs, { cwd, encoding: "utf8", maxBuffer: 64 * 1024 * 1024, stdio: ["ignore", "pipe", "pipe"] });
 }
 
+/** Returns null on an unknown flag or a flag whose value is missing or another flag. */
 function parseArgs(argv) {
   const parsed = {};
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
     if (arg === "--json") parsed.json = true;
-    else if (arg === "--base") parsed.base = argv[++index];
-    else if (arg === "--head") parsed.head = argv[++index];
+    else if (arg === "--base" || arg === "--head") {
+      const value = argv[++index];
+      if (value === undefined || value.startsWith("-")) return null;
+      parsed[arg.slice(2)] = value;
+    } else return null;
   }
   return parsed;
 }

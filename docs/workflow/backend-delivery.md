@@ -21,11 +21,14 @@ listed under [Owner decisions](#owner-decisions).
    impact map, dispatches independent Spec, Impact, Tests and (for risk
    areas) Security reviewers, and verifies every finding by reproducing it.
    The writer fixes confirmed findings test-first, in at most three rounds,
-   then escalates. Put the skill's owner report in the PR.
+   then escalates. Put the skill's owner report in the PR. A docs-only
+   change (as the skill's impact map defines it) runs the machine gates and
+   the Spec reviewer only. No external model reviews code.
 6. **Pull request.** Use the PR template, link the issue, and keep the title in
    Conventional Commits form.
 7. **CI.** Wait for the `Wrapper` workflow (and `Android` when contracts
-   change) to pass; fix failures on the branch.
+   change, `Review skill` when `.claude/skills/**` changes) to pass; fix
+   failures on the branch.
 8. **Owner review.** Announce the PR as ready. Merge only after the owner
    approves.
 9. **Merge and clean up.** Merge with a merge commit (`gh pr merge --merge`),
