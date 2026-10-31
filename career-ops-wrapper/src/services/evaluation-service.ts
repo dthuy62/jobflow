@@ -204,6 +204,9 @@ export function createEvaluationService(
         warnings: [],
         failure: null
       });
+      // Registered now, so a cancel during the checks below is not lost.
+      const control: RunControl = { abort: new AbortController(), cancelRequested: false };
+      controls.set(id, control);
 
       let offer: OfferDto;
       let cliPath: string;
@@ -226,12 +229,15 @@ export function createEvaluationService(
           });
         }
       } catch (error) {
+        controls.delete(id);
         store.delete(id);
         throw error;
       }
 
-      const control: RunControl = { abort: new AbortController(), cancelRequested: false };
-      controls.set(id, control);
+      if (control.cancelRequested) {
+        finish(id, { failure: CANCELLED_FAILURE });
+        return store.get(id) as EvaluationDto;
+      }
       const running = store.update(id, {
         status: "running",
         stage: "fetching-posting",

@@ -347,6 +347,24 @@ describe("evaluation routes", () => {
     expect(again.json()).toEqual(finished);
   });
 
+  it("cancels while the run is still queued behind the login check, without running the CLI", async () => {
+    const { server, fake, postingUrls } = await setup({ behaviour: { auth: { loggedIn: true, delayMs: 1500 } } });
+
+    const starting = start(server);
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    const queued = EvaluationDtoSchema.parse(
+      (await server.inject({ method: "GET", url: "/api/v1/evaluations/latest", headers })).json()
+    );
+    expect(queued.stage).toBe("queued");
+    const cancel = await server.inject({ method: "POST", url: `/api/v1/evaluations/${queued.id}/cancel`, headers });
+    expect(cancel.statusCode).toBe(200);
+
+    expect((await starting).statusCode).toBe(202);
+    expect(await pollUntilDone(server, queued.id)).toMatchObject({ status: "cancelled", failure: { code: "CANCELLED" } });
+    expect(postingUrls).toEqual([]);
+    expect(await fake.calls()).toEqual([]);
+  });
+
   it("never returns CLI output, paths or the token", async () => {
     const workspaceMarker = "WORKSPACE_MARKER";
     const { server, workspace } = await setup({
