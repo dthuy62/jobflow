@@ -72,3 +72,13 @@ curl http://127.0.0.1:3000/api/v1/health
 - Respect dirty worktrees; never revert user changes unless explicitly asked.
 - Update docs when architecture, commands, contracts, or boundaries change.
 - Final response must name changed files and checks run.
+
+## Branches, Commits, PRs
+
+- Branches: `<type>/<kebab-case-description>` (`feature`, `bugfix`, `hotfix`,
+  `refactor`, `design`, `doc`).
+- Conventional Commits; no co-author trailers or tool attribution in commits
+  or PR descriptions.
+- `main` is protected; land changes through PRs merged with a merge commit.
+- Backend delivery steps and owner decisions:
+  `docs/workflow/backend-delivery.md`.
