@@ -326,7 +326,7 @@ function diffLines(path) {
 }
 
 /**
- * Markdown or `docs/**` that ships nothing and steers no agent or CI run:
+ * Markdown that ships nothing and steers no agent or CI run:
  * agent instructions (`AGENTS.md`, `CLAUDE.md`, any `.claude/` directory),
  * workflows and templates (`.github/`) and files under any `src/`,
  * `contracts/` or `fixtures/` directory are not documentation.
@@ -334,7 +334,7 @@ function diffLines(path) {
 function isDocumentation(path) {
   if (/(^|\/)\.(claude|github)\//.test(path) || /(^|\/)(src|contracts|fixtures)\//.test(path)) return false;
   if (/(^|\/)(AGENTS|CLAUDE)\.md$/i.test(path)) return false;
-  return path.startsWith("docs/") || /\.md$/i.test(path);
+  return /\.md$/i.test(path);
 }
 
 /**

@@ -25,7 +25,7 @@ only (no Impact or Tests reviewer), then Layers 3–5 for its findings as usual.
 The script decides, not you. A change is docs-only when every changed path
 (including the old path of a rename) is documentation:
 
-- a `.md` file anywhere, or any file under `docs/`;
+- a `.md` file (a script or config file under `docs/` is not documentation);
 - but never agent instructions (`AGENTS.md`, `CLAUDE.md`, or a file under
   any `.claude/` directory), a file under any `.github/` directory
   (workflows, PR template), or a file under any `src/`, `contracts/` or

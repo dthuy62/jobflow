@@ -269,6 +269,8 @@ test("keeps the full review when a Markdown change is not plain documentation", 
     { "AGENTS.md": { before: "a\n", after: "b\n" } },
     { "android/CLAUDE.md": { before: "a\n", after: "b\n" } },
     { "career-ops-wrapper/fixtures/workspaces/w/data/applications.md": { before: "a\n", after: "b\n" } },
+    { "docs/tools/check-links.mjs": { before: "a\n", after: "b\n" } },
+    { "docs/ci.yml": { before: "a\n", after: "b\n" } },
     { "docs/a.md": { before: "a\n", after: "b\n" }, "career-ops-wrapper/src/x.ts": { before: "export const a = 1;\n", after: "export const a = 2;\n" } }
   ];
   for (const files of cases) {
