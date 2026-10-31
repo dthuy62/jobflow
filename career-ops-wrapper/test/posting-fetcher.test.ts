@@ -232,6 +232,27 @@ describe("htmlToText", () => {
     expect(text).toBe("Role & team\nLine one\nLine two\nA & B\nC");
   });
 
+  it.each([
+    ["unclosed comments", "<!--".repeat(500_000)],
+    ["unclosed line breaks", "<br".repeat(700_000)],
+    ["bare angle brackets", "<".repeat(2_000_000)],
+    ["unclosed scripts", "<script>".repeat(250_000)],
+    ["unclosed JSON-LD scripts", '<script type="application/ld+json">'.repeat(55_000)],
+    ["unclosed styles inside text", "a<style>b".repeat(200_000)]
+  ])("handles 2 MiB of %s in linear time", (_name, html) => {
+    const started = performance.now();
+    htmlToText(html);
+    expect(performance.now() - started).toBeLessThan(1000);
+  });
+
+  it("keeps text around unclosed or stray markup", () => {
+    expect(htmlToText("a < b and c > d")).toBe("a < b and c > d");
+    expect(htmlToText("<p>Role</p><script>x()")).toBe("Role");
+    expect(htmlToText("<p>Role</p><!-- never closed")).toBe("Role");
+    expect(htmlToText("<p>Role</p><div class=x")).toBe("Role");
+    expect(htmlToText("<SCRIPT>bad()</SCRIPT ><P>Ok</P>")).toBe("Ok");
+  });
+
   it("uses a JobPosting description from JSON-LD when the page has one", () => {
     const html = `<html><head><script type="application/ld+json">${JSON.stringify({
       "@context": "https://schema.org",
