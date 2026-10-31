@@ -51,8 +51,11 @@ function parseArgs(argv) {
     else if (arg === "--input") parsed.inputs.push(argv[++index]);
     else if (arg === "--timeout-ms") parsed.timeoutMs = Number(argv[++index]);
     else if (arg === "--set") {
-      const [key, ...value] = argv[++index].split("=");
-      parsed.values[key] = value.join("=");
+      const pair = argv[++index] ?? "";
+      const separator = pair.indexOf("=");
+      // A malformed pair makes the usage check fail (exit 2).
+      if (separator <= 0) parsed.timeoutMs = Number.NaN;
+      else parsed.values[pair.slice(0, separator)] = pair.slice(separator + 1);
     }
   }
   return parsed;

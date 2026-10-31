@@ -322,25 +322,25 @@ function enclosingDeclarations(path, content, lineNumbers) {
   const lines = content.split("\n");
   const found = new Map();
   const add = (text) => {
-    const exported = matchDecl(path, text, true);
-    const name = exported ?? matchDecl(path, text, false);
-    if (name && !found.has(name)) found.set(name, { name, exported: Boolean(exported) || path.endsWith(".kt") });
-    return Boolean(name);
+    const declared = matchDecl(path, text, true);
+    const name = declared ?? matchDecl(path, text, false);
+    if (!name) return false;
+    // `function x() {}` followed later by `export { x }` is exported too.
+    const exportedLater = new RegExp(`export\\s*\\{[^}]*\\b${name}\\b|export\\s+default\\s+${name}\\b`).test(content);
+    if (!found.has(name)) found.set(name, { name, exported: Boolean(declared) || exportedLater || path.endsWith(".kt") });
+    return true;
   };
   for (const lineNumber of lineNumbers) {
     const start = Math.min(lineNumber, lines.length) - 1;
-    if (isDocComment(lines[start])) {
-      // A doc comment belongs to the declaration below it.
-      for (let index = start + 1; index < lines.length; index += 1) {
-        if (isDocComment(lines[index]) || /^\s*@/.test(lines[index])) continue;
-        add(lines[index]);
-        break;
-      }
-      continue;
+    if (isTopLevelDocComment(lines[start])) {
+      // A top-level doc comment belongs to the declaration below it.
+      let index = start + 1;
+      while (index < lines.length && (isTopLevelDocComment(lines[index]) || /^@/.test(lines[index]))) index += 1;
+      if (index < lines.length && add(lines[index])) continue;
     }
     for (let index = start; index >= 0; index -= 1) {
       const text = lines[index];
-      if (/^\s/.test(text) || text.trim() === "" || isDocComment(text) || /^\/\//.test(text)) continue;
+      if (/^\s/.test(text) || text.trim() === "" || isTopLevelDocComment(text) || /^\/\//.test(text)) continue;
       if (add(text)) break;
       // Closing lines of the declaration above (`}`, `});`) keep the walk going;
       // any other top-level statement means the change is outside a declaration.
@@ -350,8 +350,9 @@ function enclosingDeclarations(path, content, lineNumbers) {
   return [...found.values()];
 }
 
-function isDocComment(text) {
-  return /^\s*(\/\*\*|\*\/|\*(\s|$))/.test(text ?? "");
+/** `/**`, ` * …` and ` *\/` at column 0 or 1; indented ones belong to a body. */
+function isTopLevelDocComment(text) {
+  return /^ ?(\/\*\*|\*\/|\*(\s|$))/.test(text ?? "");
 }
 
 function matchDecl(path, text, exportedOnly) {

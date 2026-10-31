@@ -174,3 +174,37 @@ test("gates changes to the review skill's scripts with their own test", () => {
   const report = mapAfterCommit({ ".claude/skills/review-change/scripts/x.mjs": { before: "a\n", after: "b\n" } });
   assert.deepEqual(report.gates, ["node --test .claude/skills/review-change/scripts/impact-map.test.mjs"]);
 });
+
+test("attributes a comment inside a declaration to that declaration", () => {
+  const before = "export class Alpha {\n  /**\n   * old\n   */\n  run() {\n    /* step */\n    return 1;\n  }\n}\n";
+  const memberDoc = before.replace("   * old", "   * new");
+  const bodyComment = before.replace("/* step */", "/* first step */");
+  assert.deepEqual(mapAfterEdit(before, memberDoc).symbols.map((symbol) => symbol.name), ["Alpha"]);
+  assert.deepEqual(mapAfterEdit(before, bodyComment).symbols.map((symbol) => symbol.name), ["Alpha"]);
+});
+
+test("does not charge a top-level statement to the declaration above it", () => {
+  const before = "export function alphaFirst() {\n  return 1;\n}\nregister(1);\n";
+  const after = before.replace("register(1);", "register(2);");
+  assert.deepEqual(mapAfterEdit(before, after).symbols, []);
+});
+
+test("attributes an operator-continuation line starting with * to its function", () => {
+  const before = "export function area(w: number, h: number) {\n  return w\n    * h;\n}\n";
+  const after = before.replace("    * h;", "    * h * 2;");
+  assert.deepEqual(mapAfterEdit(before, after).symbols.map((symbol) => symbol.name), ["area"]);
+});
+
+test("keeps references for a symbol exported later with export { name }", () => {
+  const before = "function betaSecond(x: number) {\n  return x;\n}\nexport { betaSecond };\n";
+  const after = before.replace("return x;", "return x * 2;");
+  const symbol = mapAfterEdit(before, after).symbols.find((entry) => entry.name === "betaSecond");
+  assert.ok(symbol.references.some((ref) => ref.startsWith("career-ops-wrapper/src/b.ts:")));
+});
+
+test("attributes a Kotlin member KDoc edit to its class", () => {
+  const file = "android/app/src/main/kotlin/a/data/remote/Repo.kt";
+  const before = "class Repo {\n    /**\n     * Loads offers.\n     */\n    fun load() = Unit\n}\n";
+  const report = mapAfterCommit({ [file]: { before, after: before.replace("Loads offers.", "Loads offers once.") } });
+  assert.deepEqual(report.symbols.map((symbol) => symbol.name), ["Repo"]);
+});
