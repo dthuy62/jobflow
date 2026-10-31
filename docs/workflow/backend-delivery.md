@@ -4,26 +4,41 @@ How backend work on `career-ops-wrapper/` goes from idea to `main`. An agent
 does every step; the owner reviews the finished PR and makes the decisions
 listed under [Owner decisions](#owner-decisions).
 
+## Tiers
+
+Pick the tier before starting and scale every step to it. The `review-change`
+impact map confirms it from the diff; it may raise the tier, never lower it.
+The owner can always ask for a higher tier.
+
+| Tier | Typical work | Issue and design | Where it runs | Review |
+| --- | --- | --- | --- | --- |
+| S | Docs, typos, comments | Issue optional; no spec; small items may share one PR | Inline or a subagent | Gates + Spec reviewer, 1 round |
+| M | Contained bug fix or small feature, no high-risk area | Issue with acceptance criteria; no spec | Inline or a subagent | Gates + one Standard reviewer, 1 round |
+| L | Features, security/contract/process/workspace-write changes, wrapper + Android, large diffs, unclear design | Issue + spec in `docs/superpowers/specs/` + plan | Its own session and worktree | Full `review-change`, up to 3 rounds |
+
+LOW findings never start another review round; they go to a follow-up issue.
+Out-of-scope notes are recorded in the PR, not fixed.
+Status updates go to the owner only when a PR is ready, a decision is needed,
+or a real risk turns up.
+
 ## Steps
 
-1. **Issue.** Each task is a GitHub issue labelled `backend` with acceptance
-   criteria.
-2. **Design.** Non-trivial tasks get a spec in `docs/superpowers/specs/`.
-   Escalate to the owner only for the decisions listed below; settle
-   everything else and mark it in the spec.
-3. **Branch.** Cut from up-to-date `main` in its own worktree, named per
-   [Branch names](#branch-names).
+1. **Issue.** A GitHub issue labelled `backend` and `tier:S|M|L` with
+   acceptance criteria (optional for tier S).
+2. **Design.** Tier L gets a spec in `docs/superpowers/specs/`. Escalate to
+   the owner only for the decisions listed below; settle everything else and
+   mark it in the spec.
+3. **Branch.** Cut from up-to-date `main` (in its own worktree for tier L),
+   named per [Branch names](#branch-names).
 4. **Build.** Plan, then test-first implementation. Run `npm test`,
    `npm run build`, and a smoke run against a fixture workspace.
 5. **Self-review.** Run the `review-change` skill
-   (`.claude/skills/review-change/`) on the committed branch. It runs the
-   machine gates and a tests-prove-the-change check, builds a tool-generated
-   impact map, dispatches independent Spec, Impact, Tests and (for risk
-   areas) Security reviewers, and verifies every finding by reproducing it.
-   The writer fixes confirmed findings test-first, in at most three rounds,
-   then escalates. Put the skill's owner report in the PR. A docs-only
-   change (as the skill's impact map defines it) runs the machine gates and
-   the Spec reviewer only. No external model reviews code.
+   (`.claude/skills/review-change/`) on the committed branch at the tier its
+   impact map prints. Every tier runs the machine gates and uses reviewers
+   that did not write the change; findings are reproduced before anyone fixes
+   them. Tier L adds the Impact, Tests and Security reviewers and up to three
+   fix rounds before escalating. Put the skill's owner report in the PR. No
+   external model reviews code.
 6. **Pull request.** Use the PR template, link the issue, and keep the title in
    Conventional Commits form.
 7. **CI.** Wait for the `Wrapper` workflow (and `Android` when contracts

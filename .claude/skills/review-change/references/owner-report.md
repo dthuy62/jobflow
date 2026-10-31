@@ -10,9 +10,10 @@ Risk: LOW | MEDIUM | HIGH — <one sentence why>
 Components: <wrapper, contracts, android, docs>
 Gates: <each gate> PASS/FAIL; tests-prove-change: <n> failed without change, <n> new tests prove nothing
 Impact: <changed routes/schemas/contracts>; Android DTOs touched: <yes/no, which>
-Mode: full | docs-only
-Reviewers run: spec[, impact, tests][, security]
-Fix rounds: <n>/3
+Tier: S | M | L — <reasons from the impact map>
+Reviewers run: spec | standard | spec, impact, tests[, security]
+Fix rounds: <n>/<1 for S and M, 3 for L>
+Follow-ups (LOW, not fixed): <list or "none">
 
 | ID | Severity | Status | Location | Summary |
 | --- | --- | --- | --- | --- |
