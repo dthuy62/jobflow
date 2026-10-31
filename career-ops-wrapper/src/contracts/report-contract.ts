@@ -18,10 +18,18 @@ const ReportBaseSchema = z.object({
 export const ReportListItemDtoSchema = ReportBaseSchema;
 export const ReportDetailDtoSchema = ReportBaseSchema.extend({
   /**
-   * Raw report Markdown with workspace/home paths redacted. Not a
-   * SanitizedText: real reports contain relative links such as `../output/x.pdf`.
+   * Report Markdown. Links to workspace PDFs point at
+   * `/api/v1/artifacts/{id}/download`, other local links become their text,
+   * and local paths become `[local path]`. Not a SanitizedText: the text keeps
+   * relative paths such as `output/x.pdf` that never leave the workspace.
    */
-  markdown: z.string().min(1).max(REPORT_MARKDOWN_MAX_CHARS)
+  markdown: z
+    .string()
+    .min(1)
+    .max(REPORT_MARKDOWN_MAX_CHARS)
+    .describe(
+      "Report Markdown. Links to workspace PDFs point at `/api/v1/artifacts/{id}/download`; other local links become their text, and local paths become `[local path]`."
+    )
 });
 export const ReportCollectionDtoSchema = collectionDtoSchema(ReportListItemDtoSchema);
 

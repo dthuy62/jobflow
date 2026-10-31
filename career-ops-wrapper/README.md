@@ -48,7 +48,7 @@ These are read-only projections. The wrapper never edits the tracker, reports, o
 
 - Offers merge `data/scan-history.tsv`, `data/pipeline.md`, `data/applications.md`, and report `**URL:**` headers by normalized URL. IDs are `offer_<16 hex>` hashes, never paths.
 - Scores map Career Ops `x/5` to 0–100 (`4.2/5` → `84`). Offers with no score or report have `evaluationStatus: "notEvaluated"`.
-- Reports are `reports/NNN-<slug>.md` files with IDs `report_NNN`. Markdown is returned with workspace and home paths redacted; reports over 1 MiB return `413`.
+- Reports are `reports/NNN-<slug>.md` files with IDs `report_NNN`. Links to workspace PDFs are rewritten to `/api/v1/artifacts/{id}/download`, other local links become plain text, and local paths become `[local path]`; reports over 1 MiB return `413`.
 - Artifacts are regular PDF files directly inside `output/`, with IDs `artifact_<16 hex>`. Downloads stream with `Content-Type: application/pdf` and `Content-Disposition: attachment`.
 - Symbolic links in `reports/` and `output/` are skipped, and IDs are matched against directory listings instead of being joined into paths.
 

@@ -1,6 +1,8 @@
 import { createHash } from "node:crypto";
+import { homedir } from "node:os";
 import type { RuntimeConfig } from "../config/runtime-config.js";
 import {
+  REPORT_MARKDOWN_MAX_CHARS,
   SanitizedTextSchema,
   type ReportCollectionDto,
   type ReportDetailDto,
@@ -8,7 +10,7 @@ import {
 } from "../contracts/index.js";
 import { ApiError } from "../errors/api-error.js";
 import { isCalendarDate } from "../parsers/index.js";
-import { redactLocalValues } from "../security/redaction.js";
+import { sanitizeReportMarkdown } from "../security/report-markdown.js";
 import { readCareerOpsData } from "../workspace/career-ops-data-adapter.js";
 import type { ReportFile } from "../workspace/report-file-adapter.js";
 import { listWorkspacePathVariants } from "../workspace/workspace-paths.js";
@@ -20,13 +22,19 @@ export interface ReportService {
 }
 
 export function createReportService(config: RuntimeConfig): ReportService {
-  async function loadReports(): Promise<{ items: ReportListItemDto[]; files: ReportFile[]; revisionHash: string }> {
+  async function loadReports(): Promise<{
+    items: ReportListItemDto[];
+    files: ReportFile[];
+    artifactIdByFileName: Map<string, string>;
+    revisionHash: string;
+  }> {
     const data = await readCareerOpsData(config.workspace, { tolerateUnreadableSources: true });
     const { offerIdByReportId } = projectCareerOps(data);
     const files = [...data.reports].reverse();
     return {
       files,
       items: files.map((report) => toListItem(report, offerIdByReportId.get(report.id) ?? null)),
+      artifactIdByFileName: new Map(data.artifacts.map((artifact) => [artifact.fileName, artifact.id])),
       revisionHash: data.revisionHash
     };
   }
@@ -42,7 +50,7 @@ export function createReportService(config: RuntimeConfig): ReportService {
     },
 
     async getReport(id: string): Promise<ReportDetailDto> {
-      const { items, files } = await loadReports();
+      const { items, files, artifactIdByFileName } = await loadReports();
       const index = items.findIndex((item) => item.id === id);
       const file = files[index];
       const item = items[index];
@@ -53,10 +61,17 @@ export function createReportService(config: RuntimeConfig): ReportService {
         throw new ApiError("PAYLOAD_TOO_LARGE", "Report Markdown must be 1 MiB or smaller.");
       }
 
-      const markdown = redactLocalValues(file.markdown, {
-        workspacePaths: await listWorkspacePathVariants(config.workspace),
+      const markdown = sanitizeReportMarkdown(file.markdown, {
+        artifactIdByFileName,
+        localValues: [homedir(), ...(await listWorkspacePathVariants(config.workspace))],
         secrets: config.pairingToken ? [config.pairingToken] : []
       });
+      if (markdown.length > REPORT_MARKDOWN_MAX_CHARS) {
+        throw new ApiError(
+          "PAYLOAD_TOO_LARGE",
+          "Report Markdown must be 1 MiB or smaller after local links and paths are rewritten."
+        );
+      }
       return { ...item, markdown: markdown.trim() === "" ? "(empty report)" : markdown };
     }
   };

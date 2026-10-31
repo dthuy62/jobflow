@@ -614,7 +614,8 @@ export function buildOpenApiDocument(options: BuildOpenApiDocumentOptions = {}):
           operationId: "getReport",
           tags: ["Reports"],
           summary: "Get one report",
-          description: "Returns report Markdown with workspace and home paths redacted.",
+          description:
+            "Returns report Markdown. Links to workspace PDFs point at `/api/v1/artifacts/{id}/download`; other local links become their text, and local paths become `[local path]`.",
           security: protectedSecurity,
           parameters: [idParameter("Report ID.", "^report_\\d{3,6}$")],
           responses: {

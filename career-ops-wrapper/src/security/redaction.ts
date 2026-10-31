@@ -1,6 +1,3 @@
-import { homedir } from "node:os";
-
-
 const REDACTED = "[REDACTED]";
 
 export interface RedactionOptions {
@@ -25,35 +22,4 @@ export function redactSensitiveText(value: string, options: RedactionOptions = {
 
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-export interface LocalValueRedactionOptions {
-  /** Configured and real workspace paths; replaced with `[WORKSPACE]`. */
-  readonly workspacePaths: readonly string[];
-  /** Literal secrets such as the pairing token; replaced with `[REDACTED]`. */
-  readonly secrets: readonly string[];
-}
-
-/**
- * Redacts token patterns, literal secrets, workspace paths, and the home
- * directory from text that may be returned to clients.
- */
-export function redactLocalValues(value: string, options: LocalValueRedactionOptions): string {
-  let text = redactSensitiveText(value);
-
-  for (const secret of options.secrets) {
-    if (secret) {
-      text = text.split(secret).join(REDACTED);
-    }
-  }
-
-  const workspacePaths = [...options.workspacePaths]
-    .filter((candidate) => candidate.length > 1)
-    .sort((left, right) => right.length - left.length);
-  for (const workspacePath of workspacePaths) {
-    text = text.split(workspacePath).join("[WORKSPACE]");
-  }
-
-  const home = homedir();
-  return home.length > 1 ? text.split(home).join("[HOME]") : text;
 }
