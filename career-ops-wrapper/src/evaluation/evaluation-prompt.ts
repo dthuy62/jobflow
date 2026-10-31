@@ -116,7 +116,14 @@ export function buildEvaluationPrompt(
 
 function block(name: string, content: string, nonce: string): string {
   const closing = new RegExp(`</\\s*${name}`, "gi");
-  return `<${name} nonce="${nonce}">\n${content.replace(closing, "")}\n</${name} nonce="${nonce}">`;
+  // Repeat until nothing changes: one pass could join the leftover pieces of
+  // a nested tag (`</</job_postingjob_posting>`) into a new closing tag.
+  let fenced = content;
+  for (let previous = ""; previous !== fenced; ) {
+    previous = fenced;
+    fenced = fenced.replace(closing, "");
+  }
+  return `<${name} nonce="${nonce}">\n${fenced}\n</${name} nonce="${nonce}">`;
 }
 
 async function readInput(workspace: string, relativePath: string, maxBytes: number): Promise<ReadOutcome> {
