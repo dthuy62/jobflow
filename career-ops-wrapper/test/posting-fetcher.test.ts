@@ -260,6 +260,11 @@ describe("htmlToText", () => {
     expect(htmlToText(`<p>A</p><svg/><p>B</p><svg><path d="x"/></svg><p>C</p>`)).toBe("A\nB\nC");
   });
 
+  it("honours `/>` only on svg, as HTML does", () => {
+    expect(htmlToText('<p>A</p><script src=/js/app.js/>var s="<p>leak</p>";</script><p>B</p>')).toBe("A\nB");
+    expect(htmlToText("<p>A</p><iframe src=https://x.example/embed/>fallback</iframe><p>B</p>")).toBe("A\nB");
+  });
+
   it("skips doctype, processing instructions and CDATA markers", () => {
     expect(htmlToText("<!DOCTYPE html><html><body><p>Role</p></body></html>")).toBe("Role");
     expect(htmlToText('<?xml version="1.0"?><p>Role</p><![CDATA[x]]>')).toBe("Role");

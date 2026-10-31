@@ -113,8 +113,9 @@ function scan(html: string, collectJsonLd: boolean): { text: string; jsonLd: str
     position = tagEnd + 1;
 
     if (!isClosing && DROPPED_ELEMENTS.has(name)) {
-      if (html[tagEnd - 1] === "/") {
-        // Self-closing (`<svg … />`): no content to drop.
+      if (name === "svg" && html[tagEnd - 1] === "/") {
+        // `<svg … />` is empty (SVG honours `/>`; HTML elements such as
+        // `<script … />` still open, so they fall through to the search below).
         continue;
       }
       const closing = findClosingTag(html, name, position);
