@@ -172,6 +172,7 @@ against these rules in order; the first match wins **(builder's call)**:
 
 | Category | Matches (summary) | Warning sentence |
 | --- | --- | --- |
+| `api-fallback` | starts with `local parser failed, used API fallback` (jobs were still fetched) | `<Company>: the local parser failed, so jobs were fetched through the API instead.` |
 | `timeout` | `timeout`, `timed out`, `ETIMEDOUT`, `abort` | `<Company>: the careers page timed out.` |
 | `blocked` | status `401`, `403`, `429`, `forbidden`, `unauthorized`, `rate limit`, `too many requests`, `captcha`, `blocked` | `<Company>: the careers page blocked the request.` |
 | `not-found` | status `404`, `410`, `not found` | `<Company>: the careers page was not found.` |
@@ -207,13 +208,15 @@ most one fixed reason picked from stderr **(builder's call)**:
 | Non-zero exit | `Career Ops scan exited with code <n>.` |
 | Killed by a signal | `Career Ops scan was stopped by <SIGNAME>.` (`a signal` unless the name matches `^SIG[A-Z0-9]+$`) |
 
-Stderr reasons, appended after a space:
+Stderr reasons, appended after a space. Each pattern must start a stderr line,
+matching the exact `Error:` lines `scan.mjs` prints before it exits, so the
+same words inside a `Fatal:` or `⚠️` line add no reason:
 
-| stderr contains | Reason |
+| stderr line starts with | Reason |
 | --- | --- |
-| `portals.yml not found` | `portals.yml was not found.` |
-| `failed to parse` | `portals.yml could not be parsed.` |
-| `no providers loaded` | `No scan providers could be loaded.` |
+| `Error: portals.yml not found` | `portals.yml was not found.` |
+| `Error: failed to parse <…>portals.yml: ` | `portals.yml could not be parsed.` |
+| `Error: no providers loaded` | `No scan providers could be loaded.` |
 
 Anything else in stderr adds no reason.
 

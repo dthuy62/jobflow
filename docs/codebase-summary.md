@@ -93,7 +93,9 @@ Security and safety mechanisms:
   verifies written content.
 - Error mapping returns stable API error codes.
 - Scan execution spawns only `scan.mjs` with `--dry-run`/`--company`, no shell,
-  a timeout, and redacted bounded output.
+  a timeout, and bounded output. Raw stdout/stderr never reach clients: scan
+  warnings and failures are fixed sentences built from `portals.yml` company
+  names, an error category, and counts (`scan-diagnostics.ts`).
 - Reads of `data/`, `reports/`, and `output/` are size-capped and skip
   symlinks that leave the workspace.
 - `test/security-boundaries.test.ts` checks token enforcement on every

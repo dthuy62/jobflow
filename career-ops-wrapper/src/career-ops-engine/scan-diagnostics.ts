@@ -9,6 +9,7 @@ import type { ScanProcessResult } from "./career-ops-engine-adapter.js";
 export const SCAN_WARNINGS_LIMIT = 20;
 
 export const SCAN_ERROR_CATEGORIES = [
+  "api-fallback",
   "timeout",
   "blocked",
   "not-found",
@@ -22,6 +23,9 @@ export type ScanErrorCategory = (typeof SCAN_ERROR_CATEGORIES)[number];
 
 // First match wins, so the more specific categories come first.
 const CATEGORY_RULES: ReadonlyArray<readonly [Exclude<ScanErrorCategory, "other">, RegExp]> = [
+  // scan.mjs reports a local parser that failed over to its API provider as an
+  // error, although the company's jobs were fetched.
+  ["api-fallback", /^local parser failed, used API fallback\b/i],
   ["timeout", /time[d-]?\s?out|\babort/i],
   ["blocked", /\b(?:401|403|429)\b|forbidden|unauthori[sz]ed|rate.?limit|too many requests|captcha|blocked/i],
   ["not-found", /\b(?:404|410)\b|not\s+found/i],
@@ -37,6 +41,7 @@ const CATEGORY_RULES: ReadonlyArray<readonly [Exclude<ScanErrorCategory, "other"
 ];
 
 const CATEGORY_SENTENCES: Readonly<Record<ScanErrorCategory, string>> = {
+  "api-fallback": "the local parser failed, so jobs were fetched through the API instead.",
   timeout: "the careers page timed out.",
   blocked: "the careers page blocked the request.",
   "not-found": "the careers page was not found.",
@@ -46,10 +51,11 @@ const CATEGORY_SENTENCES: Readonly<Record<ScanErrorCategory, string>> = {
   other: "the scan failed for this company."
 };
 
+// Anchored to the exact `Error:` lines scan.mjs prints before exiting.
 const FAILURE_REASONS: ReadonlyArray<readonly [RegExp, string]> = [
-  [/portals\.ya?ml not found/i, "portals.yml was not found."],
-  [/failed to parse/i, "portals.yml could not be parsed."],
-  [/no providers loaded/i, "No scan providers could be loaded."]
+  [/^Error: portals\.ya?ml not found/m, "portals.yml was not found."],
+  [/^Error: failed to parse \S*portals\.ya?ml: /m, "portals.yml could not be parsed."],
+  [/^Error: no providers loaded/m, "No scan providers could be loaded."]
 ];
 
 /**

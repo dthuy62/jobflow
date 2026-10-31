@@ -94,6 +94,8 @@ describe("classifyScanError", () => {
     ["lever: URL must use HTTPS: http://x", "config-error"],
     ['workable: untrusted hostname "evil.example"', "config-error"],
     ["local-parser: parser.command is required", "config-error"],
+    ["local parser failed, used API fallback: HTTP 503", "api-fallback"],
+    ["local parser failed, used API fallback: Unexpected token < in JSON", "api-fallback"],
     ["something odd", "other"],
     ["", "other"]
   ])("classifies %j as %s", (text, category) => {
@@ -114,6 +116,12 @@ describe("buildScanWarnings", () => {
       "Globex Labs: the careers page could not be fetched.",
       "Acme Robotics: the careers page timed out.",
       "Globex: the careers page was not found."
+    ]);
+  });
+
+  it("reports a local-parser fallback as a fallback, not a failed fetch", () => {
+    expect(warningsFor("  ✗ Acme Robotics: local parser failed, used API fallback: HTTP 503")).toEqual([
+      "Acme Robotics: the local parser failed, so jobs were fetched through the API instead."
     ]);
   });
 
@@ -250,12 +258,25 @@ describe("describeScanFailure", () => {
 
   it.each([
     ["Error: portals.yml not found. Run onboarding first.", "portals.yml was not found."],
-    ["Error: failed to parse /Users/jane/career-ops/portals.yml: bad indentation", "portals.yml could not be parsed."],
+    ["Error: failed to parse portals.yml: bad indentation", "portals.yml could not be parsed."],
+    ["⚠️  x\nError: failed to parse /Users/jane/career-ops/portals.yml: bad indentation", "portals.yml could not be parsed."],
     ["Error: no providers loaded from providers/", "No scan providers could be loaded."]
   ])("adds a fixed reason for %j", (stderr, reason) => {
     expect(describeScanFailure(processResult({ exitCode: 1, stderr }), 1000)).toEqual({
       code: "COMMAND_FAILED",
       message: `Career Ops scan exited with code 1. ${reason}`
+    });
+  });
+
+  it.each([
+    ["Fatal: Failed to parse URL from not a url"],
+    ['⚠️  greenhouse: detect() threw for "Acme" — Failed to parse URL from x\nFatal: EACCES: permission denied'],
+    ["Fatal: Error: portals.yml not found"],
+    ["⚠️  local-parser: no providers loaded yet"]
+  ])("adds no reason when %j only mentions one in passing", (stderr) => {
+    expect(describeScanFailure(processResult({ exitCode: 1, stderr }), 1000)).toEqual({
+      code: "COMMAND_FAILED",
+      message: "Career Ops scan exited with code 1."
     });
   });
 });
