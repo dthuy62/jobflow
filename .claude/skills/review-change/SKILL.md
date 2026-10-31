@@ -15,15 +15,33 @@ findings and never argue a finding away; a verifier decides.
 Impact comes from tools first (Layer 1), judgment second (Layer 2). Every
 finding is reproduced before anyone fixes it (Layer 3).
 
-A full run costs about five single-reviewer reviews (see `EVALUATION.md`).
-The impact map, not your sense of the change's size, decides which reviewers run.
+A full run costs about five single-reviewer reviews (see `EVALUATION.md`), so
+the depth of the review scales with the change. The impact map, not your sense
+of the change's size, picks the tier.
 
-## Docs-only light mode
+## Tiers
 
-When the impact map says `Mode: docs-only`, run Layer 0 and the Spec reviewer
-only (no Impact or Tests reviewer), then Layers 3–5 for its findings as usual.
-The script decides, not you. A change is docs-only when every changed path
-(including the old path of a rename) is documentation:
+The map prints `Tier: S|M|L (reasons)`:
+
+| Tier | When (decided by the script) | Reviewers | Rounds | Verify |
+| --- | --- | --- | --- | --- |
+| S | docs-only (below) | Spec | 1 | MEDIUM and above |
+| M | only tier-M risk areas (`routes` edits without route changes, `openapi`, `untrusted-input`, `schema-parse`) or none, ≤ 300 changed non-test lines, not spanning wrapper and Android | Standard (`reviewer-standard.md`: spec, tests and the map's risk questions in one pass) | 1 | MEDIUM and above |
+| L | any other risk area (security, process spawn, workspace IO/writes, auth/token, env, redaction, config, contracts, Android remote, CI), routes added/removed/changed, wrapper + Android together, or > 300 changed non-test lines | Spec, Impact, Tests, plus mandatory reviewers | up to 3 | all |
+
+Rules for every tier:
+
+- **Escalate, never downgrade.** If a reviewer reports a HIGH finding, a
+  security boundary or a contract break, re-run at tier L. The owner can also
+  ask for a higher tier.
+- **LOW findings do not start another round.** Fix them in the same commit
+  only if trivial; otherwise list them as follow-ups in the owner report.
+- **Scope notes are reported, not fixed.**
+
+## Docs-only (tier S)
+
+A change is docs-only when every changed path (including the old path of a
+rename) is documentation:
 
 - a `.md` file (a script or config file under `docs/` is not documentation);
 - but never agent instructions (`AGENTS.md`, `CLAUDE.md`, or a file under
@@ -31,7 +49,7 @@ The script decides, not you. A change is docs-only when every changed path
   (workflows, PR template), or a file under any `src/`, `contracts/` or
   `fixtures/` directory (shipped content, contract examples, test input).
 
-One non-documentation file in the diff means a full run.
+One non-documentation file in the diff means tier M or L.
 
 ## Setup
 
@@ -97,10 +115,11 @@ Do not invoke skills.
 
 | Role | File | Runs |
 | --- | --- | --- |
-| Spec | `reviewer-spec.md` | always |
-| Impact | `reviewer-impact.md` | full mode |
-| Tests | `reviewer-tests.md` | full mode |
-| Security | `reviewer-security.md` | when listed in Mandatory reviewers |
+| Spec | `reviewer-spec.md` | tiers S and L |
+| Standard | `reviewer-standard.md` | tier M (its only reviewer) |
+| Impact | `reviewer-impact.md` | tier L |
+| Tests | `reviewer-tests.md` | tier L |
+| Security | `reviewer-security.md` | tier L, when listed in Mandatory reviewers |
 
 A reviewer prompt contains: the role file, the paths, the format. It does not
 contain your summary of the change, your design reasons, what you already
@@ -125,8 +144,10 @@ file when there are many). Outcomes:
 
 You (the writer) fix CONFIRMED findings test-first: the verifier's
 reproduction becomes the failing test, then the fix. Commit, then re-run
-Layers 0–3 on the fix diff only (`--base <head before fixes>`). At most 3
-rounds; after round 3, stop and escalate open findings to the owner.
+Layers 0–3 on the fix diff only (`--base <head before fixes>`). Tiers S and M
+get one round: fix confirmed MEDIUM+ findings, run the gates, and report; do
+not re-review unless the fix itself lands in a tier L area. Tier L gets at
+most 3 rounds; after round 3, stop and escalate open findings to the owner.
 
 ## Layer 5: owner report
 
@@ -143,7 +164,8 @@ reviewer / Verification) or a PR comment.
 | "This finding is wrong, I'll drop it" | Only a verifier drops findings. |
 | "I'll give the reviewer context so it's faster" | Context from the writer anchors the reviewer. Paths only. |
 | "Round 4 will fix it" | Three rounds, then escalate. |
-| "It's mostly docs, light mode is enough" | Only `Mode: docs-only` in the map allows it. |
+| "It's small, tier M is enough" | The map picks the tier. You may only raise it. |
+| "One more round for this LOW finding" | LOW findings become follow-ups, not rounds. |
 
 ## Common mistakes
 

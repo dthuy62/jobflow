@@ -54,6 +54,11 @@ const MANDATORY_REVIEWER = {
   config: "security"
 };
 
+/** Risk areas a tier M change may touch; any other risk area makes it tier L. */
+const TIER_M_RISKS = new Set(["routes", "openapi", "untrusted-input", "schema-parse"]);
+/** Non-test changed lines above which a change is tier L regardless of area. */
+const TIER_L_LINES = 300;
+
 /** Risk area → the question its reviewer must answer for this change. */
 const RISK_CHECKS = {
   security: "Do path containment, redaction and token checks still hold for every caller?",
@@ -131,6 +136,7 @@ function analyzeFile(file) {
   return {
     ...file,
     isTest,
+    changedLines: isTest ? 0 : touched.length,
     risks: [...risks].sort(),
     symbols,
     routes,
@@ -201,15 +207,35 @@ function buildReport(fileReports) {
     }
   }
 
-  const reviewers = new Set(docsOnly ? ["spec"] : ["spec", "impact", "tests"]);
-  for (const area of risks.keys()) if (MANDATORY_REVIEWER[area]) reviewers.add(MANDATORY_REVIEWER[area]);
-  if (routes.some((route) => route.side === "+")) reviewers.add("security");
+  const tierReasons = [];
+  let tier = "M";
+  if (docsOnly) {
+    tier = "S";
+    tierReasons.push("docs-only");
+  } else {
+    const highRisk = [...risks.keys()].filter((area) => !TIER_M_RISKS.has(area));
+    const changedLines = fileReports.reduce((sum, file) => sum + file.changedLines, 0);
+    if (highRisk.length) tierReasons.push(`high-risk areas: ${highRisk.join(", ")}`);
+    if (routes.length) tierReasons.push("routes added or removed");
+    if (components.has("android") && (components.has("wrapper") || components.has("contracts"))) tierReasons.push("spans wrapper and Android");
+    if (changedLines > TIER_L_LINES) tierReasons.push(`${changedLines} changed non-test lines (> ${TIER_L_LINES})`);
+    if (tierReasons.length) tier = "L";
+    else tierReasons.push(risks.size ? `only tier-M risk areas: ${[...risks.keys()].join(", ")}` : "no risk areas");
+  }
+
+  const reviewers = new Set(tier === "S" ? ["spec"] : tier === "M" ? ["standard"] : ["spec", "impact", "tests"]);
+  if (tier === "L") {
+    for (const area of risks.keys()) if (MANDATORY_REVIEWER[area]) reviewers.add(MANDATORY_REVIEWER[area]);
+    if (routes.some((route) => route.side === "+")) reviewers.add("security");
+  }
 
   const androidChecklist = components.has("android") ? "android/.claude/skills/android-agentic-starter/references/review-checklist.md" : null;
 
   return {
     range: { base: args.base, head, baseSha: git(["rev-parse", args.base]).trim(), headSha: git(["rev-parse", head]).trim() },
     mode: docsOnly ? "docs-only" : "full",
+    tier,
+    tierReasons,
     components: [...components].sort(),
     gates,
     reviewers: [...reviewers],
@@ -228,7 +254,7 @@ function buildReport(fileReports) {
 function renderMarkdown(report) {
   const out = [];
   out.push(`# Impact map ${report.range.baseSha.slice(0, 7)}..${report.range.headSha.slice(0, 7)}`, "");
-  out.push(`Mode: ${report.mode === "docs-only" ? "docs-only (Layer 0 + Spec reviewer)" : "full"}`);
+  out.push(`Tier: ${report.tier} (${report.tierReasons.join("; ")})`);
   out.push(`Components: ${report.components.join(", ") || "none"}`);
   out.push(`Mandatory reviewers: ${report.reviewers.join(", ")}`);
   if (report.androidChecklist) out.push(`Android checklist: ${report.androidChecklist}`);

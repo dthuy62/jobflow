@@ -46,6 +46,7 @@ test("maps changed symbols, routes, schemas, Android DTOs and risk reviewers", (
     assert.deepEqual(report.components, ["wrapper"]);
     assert.deepEqual(report.gates, ["cd career-ops-wrapper && npm test && npm run build"]);
     assert.ok(report.reviewers.includes("security"), "new route requires the security reviewer");
+    assert.equal(report.tier, "L");
     assert.deepEqual(report.routes.map(({ method, path: route, side }) => `${side}${method} ${route}`), ["+GET /offers"]);
 
     const listOffers = report.symbols.find((symbol) => symbol.name === "listOffers");
@@ -256,6 +257,7 @@ test("runs Layer 0 and the Spec reviewer only for a docs-only change", () => {
     "career-ops-wrapper/README.md": { before: "a\n", after: "b\n" }
   });
   assert.equal(report.mode, "docs-only");
+  assert.equal(report.tier, "S");
   assert.deepEqual(report.reviewers, ["spec"]);
   assert.deepEqual(report.gates, []);
 });
@@ -276,6 +278,42 @@ test("keeps the full review when a Markdown change is not plain documentation", 
   for (const files of cases) {
     const report = mapAfterCommit(files);
     assert.equal(report.mode, "full", Object.keys(files).join(", "));
-    assert.deepEqual(report.reviewers.slice(0, 3), ["spec", "impact", "tests"]);
+    assert.notEqual(report.tier, "S", Object.keys(files).join(", "));
+    assert.notDeepEqual(report.reviewers, ["spec"], Object.keys(files).join(", "));
+  }
+});
+
+test("uses tier M with one standard reviewer for a small change outside high-risk areas", () => {
+  const report = mapAfterCommit({
+    "career-ops-wrapper/src/services/offer-service.ts": { before: "export function a() {\n  return 1;\n}\n", after: "export function a() {\n  return 2;\n}\n" }
+  });
+  assert.equal(report.tier, "M");
+  assert.deepEqual(report.reviewers, ["standard"]);
+  assert.ok(report.tierReasons.length > 0);
+
+  const androidUi = mapAfterCommit({
+    "android/app/src/main/kotlin/me/x/ui/home/HomeScreen.kt": { before: "val a = 1\n", after: "val a = 2\n" }
+  });
+  assert.equal(androidUi.tier, "M");
+});
+
+test("uses tier L with the full panel for high-risk areas, contracts, Android, CI and size", () => {
+  const big = Array.from({ length: 301 }, (_, i) => `export const v${i} = ${i};`).join("\n") + "\n";
+  const cases = [
+    { "career-ops-wrapper/src/security/redaction.ts": { before: "export const a = 1;\n", after: "export const a = 2;\n" } },
+    { "career-ops-wrapper/src/career-ops-engine/x.ts": { before: "export const a = 1;\n", after: "export const a = 2;\n" } },
+    { "career-ops-wrapper/contracts/examples/offer.valid.json": { before: "{}\n", after: "{\"id\":\"o\"}\n" } },
+    { ".github/workflows/x.yml": { before: "a: 1\n", after: "a: 2\n" } },
+    { "android/app/src/main/kotlin/me/x/data/remote/Api.kt": { before: "val a = 1\n", after: "val a = 2\n" } },
+    {
+      "android/app/src/main/kotlin/me/x/ui/home/HomeScreen.kt": { before: "val a = 1\n", after: "val a = 2\n" },
+      "career-ops-wrapper/src/services/offer-service.ts": { before: "export const a = 1;\n", after: "export const a = 2;\n" }
+    },
+    { "career-ops-wrapper/src/services/big.ts": { before: "export const z = 0;\n", after: big } }
+  ];
+  for (const files of cases) {
+    const report = mapAfterCommit(files);
+    assert.equal(report.tier, "L", Object.keys(files).join(", "));
+    assert.deepEqual(report.reviewers.slice(0, 3), ["spec", "impact", "tests"], Object.keys(files).join(", "));
   }
 });
