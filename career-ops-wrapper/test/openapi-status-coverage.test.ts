@@ -37,7 +37,12 @@ const operations: readonly CoveredOperation[] = [
     method: "get",
     path: "/api/v1/health",
     successStatus: "200",
-    sources: ["src/api/health-routes.ts", "src/services/health-service.ts"]
+    sources: ["src/api/health-routes.ts", "src/services/health-service.ts"],
+    unreachable: {
+      PATH_OUTSIDE_WORKSPACE: "Evaluation readiness turns unreadable files into checklist entries.",
+      PAYLOAD_TOO_LARGE: "Evaluation readiness turns oversized files into checklist entries.",
+      WORKSPACE_UNHEALTHY: "Evaluation readiness turns unreadable files into checklist entries."
+    }
   },
   {
     method: "get",

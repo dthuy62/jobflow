@@ -198,9 +198,10 @@ async function removeSentinel(workspace: string, name: string): Promise<void> {
     return;
   }
   try {
-    await rm(await resolveWorkspaceRelativePath(workspace, `reports/${name}`), { force: true });
+    // Unlink the name inside reports/ (a symlink is removed, never followed).
+    await rm(path.join(await resolveWorkspaceRelativePath(workspace, "reports"), name), { force: true });
   } catch {
-    // Already gone, or outside the workspace (never removed).
+    // Already gone, or reports/ is outside the workspace (nothing removed).
   }
 }
 
