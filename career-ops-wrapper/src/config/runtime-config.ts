@@ -1,5 +1,12 @@
 import { parseCliArgs } from "./cli-args.js";
-import { loadEnvConfig } from "./env.js";
+import { loadEnvConfig, type EvaluationProvider } from "./env.js";
+
+export interface EvaluationConfig {
+  readonly provider: EvaluationProvider;
+  readonly timeoutMs: number;
+  /** Absolute CLI path; resolved from `PATH` when absent. */
+  readonly cliPath?: string;
+}
 
 export interface RuntimeConfig {
   readonly host: string;
@@ -8,9 +15,12 @@ export interface RuntimeConfig {
   readonly pairingToken?: string;
   /** Scan run timeout; defaults to {@link DEFAULT_SCAN_TIMEOUT_MS}. */
   readonly scanTimeoutMs?: number;
+  /** AI offer evaluation; absent when no provider is configured (disabled). */
+  readonly evaluation?: EvaluationConfig;
 }
 
 export const DEFAULT_SCAN_TIMEOUT_MS = 10 * 60 * 1000;
+export const DEFAULT_EVALUATION_TIMEOUT_MS = 15 * 60 * 1000;
 
 export interface LoadRuntimeConfigOptions {
   readonly argv?: readonly string[];
@@ -35,6 +45,16 @@ export function loadRuntimeConfig(options: LoadRuntimeConfigOptions = {}): Runti
 
   if (envConfig.scanTimeoutMs) {
     Object.assign(config, { scanTimeoutMs: envConfig.scanTimeoutMs });
+  }
+
+  if (envConfig.evaluationProvider) {
+    Object.assign(config, {
+      evaluation: {
+        provider: envConfig.evaluationProvider,
+        timeoutMs: envConfig.evaluationTimeoutMs ?? DEFAULT_EVALUATION_TIMEOUT_MS,
+        ...(envConfig.evaluationCliPath ? { cliPath: envConfig.evaluationCliPath } : {})
+      }
+    });
   }
 
   return config;
