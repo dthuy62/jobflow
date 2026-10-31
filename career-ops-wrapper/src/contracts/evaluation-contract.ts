@@ -61,7 +61,10 @@ export const EvaluationDtoSchema = z.object({
 
 export type EvaluationDto = z.infer<typeof EvaluationDtoSchema>;
 
-export const StartEvaluationRequestDtoSchema = z.object({ offerId: OpaqueIdSchema }).strict();
+/** Offer IDs are `offer_` plus a 16-hex hash (see `offerIdForUrl`). */
+export const StartEvaluationRequestDtoSchema = z
+  .object({ offerId: z.string().regex(/^offer_[a-f0-9]{16}$/, "offerId is not an offer ID.") })
+  .strict();
 export type StartEvaluationRequestDto = z.infer<typeof StartEvaluationRequestDtoSchema>;
 
 export const EVALUATION_LEGITIMACY = ["High Confidence", "Proceed with Caution", "Suspicious"] as const;

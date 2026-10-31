@@ -37,6 +37,8 @@ export type PostingResult =
 
 export interface FetchPostingOptions {
   readonly timeoutMs?: number;
+  /** Aborting stops the fetch (it then ends as `timeout`). */
+  readonly signal?: AbortSignal;
   /** Test seam: resolves a hostname to every address. */
   readonly resolve?: (hostname: string) => Promise<LookupAddress[]>;
   /** Test seam: the address policy. */
@@ -56,6 +58,11 @@ export async function fetchPostingText(rawUrl: string, options: FetchPostingOpti
   const resolve = options.resolve ?? resolveAll;
   const deadline = new AbortController();
   const timer = setTimeout(() => deadline.abort(), options.timeoutMs ?? POSTING_TIMEOUT_MS);
+  const onAbort = (): void => deadline.abort();
+  options.signal?.addEventListener("abort", onAbort, { once: true });
+  if (options.signal?.aborted) {
+    deadline.abort();
+  }
 
   try {
     let url = parsePostingUrl(rawUrl, options.allowAnyPort === true);
@@ -82,6 +89,7 @@ export async function fetchPostingText(rawUrl: string, options: FetchPostingOpti
     return { ok: false, reason: deadline.signal.aborted ? "timeout" : "network" };
   } finally {
     clearTimeout(timer);
+    options.signal?.removeEventListener("abort", onAbort);
   }
 }
 

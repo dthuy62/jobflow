@@ -6,6 +6,7 @@ import {
   ArtifactCollectionDtoSchema,
   CvDtoSchema,
   ErrorResponseDtoSchema,
+  EvaluationDtoSchema,
   HealthDtoSchema,
   OfferCollectionDtoSchema,
   OfferDtoSchema,
@@ -18,6 +19,7 @@ import {
   SaveProfileRequestDtoSchema,
   ScanReadinessDtoSchema,
   ScanRunDtoSchema,
+  StartEvaluationRequestDtoSchema,
   StartScanRunRequestDtoSchema
 } from "../contracts/index.js";
 
@@ -175,6 +177,15 @@ const examples = {
     readJsonExample("contracts/examples/errors/scan-already-running.json")
   ),
   scanNotReadyError: ErrorResponseDtoSchema.parse(readJsonExample("contracts/examples/errors/scan-not-ready.json")),
+  evaluationRunning: EvaluationDtoSchema.parse(readJsonExample("contracts/examples/evaluation.running.json")),
+  evaluationSucceeded: EvaluationDtoSchema.parse(readJsonExample("contracts/examples/evaluation.succeeded.json")),
+  evaluationFailed: EvaluationDtoSchema.parse(readJsonExample("contracts/examples/evaluation.failed.json")),
+  evaluationAlreadyRunningError: ErrorResponseDtoSchema.parse(
+    readJsonExample("contracts/examples/errors/evaluation-already-running.json")
+  ),
+  evaluationNotReadyError: ErrorResponseDtoSchema.parse(
+    readJsonExample("contracts/examples/errors/evaluation-not-ready.json")
+  ),
   notFoundError: ErrorResponseDtoSchema.parse(readJsonExample("contracts/examples/errors/not-found.json")),
   unexpectedError: ErrorResponseDtoSchema.parse({
     error: {
@@ -191,7 +202,7 @@ export function buildOpenApiDocument(options: BuildOpenApiDocumentOptions = {}):
       title: "Career Ops Wrapper API",
       version: "1.0.0",
       description:
-        "Local-first wrapper API for Career Ops Mobile. The documented surface covers setup/readiness, career inputs, scan runs, and read-only offer, report, and artifact projections. /docs and /openapi.json are public setup/developer endpoints and do not require the Local Pairing Token."
+        "Local-first wrapper API for Career Ops Mobile. The documented surface covers setup/readiness, career inputs, scan runs, AI offer evaluations, and read-only offer, report, and artifact projections. /docs and /openapi.json are public setup/developer endpoints and do not require the Local Pairing Token."
     },
     servers: [
       {
@@ -223,6 +234,11 @@ export function buildOpenApiDocument(options: BuildOpenApiDocumentOptions = {}):
       {
         name: "Scan Runs",
         description: "Start the local Career Ops scan.mjs with allowlisted options and poll its status"
+      },
+      {
+        name: "Evaluations",
+        description:
+          "Evaluate one offer with the desktop's logged-in AI CLI (provider chosen in desktop config) and poll its status"
       },
       {
         name: "Offers",
@@ -549,6 +565,84 @@ export function buildOpenApiDocument(options: BuildOpenApiDocumentOptions = {}):
           }
         }
       },
+      "/api/v1/evaluations": {
+        post: {
+          operationId: "startEvaluation",
+          tags: ["Evaluations"],
+          summary: "Evaluate an offer with the desktop AI CLI",
+          description:
+            "Starts one AI evaluation of a notEvaluated offer in the background. The wrapper fetches the offer's posting, runs a fixed AI CLI command with no tools, validates its JSON, and writes one report in reports/ plus one tracker row. The phone sends only offerId. One evaluation runs at a time; a scan may run at the same time. The result shows up in GET /api/v1/offers.",
+          security: protectedSecurity,
+          requestBody: jsonRequestBody("StartEvaluationRequestDto", {
+            offer: { summary: "Evaluate one offer", value: { offerId: "offer_5d9b8e7eb781eeca" } }
+          }),
+          responses: {
+            "202": evaluationResponse("Evaluation accepted and running."),
+            "400": errorResponse(
+              "Invalid request, or the offer has no URL or is already evaluated (details.reason).",
+              "validation",
+              "ValidationError"
+            ),
+            "401": unauthorizedResponse(),
+            "403": errorResponse("A source file resolves outside the workspace.", "outsideWorkspace", "PathOutsideWorkspaceError"),
+            "404": notFoundResponse("Offer was not found."),
+            "409": errorResponse("An evaluation is already running.", "alreadyRunning", "EvaluationAlreadyRunningError"),
+            "413": errorResponse("Request body or a source file is too large.", "tooLarge", "PayloadTooLargeError"),
+            "503": errorResponse("AI evaluation is not ready (details.missingRequirements).", "notReady", "EvaluationNotReadyError"),
+            "500": unexpectedResponse()
+          }
+        }
+      },
+      "/api/v1/evaluations/latest": {
+        get: {
+          operationId: "getLatestEvaluation",
+          tags: ["Evaluations"],
+          summary: "Get the latest evaluation",
+          description: "Returns the most recent evaluation since the wrapper started. Evaluations are kept in memory only.",
+          security: protectedSecurity,
+          responses: {
+            "200": evaluationResponse("Evaluation status."),
+            "401": unauthorizedResponse(),
+            "404": notFoundResponse("No evaluation since wrapper startup."),
+            "500": unexpectedResponse()
+          }
+        }
+      },
+      "/api/v1/evaluations/{id}": {
+        get: {
+          operationId: "getEvaluation",
+          tags: ["Evaluations"],
+          summary: "Get evaluation status",
+          description: "Returns one evaluation for polling. Failure messages are fixed sentences, never CLI output.",
+          security: protectedSecurity,
+          parameters: [idParameter("Evaluation ID.", "^eval_\\d{14}_[a-f0-9]{6}$")],
+          responses: {
+            "200": evaluationResponse("Evaluation status."),
+            "401": unauthorizedResponse(),
+            "400": malformedPathResponse(),
+            "404": notFoundResponse("Evaluation was not found."),
+            "500": unexpectedResponse()
+          }
+        }
+      },
+      "/api/v1/evaluations/{id}/cancel": {
+        post: {
+          operationId: "cancelEvaluation",
+          tags: ["Evaluations"],
+          summary: "Cancel an evaluation",
+          description:
+            "Stops a running evaluation before it starts writing; it then ends as cancelled and writes nothing. Once writing has started, and for finished evaluations, returns the evaluation unchanged.",
+          security: protectedSecurity,
+          parameters: [idParameter("Evaluation ID.", "^eval_\\d{14}_[a-f0-9]{6}$")],
+          responses: {
+            "200": evaluationResponse("Evaluation status after the cancel request."),
+            "401": unauthorizedResponse(),
+            "400": malformedPathResponse(),
+            "404": notFoundResponse("Evaluation was not found."),
+            "500": unexpectedResponse()
+          }
+        }
+      },
       "/api/v1/offers": {
         get: {
           operationId: "listOffers",
@@ -695,6 +789,8 @@ export function buildOpenApiDocument(options: BuildOpenApiDocumentOptions = {}):
         SaveProfileRequestDto: schemaFromZod(SaveProfileRequestDtoSchema),
         StartScanRunRequestDto: schemaFromZod(StartScanRunRequestDtoSchema),
         ScanRunDto: schemaFromZod(ScanRunDtoSchema),
+        StartEvaluationRequestDto: schemaFromZod(StartEvaluationRequestDtoSchema),
+        EvaluationDto: schemaFromZod(EvaluationDtoSchema),
         OfferDto: schemaFromZod(OfferDtoSchema),
         OfferCollectionDto: schemaFromZod(OfferCollectionDtoSchema),
         ReportCollectionDto: schemaFromZod(ReportCollectionDtoSchema),
@@ -774,6 +870,14 @@ export function buildOpenApiDocument(options: BuildOpenApiDocumentOptions = {}):
         ArtifactsCollection: { summary: "Generated PDFs", value: examples.artifactsCollection },
         ScanAlreadyRunningError: { summary: "A scan is already running", value: examples.scanAlreadyRunningError },
         ScanNotReadyError: { summary: "Scan readiness is not ready", value: examples.scanNotReadyError },
+        EvaluationRunning: { summary: "Evaluation in progress", value: examples.evaluationRunning },
+        EvaluationSucceeded: { summary: "Completed evaluation", value: examples.evaluationSucceeded },
+        EvaluationFailed: { summary: "Failed evaluation", value: examples.evaluationFailed },
+        EvaluationAlreadyRunningError: {
+          summary: "An evaluation is already running",
+          value: examples.evaluationAlreadyRunningError
+        },
+        EvaluationNotReadyError: { summary: "AI evaluation is not ready", value: examples.evaluationNotReadyError },
         NotFoundError: { summary: "Resource was not found", value: examples.notFoundError },
         UnexpectedError: {
           summary: "Unexpected wrapper error response",
@@ -828,6 +932,14 @@ function scanRunResponse(): OpenApiJsonResponse {
     running: exampleRef("ScanRunRunning"),
     succeeded: exampleRef("ScanRunSucceeded"),
     failed: exampleRef("ScanRunFailed")
+  });
+}
+
+function evaluationResponse(description: string): OpenApiJsonResponse {
+  return jsonResponse(description, "EvaluationDto", {
+    running: exampleRef("EvaluationRunning"),
+    succeeded: exampleRef("EvaluationSucceeded"),
+    failed: exampleRef("EvaluationFailed")
   });
 }
 
