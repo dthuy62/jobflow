@@ -1,4 +1,4 @@
-import { mkdtemp, realpath, rm, symlink, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, realpath, rm, symlink, writeFile } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -135,6 +135,44 @@ describe("report routes", () => {
       expect(reports.json().items).toHaveLength(3);
       expect(report.statusCode).toBe(200);
       expect(offers.statusCode).toBe(403);
+    });
+  });
+
+  it.each([
+    ["a directory", async (file: string) => { await rm(file); await mkdir(file); }],
+    ["a symlink loop", async (file: string) => { await rm(file); await symlink(file, file); }],
+    ["not readable", async (file: string) => { await chmod(file, 0o000); }]
+  ])("still lists reports and artifacts when the tracker is %s", async (_name, breakTracker) => {
+    const workspace = await copyProjectionFixture();
+    workspaces.push(workspace);
+    const tracker = path.join(workspace, "data/applications.md");
+    await breakTracker(tracker);
+
+    try {
+      await withServer(workspace, async (server) => {
+        const reports = await server.inject({ method: "GET", url: "/api/v1/reports" });
+        const artifacts = await server.inject({ method: "GET", url: "/api/v1/artifacts" });
+
+        expect(reports.statusCode).toBe(200);
+        expect(reports.json().items).toHaveLength(3);
+        expect(artifacts.statusCode).toBe(200);
+      });
+    } finally {
+      await chmod(tracker, 0o644).catch(() => undefined);
+    }
+  });
+
+  it("still returns WORKSPACE_UNHEALTHY when the workspace itself is missing", async () => {
+    const workspace = await copyProjectionFixture();
+    await rm(workspace, { recursive: true, force: true });
+
+    await withServer(workspace, async (server) => {
+      const reports = await server.inject({ method: "GET", url: "/api/v1/reports" });
+      const artifacts = await server.inject({ method: "GET", url: "/api/v1/artifacts" });
+
+      expect(reports.statusCode).toBe(503);
+      expect(reports.json().error.code).toBe("WORKSPACE_UNHEALTHY");
+      expect(artifacts.statusCode).toBe(503);
     });
   });
 

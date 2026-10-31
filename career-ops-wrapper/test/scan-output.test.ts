@@ -28,7 +28,21 @@ describe("sanitizeScanOutputLine", () => {
     ["Error:/opt/secret", "Error:[PATH]"],
     ["at 10:30 https://a.example/b", "at 10:30 https://a.example/b"],
     ["✗ Acme: failed `/opt/secret/creds.json`", "✗ Acme: failed `[PATH]"],
-    ["Acme: [/opt/secret/creds.json] missing", "Acme: [[PATH] missing"]
+    ["Acme: [/opt/secret/creds.json] missing", "Acme: [[PATH] missing"],
+    ["Acme: failed {/opt/secret/creds.json}", "Acme: failed {[PATH]"],
+    ["see </etc/passwd>", "see <[PATH]"],
+    ["a|/opt/secret/b", "a|[PATH]"],
+    ["a+/opt/secret/f", "a+[PATH]"],
+    ["a@/opt/secret/d", "a@[PATH]"],
+    ["a>/opt/secret/e", "a>[PATH]"],
+    ["‘/opt/x’ missing", "‘[PATH] missing"],
+    ["x]/opt/secret/g", "x][PATH]"],
+    ["[WORKSPACE]/data/a.md and [HOME]/x", "[WORKSPACE]/data/a.md and [HOME]/x"],
+    ["see https://jobs.example.com/a/b?x=/c", "see https://jobs.example.com/a/b?x=[PATH]"],
+    ["relative data/a.md ok", "relative data/a.md ok"],
+    ["✗ acme: fetch https://u:p@host/x failed", "✗ acme: fetch https://[REDACTED]@host/x failed"],
+    ["clone git+ssh://tok@github.com/a", "clone git+ssh://[REDACTED]@github.com/a"],
+    ["see https://host/a@b and mailto:a@b.com", "see https://host/a@b and mailto:a@b.com"]
   ])("sanitizes %j", (input, expected) => {
     expect(sanitizeScanOutputLine(input, options)).toBe(expected);
   });
