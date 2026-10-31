@@ -22,11 +22,15 @@ removed as a whole, and links are rebuilt from structured data (artifact IDs).
    `redactSensitiveText` and the literal pairing token become `[REDACTED]`;
    the literal also matches when Markdown escapes its punctuation
    (`tok\_x`). Then every occurrence of the home directory or a workspace
-   path variant (case-insensitive), together with the rest of its
-   whitespace-free run, becomes `[local path]`. The run stops at `)`, `]`,
-   `>`, `"` or a backtick, so a surrounding or following link survives. This runs on the whole text
-   because a value can contain a space (`/Users/jane/Career Ops`), which
-   the token pass below cannot see as one token.
+   path variant (configured, resolved, real) is replaced literally and
+   case-insensitively, longest first, by plain string search, whatever
+   characters surround it (`item 1)/Users/jane`, `build/USERS/JANE/x`, a value
+   with a space such as `/Users/jane/Career Ops`). Pass 3 treats the
+   replacement as the start of an absolute path, so the rest of the path goes
+   with it up to the next `](`: `/Users/jane/career-ops-old/cv.pdf`,
+   `/Users/jane/Job(s)/acme/cv.pdf` and `/Users/jane/Offer[Acme]/x.pdf` each
+   become one `[local path]`, while `[/Users/jane/x.pdf](../output/cv.pdf)`
+   keeps its rewritten artifact link.
 2. **Links.** Markdown links and images are rewritten or reduced to text (see
    below). This pass only adds one kind of path: the artifact download path.
 3. **Paths.** Every whitespace-separated token in the whole document,
@@ -186,6 +190,12 @@ HTML escapes). Others are known to get through:
   space (`/Users/Jane\nDoe/x`): the part after the line break stays.
 - The pairing token written with HTML character references or percent
   escapes (`tok&#95;secret`).
+- Another account's path glued to a word or punctuation with only one
+  segment after the root, or with a lowercase root (`item 1)/Users/bob`,
+  `a/users/bob/x`). The known-root rule is only a secondary net for paths
+  that are not the owner's; it is case-sensitive and needs two segments so
+  that prose survives. The owner's home and workspace are always removed by
+  the literal pass.
 - An absolute path outside the known roots, glued to a word
   (`a/srv2/data/x`).
 

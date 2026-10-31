@@ -243,6 +243,20 @@ describe("local paths in report text", () => {
     expect(sanitize(text)).toBe(text);
   });
 
+  it.each([
+    ["item 1)/Users/jane", "item 1)[local path]"],
+    ["(see)/Users/jane.", "(see)[local path]."],
+    ["build/USERS/JANE/cv.pdf", "build[local path]"],
+    ["Saved at /Users/jane/Documents/Job(s)/acme/cv.pdf today", "Saved at [local path] today"],
+    ["see /Users/jane/Jobs/Acme(Inc)/Offers/Salary.pdf now", "see [local path] now"],
+    ["see /Users/jane/Offer[Acme]/salary.pdf now", "see [local path] now"],
+    ['see /Users/jane/a"b/x.pdf now', "see [local path] now"],
+    ["(/Users/jane/Jobs/Acme)/Offers/cv.pdf", "([local path]"],
+    ["Sibling /Users/jane/career-ops-old/x and more", "Sibling [local path] and more"]
+  ])("removes a home or workspace value wherever it appears, with the rest of its path: %s", (input, expected) => {
+    expect(sanitize(input)).toBe(expected);
+  });
+
   it("keeps a rewritten link when its text or a neighbour holds the home path", () => {
     expect(sanitize(`[/Users/jane/x.pdf](../output/${CV})`)).toBe(`[[local path]](${CV_URL})`);
     expect(sanitize(`[a](/Users/jane/x.pdf)[cv](output/${CV})`)).toBe(`a[cv](${CV_URL})`);

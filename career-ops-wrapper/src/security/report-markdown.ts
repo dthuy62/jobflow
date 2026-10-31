@@ -35,17 +35,11 @@ export function sanitizeReportMarkdown(markdown: string, context: ReportMarkdown
   }
 
   const localValues = context.localValues.filter((value) => value.length > 1);
-  // A value with a space spans tokens, so remove each value with the rest of its
-  // token first. The run stops at a character that closes link or HTML syntax,
-  // so a surrounding or following link survives.
+  // Known values are replaced literally, wherever they appear and whatever
+  // surrounds them. Pass 3 treats the mark as a path start, so the rest of the
+  // path (`-old/cv.pdf`, `/Job(s)/x`) goes with it up to the next `](`.
   for (const value of [...localValues].sort((left, right) => right.length - left.length)) {
-    text = text.replace(new RegExp(`${escapeRegExp(value)}[^\\s)\\]>"\`]*`, "giu"), (match) => {
-      let end = match.length;
-      while (end > value.length && TRAILING.has(match[end - 1] as string)) {
-        end -= 1;
-      }
-      return MARK + match.slice(end);
-    });
+    text = replaceLiteral(text, value, MARK);
   }
 
   const lowerValues = localValues.map((value) => value.toLowerCase());
@@ -58,6 +52,22 @@ export function sanitizeReportMarkdown(markdown: string, context: ReportMarkdown
 
   const linked = rewriteLinks(text, (destination) => classifyDestination(destination, context, containsLocalValue));
   return removeLocalPaths(linked, containsLocalValue).replaceAll(MARK, LOCAL_PATH_PLACEHOLDER);
+}
+
+/** Replaces every case-insensitive occurrence of `value` with plain string search. */
+function replaceLiteral(text: string, value: string, replacement: string): string {
+  const lowerText = text.toLowerCase();
+  const lowerValue = value.toLowerCase();
+  if (lowerText.length !== text.length || lowerValue.length !== value.length) {
+    return text.split(value).join(replacement);
+  }
+  let result = "";
+  let cursor = 0;
+  for (let index = lowerText.indexOf(lowerValue); index !== -1; index = lowerText.indexOf(lowerValue, cursor)) {
+    result += text.slice(cursor, index) + replacement;
+    cursor = index + value.length;
+  }
+  return result + text.slice(cursor);
 }
 
 /** Matches `literal` also when Markdown escapes its punctuation (`tok\_x`). */
@@ -535,6 +545,9 @@ function stripUserinfo(url: string): string {
 function findAbsolutePathStart(body: string, from: number, to: number): number | undefined {
   for (let index = from; index < to; index += 1) {
     const char = body[index] as string;
+    if (char === MARK) {
+      return index;
+    }
     if (char === "/" || char === "\\") {
       let runEnd = index;
       let hasSlash = false;
