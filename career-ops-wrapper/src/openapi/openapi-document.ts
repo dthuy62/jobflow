@@ -543,6 +543,7 @@ export function buildOpenApiDocument(options: BuildOpenApiDocumentOptions = {}):
           responses: {
             "200": scanRunResponse(),
             "401": unauthorizedResponse(),
+            "400": malformedPathResponse(),
             "404": notFoundResponse("Scan run was not found."),
             "500": unexpectedResponse()
           }
@@ -582,6 +583,7 @@ export function buildOpenApiDocument(options: BuildOpenApiDocumentOptions = {}):
               notEvaluated: exampleRef("OfferNotEvaluated")
             }),
             "401": unauthorizedResponse(),
+            "400": malformedPathResponse(),
             "403": errorResponse("A source file resolves outside the workspace.", "outsideWorkspace", "PathOutsideWorkspaceError"),
             "404": notFoundResponse("Offer was not found."),
             "413": errorResponse("A source file is too large.", "tooLarge", "PayloadTooLargeError"),
@@ -620,6 +622,7 @@ export function buildOpenApiDocument(options: BuildOpenApiDocumentOptions = {}):
               report: exampleRef("ReportDetail")
             }),
             "401": unauthorizedResponse(),
+            "400": malformedPathResponse(),
             "404": notFoundResponse("Report was not found."),
             "413": errorResponse("Report Markdown is over 1 MiB.", "tooLarge", "PayloadTooLargeError"),
             "503": workspaceResponse(),
@@ -661,6 +664,7 @@ export function buildOpenApiDocument(options: BuildOpenApiDocumentOptions = {}):
               content: { "application/pdf": { schema: { type: "string", format: "binary" } } }
             },
             "401": unauthorizedResponse(),
+            "400": malformedPathResponse(),
             "404": notFoundResponse("Artifact was not found."),
             "503": workspaceResponse(),
             "500": unexpectedResponse()
@@ -670,6 +674,16 @@ export function buildOpenApiDocument(options: BuildOpenApiDocumentOptions = {}):
     },
     components: {
       schemas: {
+        FrameworkErrorDto: {
+          type: "object",
+          description: "Fastify's default error body, returned before routing (for example malformed percent-encoding in the path). Not the API error envelope.",
+          required: ["statusCode", "error", "message"],
+          properties: {
+            statusCode: { type: "integer" },
+            error: { type: "string" },
+            message: { type: "string" }
+          }
+        },
         HealthDto: schemaFromZod(HealthDtoSchema),
         CvDto: schemaFromZod(CvDtoSchema),
         ProfileDto: schemaFromZod(ProfileDtoSchema),
@@ -786,6 +800,10 @@ function exampleRef(name: string): { readonly $ref: string } {
 
 function errorResponse(description: string, key: string, exampleName: string): OpenApiJsonResponse {
   return jsonResponse(description, "ErrorResponseDto", { [key]: exampleRef(exampleName) });
+}
+
+function malformedPathResponse(): OpenApiJsonResponse {
+  return jsonResponse("Malformed percent-encoding in the path; rejected before routing with the framework's error body.", "FrameworkErrorDto");
 }
 
 function unauthorizedResponse(): OpenApiJsonResponse {
