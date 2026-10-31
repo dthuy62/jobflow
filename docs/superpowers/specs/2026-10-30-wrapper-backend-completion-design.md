@@ -139,9 +139,11 @@ persistence)**.
 
 Every line that leaves the engine goes through `sanitizeScanOutputLine`:
 token patterns (existing `redactSensitiveText`), the configured workspace path
-and its real path → `[WORKSPACE]`, the home directory → `[HOME]`, any other
-absolute path token (`/x`, `~/x`, `C:\x`, `C:/x`, `file://…`, leading `//…`)
-→ `[PATH]`, `../` segments removed, dot runs collapsed, control characters
+and its real path → `[WORKSPACE]`, the home directory → `[HOME]`, URL
+userinfo (`https://user:pass@host`) → `[REDACTED]`, any other absolute path
+token (`/x`, `~/x`, `C:\x`, `C:/x`, `file://…`, leading `//…`) that does not
+continue a word or URL → `[PATH]` (a workspace or home path that climbs out
+with `..` also becomes `[PATH]`), `../` segments removed, dot runs collapsed, control characters
 stripped. A line that still fails `SanitizedTextSchema` or has no letters or
 digits is dropped, so one odd line can never make a run unreadable.
 
@@ -218,8 +220,8 @@ Missing files are treated as empty.
 - `GET /offers/{id}` → one `OfferDto` or `NOT_FOUND`.
 - File size caps: 10 MiB for `scan-history.tsv`, 2 MiB for each Markdown file;
   over the cap → `PAYLOAD_TOO_LARGE` on the offer routes. Report and artifact
-  routes treat an oversized data file as empty and only lose offer links
-  **(builder's call)**.
+  routes treat a data file that is oversized, unreadable, or resolves outside
+  the workspace as empty and only lose offer links **(builder's call)**.
 
 ## Reports
 
@@ -247,7 +249,8 @@ Missing files are treated as empty.
 ## Artifacts
 
 - Source: regular, non-symlink `*.pdf` files directly inside `output/`
-  **(agreed)**. Subdirectories are ignored.
+  **(agreed)**. Subdirectories are ignored, and so is a file whose name fails
+  `SanitizedTextSchema` (for example `cv..\old.pdf`) **(builder's call)**.
 - `id`: `artifact_` + first 16 hex of `sha256(filename)`.
 - `contentType`: `application/pdf`. `downloadUrl`:
   `/api/v1/artifacts/<id>/download`. `createdAt`: mtime.

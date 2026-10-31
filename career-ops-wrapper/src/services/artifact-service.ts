@@ -16,7 +16,7 @@ export interface ArtifactService {
 export function createArtifactService(config: RuntimeConfig): ArtifactService {
   return {
     async listArtifacts(): Promise<ArtifactCollectionDto> {
-      const data = await readCareerOpsData(config.workspace, { tolerateOversizedSources: true });
+      const data = await readCareerOpsData(config.workspace, { tolerateUnreadableSources: true });
       const { offerIdByReportId, reportIdByArtifactFileName } = projectCareerOps(data);
 
       return {

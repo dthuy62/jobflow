@@ -15,6 +15,14 @@ import { readOptionalWorkspaceText, type WorkspaceTextFile } from "./workspace-r
 export const SCAN_HISTORY_MAX_BYTES = 10 * 1024 * 1024;
 export const TRACKER_MARKDOWN_MAX_BYTES = 2 * 1024 * 1024;
 
+// WORKSPACE_UNHEALTHY here is a single unreadable file: a missing workspace
+// root still fails, because the report and artifact listings resolve it too.
+const TOLERATED_SOURCE_ERRORS: ReadonlySet<string> = new Set([
+  "PAYLOAD_TOO_LARGE",
+  "PATH_OUTSIDE_WORKSPACE",
+  "WORKSPACE_UNHEALTHY"
+]);
+
 export interface CareerOpsData {
   readonly scanHistory: ScanHistoryRow[];
   readonly pipeline: ParsedPipeline;
@@ -27,10 +35,11 @@ export interface CareerOpsData {
 
 export interface ReadCareerOpsDataOptions {
   /**
-   * Treat an oversized data file as empty instead of failing. Report and
-   * artifact routes use this: tracker data only adds links for them.
+   * Treat a data file that is oversized, unreadable, or resolves outside the
+   * workspace as empty instead of failing. Report and artifact routes use this: tracker
+   * data only adds links for them. The outside file is never read.
    */
-  readonly tolerateOversizedSources?: boolean;
+  readonly tolerateUnreadableSources?: boolean;
 }
 
 /** Reads the Career Ops files the offer/report/artifact projection is built from. */
@@ -40,7 +49,7 @@ export async function readCareerOpsData(
 ): Promise<CareerOpsData> {
   const readSource = (relativePath: string, maxBytes: number): Promise<WorkspaceTextFile | undefined> =>
     readOptionalWorkspaceText(workspacePath, relativePath, maxBytes).catch((error: unknown) => {
-      if (options.tolerateOversizedSources && error instanceof ApiError && error.code === "PAYLOAD_TOO_LARGE") {
+      if (options.tolerateUnreadableSources && error instanceof ApiError && TOLERATED_SOURCE_ERRORS.has(error.code)) {
         return undefined;
       }
       throw error;

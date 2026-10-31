@@ -1,4 +1,4 @@
-import { readFile, symlink, writeFile, mkdtemp } from "node:fs/promises";
+import { mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -86,6 +86,40 @@ describe("artifact routes", () => {
       });
       expect(download.statusCode).toBe(404);
       expect(download.body).not.toContain("secret");
+    });
+  });
+
+  it("skips a PDF whose file name looks like a local path", async () => {
+    const workspace = await copyProjectionFixture();
+    workspaces.push(workspace);
+    await writeFile(path.join(workspace, "output/cv..\\old.pdf"), "%PDF-old");
+
+    await withServer(workspace, async (server) => {
+      const list = await server.inject({ method: "GET", url: "/api/v1/artifacts" });
+      expect(list.statusCode).toBe(200);
+      expect(list.json().items.map((item: { filename: string }) => item.filename)).toEqual([pdfName]);
+
+      const download = await server.inject({
+        method: "GET",
+        url: `/api/v1/artifacts/${artifactIdForFileName("cv..\\old.pdf")}/download`
+      });
+      expect(download.statusCode).toBe(404);
+    });
+  });
+
+  it("still lists artifacts when the tracker is symlinked outside the workspace", async () => {
+    const workspace = await copyProjectionFixture();
+    workspaces.push(workspace);
+    const outside = await mkdtemp(path.join(tmpdir(), "artifact-outside-"));
+    workspaces.push(outside);
+    await writeFile(path.join(outside, "applications.md"), "# Applications\n");
+    await rm(path.join(workspace, "data/applications.md"));
+    await symlink(path.join(outside, "applications.md"), path.join(workspace, "data/applications.md"));
+
+    await withServer(workspace, async (server) => {
+      const list = await server.inject({ method: "GET", url: "/api/v1/artifacts" });
+      expect(list.statusCode).toBe(200);
+      expect(list.json().items.map((item: { filename: string }) => item.filename)).toEqual([pdfName]);
     });
   });
 

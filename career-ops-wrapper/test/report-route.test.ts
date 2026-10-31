@@ -1,5 +1,5 @@
-import { realpath, writeFile } from "node:fs/promises";
-import { homedir } from "node:os";
+import { chmod, mkdir, mkdtemp, realpath, rm, symlink, writeFile } from "node:fs/promises";
+import { homedir, tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { ReportCollectionDtoSchema, ReportDetailDtoSchema } from "../src/contracts/index.js";
@@ -115,6 +115,87 @@ describe("report routes", () => {
       expect(artifacts.statusCode).toBe(200);
       expect(offers.statusCode).toBe(413);
     });
+  });
+
+  it("still lists reports when the tracker is symlinked outside the workspace", async () => {
+    const workspace = await copyProjectionFixture();
+    workspaces.push(workspace);
+    const outside = await mkdtemp(path.join(tmpdir(), "report-outside-"));
+    workspaces.push(outside);
+    await writeFile(path.join(outside, "applications.md"), "# Applications\n");
+    await rm(path.join(workspace, "data/applications.md"));
+    await symlink(path.join(outside, "applications.md"), path.join(workspace, "data/applications.md"));
+
+    await withServer(workspace, async (server) => {
+      const reports = await server.inject({ method: "GET", url: "/api/v1/reports" });
+      const report = await server.inject({ method: "GET", url: "/api/v1/reports/report_001" });
+      const offers = await server.inject({ method: "GET", url: "/api/v1/offers" });
+
+      expect(reports.statusCode).toBe(200);
+      expect(reports.json().items).toHaveLength(3);
+      expect(report.statusCode).toBe(200);
+      expect(offers.statusCode).toBe(403);
+    });
+  });
+
+  it.each([
+    ["a directory", async (file: string) => { await rm(file); await mkdir(file); }],
+    ["a symlink loop", async (file: string) => { await rm(file); await symlink(file, file); }],
+    ["not readable", async (file: string) => { await chmod(file, 0o000); }]
+  ])("still lists reports and artifacts when the tracker is %s", async (_name, breakTracker) => {
+    const workspace = await copyProjectionFixture();
+    workspaces.push(workspace);
+    const tracker = path.join(workspace, "data/applications.md");
+    await breakTracker(tracker);
+
+    try {
+      await withServer(workspace, async (server) => {
+        const reports = await server.inject({ method: "GET", url: "/api/v1/reports" });
+        const artifacts = await server.inject({ method: "GET", url: "/api/v1/artifacts" });
+
+        expect(reports.statusCode).toBe(200);
+        expect(reports.json().items).toHaveLength(3);
+        expect(artifacts.statusCode).toBe(200);
+      });
+    } finally {
+      await chmod(tracker, 0o644).catch(() => undefined);
+    }
+  });
+
+  it("still returns WORKSPACE_UNHEALTHY when the workspace itself is missing", async () => {
+    const workspace = await copyProjectionFixture();
+    await rm(workspace, { recursive: true, force: true });
+
+    await withServer(workspace, async (server) => {
+      const reports = await server.inject({ method: "GET", url: "/api/v1/reports" });
+      const artifacts = await server.inject({ method: "GET", url: "/api/v1/artifacts" });
+
+      expect(reports.statusCode).toBe(503);
+      expect(reports.json().error.code).toBe("WORKSPACE_UNHEALTHY");
+      expect(artifacts.statusCode).toBe(503);
+    });
+  });
+
+  it("does not redact plain words when the workspace is configured as a relative path", async () => {
+    const workspace = await copyProjectionFixture();
+    workspaces.push(workspace);
+    await writeFile(
+      path.join(workspace, "reports/004-cv-2026-07-01.md"),
+      `# Evaluation: Acme — Role\n\nTailor the cv for ${path.basename(workspace)}.\n`
+    );
+    const previousCwd = process.cwd();
+    process.chdir(path.dirname(workspace));
+
+    try {
+      await withServer(path.basename(workspace), async (server) => {
+        const response = await server.inject({ method: "GET", url: "/api/v1/reports/report_004" });
+
+        expect(response.statusCode).toBe(200);
+        expect(response.json().markdown).toContain(`Tailor the cv for ${path.basename(workspace)}.`);
+      });
+    } finally {
+      process.chdir(previousCwd);
+    }
   });
 
   it("returns PAYLOAD_TOO_LARGE for reports over 1 MiB", async () => {
