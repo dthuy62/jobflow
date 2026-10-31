@@ -19,7 +19,11 @@ import {
   type EvaluationFailure
 } from "../evaluation/evaluation-diagnostics.js";
 import { parseCliOutput } from "../evaluation/evaluation-output.js";
-import { buildEvaluationPrompt, readEvaluationInputs } from "../evaluation/evaluation-prompt.js";
+import {
+  buildEvaluationPrompt,
+  readEvaluationInputs,
+  type EvaluationInputs
+} from "../evaluation/evaluation-prompt.js";
 import { writeEvaluation } from "../evaluation/evaluation-writer.js";
 import { fetchPostingText, type FetchPostingOptions, type PostingResult } from "../evaluation/posting-fetcher.js";
 import { parseScoreToPercent } from "../parsers/index.js";
@@ -52,9 +56,9 @@ export interface EvaluationServiceOptions {
 export const EVALUATION_STDOUT_MAX_CHARS = 1024 * 1024;
 
 const POSTING_TRUNCATED_WARNING = "The job posting was cut to the size limit.";
-const INPUTS_UNREADABLE: EvaluationFailure = {
+const UNEXPECTED_FAILURE: EvaluationFailure = {
   code: "COMMAND_FAILED",
-  message: "AI evaluation could not read the workspace files it needs."
+  message: "AI evaluation failed unexpectedly."
 };
 const SHUTDOWN_FAILURE: EvaluationFailure = {
   code: "COMMAND_FAILED",
@@ -95,7 +99,14 @@ export function createEvaluationService(
   const stopFailure = (control: RunControl): EvaluationFailure | undefined =>
     shuttingDown ? SHUTDOWN_FAILURE : control.cancelRequested ? CANCELLED_FAILURE : undefined;
 
-  async function execute(id: string, offer: OfferDto, cliPath: string, control: RunControl): Promise<void> {
+  async function execute(
+    id: string,
+    offer: OfferDto,
+    cliPath: string,
+    control: RunControl,
+    inputs: EvaluationInputs,
+    inputWarnings: readonly string[]
+  ): Promise<void> {
     const warnings: string[] = [];
     const posting = await fetchPosting(offer.url ?? "", { signal: control.abort.signal });
     const stoppedEarly = stopFailure(control);
@@ -111,12 +122,7 @@ export function createEvaluationService(
       warnings.push(POSTING_TRUNCATED_WARNING);
     }
 
-    const read = await readEvaluationInputs(config.workspace);
-    if (!read.inputs) {
-      finish(id, { failure: INPUTS_UNREADABLE });
-      return;
-    }
-    warnings.push(...read.warnings);
+    warnings.push(...inputWarnings);
 
     store.update(id, { stage: "evaluating" });
     const timeoutMs = config.evaluation?.timeoutMs ?? 0;
@@ -131,7 +137,7 @@ export function createEvaluationService(
         timeoutMs,
         signal: control.abort.signal,
         stdin: buildEvaluationPrompt(
-          read.inputs,
+          inputs,
           { company: offer.company, title: offer.title, location: offer.location ?? null, url: offer.url ?? "" },
           posting.text
         ),
@@ -149,7 +155,7 @@ export function createEvaluationService(
     const parsed = parseCliOutput(result.stdout);
     const failure = describeEvaluationFailure(result, parsed, timeoutMs);
     if (failure || !parsed.ok) {
-      finish(id, { failure: failure ?? INPUTS_UNREADABLE });
+      finish(id, { failure: failure ?? UNEXPECTED_FAILURE });
       return;
     }
 
@@ -210,6 +216,8 @@ export function createEvaluationService(
 
       let offer: OfferDto;
       let cliPath: string;
+      let inputs: EvaluationInputs;
+      let inputWarnings: string[];
       try {
         const ready = await readiness.get(true);
         if (ready.status !== "ready" || !ready.cliPath) {
@@ -219,6 +227,17 @@ export function createEvaluationService(
           });
         }
         cliPath = ready.cliPath;
+        // Health checks the files by size only; here they are read, so a blank
+        // or unreadable CV or rubric is refused before anything runs.
+        const read = await readEvaluationInputs(config.workspace);
+        if (!read.inputs) {
+          throw new ApiError("WORKSPACE_UNHEALTHY", "AI evaluation is not ready.", {
+            reason: "evaluation-not-ready",
+            missingRequirements: read.missingRequirements
+          });
+        }
+        inputs = read.inputs;
+        inputWarnings = read.warnings;
         offer = await offers.getOffer(request.offerId);
         if (!offer.url) {
           throw new ApiError("VALIDATION_ERROR", "This offer has no URL to evaluate.", { reason: "offer-has-no-url" });
@@ -243,8 +262,8 @@ export function createEvaluationService(
         stage: "fetching-posting",
         startedAt: now().toISOString()
       }) as EvaluationDto;
-      execution = execute(id, offer, cliPath, control).catch(() => {
-        finish(id, { failure: stopFailure(control) ?? INPUTS_UNREADABLE });
+      execution = execute(id, offer, cliPath, control, inputs, inputWarnings).catch(() => {
+        finish(id, { failure: stopFailure(control) ?? UNEXPECTED_FAILURE });
       });
       return running;
     },

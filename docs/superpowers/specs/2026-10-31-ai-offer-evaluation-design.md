@@ -735,8 +735,11 @@ Choices made while building, inside the approved design:
   is merge-tracker's own duplicate rule. The projection cannot answer it: it
   links a tracker row to a URL offer only through a report, so a hand-added
   row stays a separate offer.
-- Health checks the required input files by size only (no content read);
-  the files are read only when an evaluation runs.
+- Health checks the required input files by size only (no content read).
+  `POST /evaluations` reads them as part of its readiness gate, so a blank or
+  unreadable CV or rubric still gets `503 evaluation-not-ready` with
+  `cv.missing` / `modes.*-missing` before anything runs. Health can show
+  `ready` for a whitespace-only CV; the POST answer is the authoritative one.
 - Posting HTML is turned into text by one forward `indexOf` scan (linear in
   the page size); an unclosed comment, tag or element ends the text.
 - A cancel that arrives while the run is still `queued` (behind the fresh

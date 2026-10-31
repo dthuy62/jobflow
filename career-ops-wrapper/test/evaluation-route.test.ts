@@ -1,4 +1,4 @@
-import { access, appendFile, readFile, readdir, realpath } from "node:fs/promises";
+import { access, appendFile, chmod, readFile, readdir, realpath, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
 import type { FastifyInstance } from "fastify";
@@ -257,6 +257,27 @@ describe("evaluation routes", () => {
     expect(response.statusCode).toBe(503);
     expect(response.json().error.details.missingRequirements).toEqual(["evaluation.cli-logged-out"]);
     expect(await loggedOut.fake.calls()).toEqual([]);
+  });
+
+  it("refuses up front when a required file is blank or unreadable, even though health only checks sizes", async () => {
+    const { server, fake, postingUrls, workspace } = await setup();
+    await writeFile(path.join(workspace, "cv.md"), "\n   \n");
+
+    const blank = await start(server);
+    expect(blank.statusCode).toBe(503);
+    expect(blank.json().error.details).toEqual({ reason: "evaluation-not-ready", missingRequirements: ["cv.missing"] });
+
+    await writeFile(path.join(workspace, "cv.md"), "# CV\n");
+    await chmod(path.join(workspace, "modes/oferta.md"), 0o000);
+    try {
+      const unreadable = await start(server);
+      expect(unreadable.statusCode).toBe(503);
+      expect(unreadable.json().error.details.missingRequirements).toEqual(["modes.offer-missing"]);
+    } finally {
+      await chmod(path.join(workspace, "modes/oferta.md"), 0o644);
+    }
+    expect(postingUrls).toEqual([]);
+    expect(await fake.calls()).toEqual([]);
   });
 
   it("re-checks the login on POST even when health cached it", async () => {
