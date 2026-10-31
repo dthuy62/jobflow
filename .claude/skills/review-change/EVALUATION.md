@@ -59,6 +59,30 @@ home path (`cwd /Users/jane`, `"/Users/jane"`) leaks through
 | Layer 0 | n/a | flagged the new "keeps the separator" test as proving nothing |
 | Other findings | tests use the real `homedir()` (read only); Windows home paths (read only) | none |
 
+## Case 3: the skill reviewing its own PR
+
+The skill was run on this branch, including the Layer 4 fix loop.
+
+- Round 1 (`main..4903445`): the Security reviewer passed. Impact, Tests and
+  Spec reported 13 findings, all verified by their reviewer. They included
+  impact-map bugs that would hide a security reviewer or callers: quoted
+  non-ASCII paths, `---`-prefixed lines, misattributed deletions and JSDoc
+  edits, and grep noise from file-local symbols. They also covered Layer 3
+  wording that departed from the owner's design. All were fixed test-first,
+  except three that were left for the owner.
+- Round 2 (`4903445..dd52595`): all three reviewers independently caught a
+  regression that the round-1 JSDoc fix had introduced (indented comments
+  lost their symbol). They also found a latent `export { name }` gap and a
+  `--set` crash. All were fixed test-first.
+- Round 3 (`dd52595..2ce750e`): four findings verified by their reviewer
+  remain open and were escalated, as the three-round limit requires. Two
+  MEDIUM: a doc comment on a top-level statement, or a `//` line between a
+  JSDoc and its declaration, attributes the edit to the declaration above.
+  Two LOW: a malformed `--set` followed by `--timeout-ms` is accepted, and
+  `export { $name }` is not detected. The line-based attribution keeps
+  producing comment edge cases; the TypeScript compiler API would remove
+  that class of bug.
+
 ## Verdict
 
 On these two cases a single strong reviewer with the spec already matched
