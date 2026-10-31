@@ -1,7 +1,8 @@
 # AI Offer Evaluation From The App (Phase A)
 
 Issue: [#3](https://github.com/dthuy62/jobflow/issues/3). Tier L. Status:
-**draft, waiting for owner approval. No code before approval.**
+**approved by the owner on 2026-10-31** (all eight owner decisions as
+recommended).
 
 Today a scan from the phone finds offers, but they stay
 `evaluationStatus: "notEvaluated"` until someone runs an AI evaluation on the
@@ -13,7 +14,7 @@ artifacts endpoints.
 
 This changes a security boundary: until now the wrapper never ran an AI CLI.
 Everything marked **Owner decision** is listed with options in
-[Owner decisions](#owner-decisions). Everything else is settled here and is the
+[Owner decisions](#owner-decisions); all were decided as recommended. Everything else is settled here and is the
 implementer's to follow.
 
 ## Summary of the design
@@ -740,9 +741,12 @@ Implementation detail, the builder may adjust:
 ## Owner decisions
 
 Each one changes the security boundary, the contract, or cost. Recommendation
-first.
+first. **All eight were decided by the owner on 2026-10-31 as recommended**
+("OK theo đề xuất"); the alternatives stay below as a record.
 
 ### 1. Which CLI first
+
+**Decided 2026-10-31:** the recommended option.
 
 - **Claude Code only (recommended).** The only one of the three with a single
   "no tools" flag, a safe-mode that skips hooks/MCP/project instructions, an
@@ -755,6 +759,8 @@ first.
   policy files instead) and no auth status; most work to make safe.
 
 ### 2. Allowed tools and prompt-injection mitigations
+
+**Decided 2026-10-31:** the recommended option.
 
 - **No tools; wrapper fetches the posting and writes the files
   (recommended).** Injection can only skew the score and report text. Cost:
@@ -777,6 +783,8 @@ served through the existing Markdown sanitizer.
 
 ### 3. LAN or localhost only
 
+**Decided 2026-10-31:** the recommended option.
+
 - **Allow in LAN mode, behind the pairing token (recommended).** The point of
   the feature is starting it from the phone, which normally reaches the
   desktop over Wi-Fi. The token already guards every protected route, the
@@ -791,6 +799,8 @@ which account). Recommendation: accept; it is the same level of detail
 health already shows for the workspace and scanner.
 
 ### 4. New error code
+
+**Decided 2026-10-31:** the recommended option.
 
 When a second evaluation is requested while one runs:
 
@@ -809,6 +819,8 @@ No other new API error code is needed: not-ready reuses
 
 ### 5. Filesystem sandbox beyond CLI flags
 
+**Decided 2026-10-31:** the recommended option.
+
 - **No extra sandbox in phase A (recommended),** because the model has no
   tools: there is nothing for an OS sandbox to contain. The CLI binary itself
   is trusted software already installed and logged in by the owner. Tests
@@ -821,6 +833,8 @@ No other new API error code is needed: not-ready reuses
 
 ### 6. Re-evaluation and PDF (scope check)
 
+**Decided 2026-10-31:** the recommended option.
+
 - **Phase A: only `notEvaluated` offers, no PDF (recommended).** Keeps writes
   to one report and one tracker row. A PDF would need the model to produce
   HTML that the wrapper renders with Career Ops's Playwright script, which is
@@ -830,12 +844,16 @@ No other new API error code is needed: not-ready reuses
 
 ### 7. Cost and quota (confirm)
 
+**Decided 2026-10-31:** the recommended option.
+
 Each evaluation uses the owner's Claude subscription quota (one long prompt:
 rubric + CV + posting, likely tens of thousands of tokens). The env allowlist
 removes API keys so it never bills an API key by accident. **Recommendation:**
 accept, with one evaluation at a time as the only limit in phase A.
 
 ### 8. Tracker row when a similar row exists
+
+**Decided 2026-10-31:** the recommended option.
 
 `merge-tracker.mjs` treats "same company and a similar role" as a
 duplicate. If the existing row's score is higher or equal it skips our row;
