@@ -143,6 +143,9 @@ function buildReport(fileReports) {
   }
 
   const gates = [];
+  if (fileReports.some(({ path }) => path.startsWith(".claude/skills/review-change/scripts/"))) {
+    gates.push("node --test .claude/skills/review-change/scripts/impact-map.test.mjs");
+  }
   if (components.has("wrapper") || components.has("contracts")) gates.push("cd career-ops-wrapper && npm test && npm run build");
   if (components.has("android") || components.has("contracts")) {
     gates.push("cd android && ./gradlew testDevDebugUnitTest lintDevDebug detekt ktlintCheck");
