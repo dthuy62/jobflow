@@ -12,6 +12,8 @@ export function normalizeOfferUrl(raw: string): string | undefined {
     return undefined;
   }
 
+  url.username = "";
+  url.password = "";
   url.hash = "";
   if (url.pathname.length > 1 && url.pathname.endsWith("/")) {
     url.pathname = url.pathname.replace(/\/+$/, "");

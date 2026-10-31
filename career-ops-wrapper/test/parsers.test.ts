@@ -36,6 +36,11 @@ describe("offer URL identity", () => {
     expect(normalizeOfferUrl("https://jobs.example.com/")).toBe("https://jobs.example.com/");
   });
 
+  it("drops userinfo credentials", () => {
+    expect(normalizeOfferUrl("https://user:secret@jobs.example.com/a")).toBe("https://jobs.example.com/a");
+    expect(normalizeOfferUrl("https://token@jobs.example.com/a")).toBe("https://jobs.example.com/a");
+  });
+
   it("rejects non-HTTP URLs", () => {
     expect(normalizeOfferUrl("javascript:alert(1)")).toBeUndefined();
     expect(normalizeOfferUrl("/Users/someone/file")).toBeUndefined();
