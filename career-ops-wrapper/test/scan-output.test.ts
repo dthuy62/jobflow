@@ -42,9 +42,21 @@ describe("sanitizeScanOutputLine", () => {
     ["relative data/a.md ok", "relative data/a.md ok"],
     ["✗ acme: fetch https://u:p@host/x failed", "✗ acme: fetch https://[REDACTED]@host/x failed"],
     ["clone git+ssh://tok@github.com/a", "clone git+ssh://[REDACTED]@github.com/a"],
-    ["see https://host/a@b and mailto:a@b.com", "see https://host/a@b and mailto:a@b.com"]
+    ["see https://host/a@b and mailto:a@b.com", "see https://host/a@b and mailto:a@b.com"],
+    ["fetch https://user:p@ss@host/x failed", "fetch https://[REDACTED]@host/x failed"],
+    ["see https://host?e=a@b.com", "see https://host?e=a@b.com"],
+    ["auth pairing-secret-123/opt/secret/creds.json", "auth [REDACTED][PATH]"],
+    ["[PATH]/Users/alice/secret/creds.json", "[PATH][PATH]"],
+    ["open '/Users/jane/career-ops/../../Users/bob/cv.pdf'", "open '[PATH]'"],
+    [`open '${homedir()}/../../etc/secret/x'`, "open '[PATH]'"]
   ])("sanitizes %j", (input, expected) => {
     expect(sanitizeScanOutputLine(input, options)).toBe(expected);
+  });
+
+  it("sanitizes a 256K-character line in linear time", () => {
+    const started = performance.now();
+    sanitizeScanOutputLine("a.".repeat(128 * 1024), options);
+    expect(performance.now() - started).toBeLessThan(1000);
   });
 
   it("truncates long lines to 300 characters", () => {

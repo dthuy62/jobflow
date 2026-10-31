@@ -142,7 +142,8 @@ token patterns (existing `redactSensitiveText`), the configured workspace path
 and its real path → `[WORKSPACE]`, the home directory → `[HOME]`, URL
 userinfo (`https://user:pass@host`) → `[REDACTED]`, any other absolute path
 token (`/x`, `~/x`, `C:\x`, `C:/x`, `file://…`, leading `//…`) that does not
-continue a word or URL → `[PATH]`, `../` segments removed, dot runs collapsed, control characters
+continue a word or URL → `[PATH]` (a workspace or home path that climbs out
+with `..` also becomes `[PATH]`), `../` segments removed, dot runs collapsed, control characters
 stripped. A line that still fails `SanitizedTextSchema` or has no letters or
 digits is dropped, so one odd line can never make a run unreadable.
 

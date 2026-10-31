@@ -7,10 +7,14 @@ export type ScanOutputSanitizerOptions = LocalValueRedactionOptions;
 
 const FILE_URL = /file:\/\/\S*/gi;
 // A path starts after any character that cannot continue a word, URL, or path,
-// or after `]` unless it closes one of the redaction placeholders.
+// or after `]` unless it closes `[WORKSPACE]` or `[HOME]`.
 const ABSOLUTE_PATH_TOKEN =
-  /(^|[^\p{L}\p{N}_.~\/\\\]]|(?<!\[(?:WORKSPACE|HOME|PATH|REDACTED))\])(?:~\/|\/(?!\/)|[A-Za-z]:[\\/])[^\s"'),;]*/gu;
-const URL_USERINFO = /(\b[a-z][a-z0-9+.-]*:\/\/)[^\s/@]+@/gi;
+  /(^|[^\p{L}\p{N}_.~\/\\\]]|(?<!\[(?:WORKSPACE|HOME))\])(?:~\/|\/(?!\/)|[A-Za-z]:[\\/])[^\s"'),;]*/gu;
+// A workspace/home path that climbs out with `..` is not a workspace/home path.
+const PLACEHOLDER_PATH = /\[(?:WORKSPACE|HOME)\][^\s"'),;]*/g;
+const PARENT_SEGMENT_ANYWHERE = /\.\.(?:[\\/]|$)/;
+// Userinfo runs to the last `@` in the authority. The lookbehind keeps matching linear.
+const URL_USERINFO = /((?<![a-z0-9+.-])[a-z][a-z0-9+.-]*:\/\/)[^\s/?#]+@/gi;
 const PROTOCOL_RELATIVE_TOKEN = /(^|\s)\/\/\S*/g;
 const PARENT_SEGMENT = /\.\.[\\/]/;
 
@@ -25,6 +29,7 @@ export function sanitizeScanOutputLine(line: string, options: ScanOutputSanitize
 
   text = text
     .replace(URL_USERINFO, "$1[REDACTED]@")
+    .replace(PLACEHOLDER_PATH, (token) => (PARENT_SEGMENT_ANYWHERE.test(token) ? "[PATH]" : token))
     .replace(FILE_URL, "[PATH]")
     .replace(ABSOLUTE_PATH_TOKEN, "$1[PATH]")
     .replace(PROTOCOL_RELATIVE_TOKEN, "$1[PATH]");
