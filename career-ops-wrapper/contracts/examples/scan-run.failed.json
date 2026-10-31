@@ -13,6 +13,6 @@
   },
   "failure": {
     "code": "COMMAND_FAILED",
-    "message": "Career Ops scan exited with code 1. Last error: Error: failed to parse portals.yml"
+    "message": "Career Ops scan exited with code 1. portals.yml could not be parsed."
   }
 }

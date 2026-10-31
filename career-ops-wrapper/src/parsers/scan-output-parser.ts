@@ -1,30 +1,28 @@
 export interface ParsedScanOutput {
   readonly offersFound: number;
   readonly offersAdded: number;
-  readonly warnings: string[];
+  /** Companies `scan.mjs` handed off to an Agent/WebSearch scan. */
+  readonly handoffCount: number;
+  /** Raw `<company>: <error>` text of each `✗` line. Never returned to clients. */
+  readonly errorLines: string[];
 }
 
-/** Reads the summary that `scan.mjs` prints to stdout. Warnings are not yet redacted. */
+/** Reads the summary that `scan.mjs` prints to stdout. */
 export function parseScanOutput(stdout: string): ParsedScanOutput {
-  const warnings: string[] = [];
+  const errorLines: string[] = [];
 
   for (const line of stdout.split(/\r?\n/)) {
-    const trimmed = line.trim();
-    if (trimmed.startsWith("Agent/WebSearch handoff:")) {
-      warnings.push(trimmed);
-      continue;
-    }
-
-    const errorLine = trimmed.match(/^✗\s+(.+)$/)?.[1];
+    const errorLine = line.trim().match(/^✗\s+(.+)$/)?.[1];
     if (errorLine) {
-      warnings.push(errorLine);
+      errorLines.push(errorLine);
     }
   }
 
   return {
     offersFound: readCount(stdout, /Total jobs found:\s*(\d+)/),
     offersAdded: readCount(stdout, /New offers added:\s*(\d+)/),
-    warnings
+    handoffCount: readCount(stdout, /^\s*Agent\/WebSearch handoff:\s*(\d+)/m),
+    errorLines
   };
 }
 

@@ -20,9 +20,9 @@ export interface ScanProcessResult {
   readonly signal: NodeJS.Signals | null;
   readonly timedOut: boolean;
   readonly spawnFailed: boolean;
-  /** Tail of stdout, at most {@link SCAN_OUTPUT_MAX_CHARS}. Not redacted. */
+  /** Tail of stdout, at most {@link SCAN_OUTPUT_MAX_CHARS}. Raw; never returned to clients. */
   readonly stdout: string;
-  /** Tail of stderr, at most {@link SCAN_OUTPUT_MAX_CHARS}. Not redacted. */
+  /** Tail of stderr, at most {@link SCAN_OUTPUT_MAX_CHARS}. Raw; never returned to clients. */
   readonly stderr: string;
 }
 

@@ -5,8 +5,10 @@ export const ScanRunStatusSchema = z.enum(["pending", "running", "succeeded", "f
 export const ScanRunStageSchema = z.enum(["queued", "executing", "parsing", "projecting", "completed", "failed"]);
 
 const ScanRunFailureSchema = z.object({
-  code: SanitizedTextSchema,
-  message: SanitizedTextSchema
+  code: SanitizedTextSchema.describe("One of COMMAND_FAILED, COMMAND_TIMEOUT, SPAWN_FAILED."),
+  message: SanitizedTextSchema.describe(
+    "A fixed wrapper sentence, plus at most one fixed reason. Never raw scan output."
+  )
 });
 
 export const ScanRunDtoSchema = z.object({
@@ -20,7 +22,11 @@ export const ScanRunDtoSchema = z.object({
   summary: z.object({
     offersFound: z.number().int().nonnegative(),
     offersProjected: z.number().int().nonnegative(),
-    warnings: z.array(SanitizedTextSchema)
+    warnings: z
+      .array(SanitizedTextSchema)
+      .describe(
+        "At most 20 fixed sentences built from portals.yml company names, an error category, and counts. Never raw scan output."
+      )
   }),
   failure: ScanRunFailureSchema.nullable().optional(),
   sourceRevision: OpaqueIdSchema.optional()

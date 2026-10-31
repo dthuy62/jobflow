@@ -45,7 +45,7 @@ order.
 | --- | --- |
 | Routes (`src/api/`) | `scan-run-routes.ts`, `offer-routes.ts`, `report-routes.ts`, `artifact-routes.ts` |
 | Services (`src/services/`) | `scan-run-service.ts`, `offer-service.ts`, `report-service.ts`, `artifact-service.ts` |
-| Engine (`src/career-ops-engine/`) | `career-ops-engine-adapter.ts` (implemented), `scan-output.ts` |
+| Engine (`src/career-ops-engine/`) | `career-ops-engine-adapter.ts` (implemented), `scan-diagnostics.ts` |
 | Runs (`src/runs/`) | `scan-run-store.ts` (in-memory run registry) |
 | Parsers (`src/parsers/`) | `scan-history-parser.ts`, `pipeline-parser.ts`, `applications-parser.ts`, `report-parser.ts`, `score.ts`, `offer-url.ts` |
 | Workspace IO (`src/workspace/`) | `workspace-reader.ts` (bounded, symlink-safe reads and listings), `career-ops-data-adapter.ts`, `report-file-adapter.ts` |
@@ -124,28 +124,111 @@ persistence)**.
 - `summary.offersFound` comes from the `Total jobs found:` line;
   `summary.offersProjected` from `New offers added:` (0 for dry runs, because
   nothing is written) **(builder's call)**. Missing lines → 0.
-- `summary.warnings`: the `✗ company: error` lines under `Errors (n):`, plus
-  `Agent/WebSearch handoff` notices, redacted and capped at 20 entries of 300
-  characters **(builder's call)**.
-- `failure.code` is one of `COMMAND_FAILED`, `COMMAND_TIMEOUT`, `SPAWN_FAILED`;
-  `failure.message` is a fixed wrapper sentence plus the last redacted stderr
-  line when one exists **(builder's call)**.
+- `summary.warnings` and `failure.message` are built from structured data
+  only; see [Scan diagnostics](#scan-diagnostics) **(agreed, issue #9)**.
+- `failure.code` is one of `COMMAND_FAILED`, `COMMAND_TIMEOUT`, `SPAWN_FAILED`.
 - `GET /scan-runs/{id}` for an unknown ID → `NOT_FOUND`. The store keeps the 20
   most recent runs.
 - `GET /scan-runs/latest` → the most recent run, or `NOT_FOUND` when none ran
   since startup.
 
-### Redaction of scan output
+### Scan diagnostics
 
-Every line that leaves the engine goes through `sanitizeScanOutputLine`:
-token patterns (existing `redactSensitiveText`), the configured workspace path
-and its real path → `[WORKSPACE]`, the home directory → `[HOME]`, URL
-userinfo (`https://user:pass@host`) → `[REDACTED]`, any other absolute path
-token (`/x`, `~/x`, `C:\x`, `C:/x`, `file://…`, leading `//…`) that does not
-continue a word or URL → `[PATH]` (a workspace or home path that climbs out
-with `..` also becomes `[PATH]`), `../` segments removed, dot runs collapsed, control characters
-stripped. A line that still fails `SanitizedTextSchema` or has no letters or
-digits is dropped, so one odd line can never make a run unreadable.
+Updated 2026-10-31 for issue #9. This replaces the regex redaction of scan
+output (`sanitizeScanOutputLine`), which kept leaking through new edge cases.
+
+**Rule (agreed):** raw `scan.mjs` stdout and stderr never leave the wrapper:
+not in `ScanRunDto`, not in errors, not in logs. Every warning and failure
+message is assembled from four kinds of value only:
+
+1. a company name taken from `portals.yml`, never from the output,
+2. an error category from the fixed enum below,
+3. a count (an integer the wrapper parsed),
+4. a fixed wrapper sentence.
+
+The output is still read inside the wrapper to pick categories and counts.
+`src/career-ops-engine/scan-diagnostics.ts` holds the mapping;
+`src/parsers/scan-output-parser.ts` only splits the output into counts and raw
+error lines.
+
+#### Known companies
+
+The wrapper reads `portals.yml` (or `portals.yaml`) after the scan finishes and
+collects the `name` of every entry in `tracked_companies` and `job_boards`, the
+two lists `scan.mjs` scans. A name is kept only if it passes
+`ScanCompanySchema` (letters, digits, space and `.&'()+,-`, at most 100
+characters), so a name can never carry `/`, `:`, `@`, `%`, `?` or `#`
+**(builder's call)**. An unreadable or invalid `portals.yml` gives an empty
+list: every error line then counts as unmatched, and the run still completes
+**(builder's call)**.
+
+#### Error lines → categories
+
+`scan.mjs` prints each company error as `  ✗ <entry.name>: <error>`. For each
+such stdout line the wrapper finds the longest known name `N` for which the
+text after `✗ ` starts with `N: ` (exact, case-sensitive, because `scan.mjs`
+prints the name verbatim). The `<error>` text is then matched, case-insensitive,
+against these rules in order; the first match wins **(builder's call)**:
+
+| Category | Matches (summary) | Warning sentence |
+| --- | --- | --- |
+| `api-fallback` | starts with `local parser failed, used API fallback` (jobs were still fetched) | `<Company>: the local parser failed, so jobs were fetched through the API instead.` |
+| `timeout` | `timeout`, `timed out`, `ETIMEDOUT`, `abort` | `<Company>: the careers page timed out.` |
+| `blocked` | status `401`, `403`, `429`, `forbidden`, `unauthorized`, `rate limit`, `too many requests`, `captcha`, `blocked` | `<Company>: the careers page blocked the request.` |
+| `not-found` | status `404`, `410`, `not found` | `<Company>: the careers page was not found.` |
+| `fetch-failed` | `HTTP <3 digits>`, `status <3 digits>`, `fetch failed`, `ENOTFOUND`, `ECONNREFUSED`, `ECONNRESET`, `EAI_AGAIN`, `socket`, `network`, `certificate`, `TLS` | `<Company>: the careers page could not be fetched.` |
+| `parse-error` | `JSON`, `parse`, `Unexpected token`, `did not return an array` | `<Company>: the careers page response could not be read.` |
+| `config-error` | `invalid URL`, `must use HTTPS`, `must be http`, `untrusted hostname`, `cannot derive`, `careers_url`, `is required`, `requires`, `escapes the project root` | `<Company>: the portal entry is not set up correctly.` |
+| `other` | anything else | `<Company>: the scan failed for this company.` |
+
+- One warning per company and category; repeats are dropped
+  **(builder's call)**.
+- **Unmatched lines** (no known name, or an empty name) are dropped and
+  counted. When the count is above 0 the wrapper adds
+  `<n> scan error(s) could not be matched to a company in portals.yml.`
+  **(builder's call)**.
+- `Agent/WebSearch handoff: <n> …` becomes
+  `<n> compan(y|ies) need(s) an Agent/WebSearch scan.` The bullet lines below
+  it (names, queries, URLs) are ignored, as before.
+- Every other line is ignored: offer lines, `⚠️` notices on stderr, the
+  `Results saved to <path>` line.
+- Order: handoff, then company warnings in output order, then the unmatched
+  count. At most 20 entries: when there are more, the first 19 are kept and the
+  last becomes `<n> more scan warnings were omitted.` **(builder's call)**.
+
+#### Failure message
+
+`failure.code` is unchanged. `failure.message` is one fixed sentence, plus at
+most one fixed reason picked from stderr **(builder's call)**:
+
+| Case | Message |
+| --- | --- |
+| Spawn failed | `Career Ops scan could not be started.` |
+| Timeout | `Career Ops scan exceeded the <n>-second timeout.` |
+| Non-zero exit | `Career Ops scan exited with code <n>.` |
+| Killed by a signal | `Career Ops scan was stopped by <SIGNAME>.` (`a signal` unless the name matches `^SIG[A-Z0-9]+$`) |
+
+Stderr reasons, appended after a space. Each pattern must start a stderr line,
+matching the exact `Error:` lines `scan.mjs` prints before it exits, so the
+same words inside a `Fatal:` or `⚠️` line add no reason:
+
+| stderr line starts with | Reason |
+| --- | --- |
+| `Error: portals.yml not found` | `portals.yml was not found.` |
+| `Error: failed to parse <…>portals.yml: ` | `portals.yml could not be parsed.` |
+| `Error: no providers loaded` | `No scan providers could be loaded.` |
+
+Anything else in stderr adds no reason.
+
+#### What the app sees
+
+`summary.warnings` stays `string[]` and `failure` keeps `{code, message}`, so
+Android DTOs parse unchanged. Only the wording changes, from redacted raw text
+to the fixed sentences above. The categories are not exposed as a separate
+field **(builder's call: the issue keeps the contract shape)**.
+
+`redactLocalValues` stays for report Markdown; it is no longer used for scan
+output.
 
 ## Offers
 
@@ -287,7 +370,11 @@ Regression tests:
 3. Symlinks: a `reports/` file or `output/` PDF symlinked outside the workspace
    is never listed or served.
 4. No workspace path, home path, or token in any response body, error, scan
-   warning, or failure message, including a scan whose stderr prints them.
+   warning, or failure message, including a scan whose stdout and stderr print
+   them. The suite also covers the six round-3 leaks from PR #8: URL userinfo
+   after `-`/`+`/`.`/a digit, `?`/`#` in a password, a sibling folder such as
+   `<workspace>-old`, a `...` run, a `..` climb-out after a space or comma, and
+   `%2e%2e` (`test/scan-diagnostics.test.ts`, `test/scan-run-route.test.ts`).
 5. Scan concurrency: two simultaneous POSTs → one 202, one 409.
 6. Contract examples for every new DTO are validated by tests and used as
    OpenAPI examples.

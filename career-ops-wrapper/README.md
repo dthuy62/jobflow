@@ -39,7 +39,7 @@ Scan execution goes through the typed `career-ops-engine` adapter (`runScan()`).
 - Only one scan runs at a time; a second start returns `409 SCAN_ALREADY_RUNNING`. A start while scan readiness is not ready returns `503 WORKSPACE_UNHEALTHY` with `details.reason: "scan-not-ready"`.
 - `CAREER_OPS_*` variables are removed from the child environment.
 - Runs time out after 10 minutes by default (`CAREER_OPS_SCAN_TIMEOUT_MS`, 1000–3600000).
-- stdout/stderr are bounded and never returned raw. Summary counts and warnings are parsed from the scan summary and redacted.
+- stdout/stderr are bounded and never leave the wrapper. Warnings and failure messages are fixed sentences built from `portals.yml` company names, an error category, and counts; unknown companies are only counted.
 - Run state is in memory; a wrapper restart forgets past runs.
 
 ## Offers, Reports, and Artifacts
