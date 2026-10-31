@@ -1,8 +1,9 @@
 import { createHash } from "node:crypto";
-import { constants, type ReadStream } from "node:fs";
+import { constants } from "node:fs";
 import { open } from "node:fs/promises";
+import { Readable } from "node:stream";
 import { ApiError } from "../errors/api-error.js";
-import { listWorkspaceFiles } from "../workspace/workspace-reader.js";
+import { assertOpenedAtRealPath, listWorkspaceFiles } from "../workspace/workspace-reader.js";
 
 const OUTPUT_DIR = "output";
 
@@ -18,7 +19,8 @@ export interface ArtifactFile {
 export interface ArtifactDownload {
   readonly fileName: string;
   readonly sizeBytes: number;
-  readonly stream: ReadStream;
+  /** Exactly `sizeBytes` bytes, even if the file grows while streaming. */
+  readonly stream: Readable;
 }
 
 export function artifactIdForFileName(fileName: string): string {
@@ -61,11 +63,19 @@ export async function openArtifactForDownload(
     if (!fileStat.isFile() || fileStat.dev !== entry.dev || fileStat.ino !== entry.ino) {
       throw artifactNotFound();
     }
+    await assertOpenedAtRealPath(entry.realPath, fileStat).catch(() => {
+      throw artifactNotFound();
+    });
+
+    if (fileStat.size === 0) {
+      await handle.close();
+      return { fileName: entry.name, sizeBytes: 0, stream: Readable.from([]) };
+    }
 
     return {
       fileName: entry.name,
       sizeBytes: fileStat.size,
-      stream: handle.createReadStream({ autoClose: true })
+      stream: handle.createReadStream({ autoClose: true, start: 0, end: fileStat.size - 1 })
     };
   } catch (error) {
     await handle.close().catch(() => undefined);

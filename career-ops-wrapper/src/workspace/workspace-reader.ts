@@ -50,7 +50,8 @@ export async function readOptionalWorkspaceText(
 
 /**
  * Opens a file once without following a final symlink, checks it is a regular
- * file, and reads at most `maxBytes` (so a file growing mid-read is rejected).
+ * file at `filePath` (a real path), and reads at most `maxBytes` (so a file
+ * growing mid-read is rejected).
  */
 export async function readRegularFileNoFollow(filePath: string, maxBytes: number): Promise<WorkspaceTextFile> {
   const handle = await open(filePath, constants.O_RDONLY | constants.O_NOFOLLOW).catch(() => {
@@ -62,6 +63,7 @@ export async function readRegularFileNoFollow(filePath: string, maxBytes: number
     if (!fileStat.isFile()) {
       throw new ApiError("WORKSPACE_UNHEALTHY", "Career Ops workspace file is not readable.");
     }
+    await assertOpenedAtRealPath(filePath, fileStat);
     if (fileStat.size > maxBytes) {
       throw fileTooLarge();
     }
@@ -84,6 +86,23 @@ export async function readRegularFileNoFollow(filePath: string, maxBytes: number
     return { content: Buffer.concat(chunks).toString("utf8"), mtime: fileStat.mtime };
   } finally {
     await handle.close().catch(() => undefined);
+  }
+}
+
+/**
+ * `O_NOFOLLOW` only guards the last path component. After opening, confirm
+ * `filePath` is still its own real path and still names the opened inode, so
+ * a parent directory swapped for a symlink before `open` is rejected.
+ */
+export async function assertOpenedAtRealPath(
+  filePath: string,
+  openedStat: { readonly dev: number; readonly ino: number }
+): Promise<void> {
+  const currentRealPath = await realpath(filePath).catch(() => undefined);
+  const currentStat = currentRealPath === filePath ? await stat(filePath).catch(() => undefined) : undefined;
+
+  if (!currentStat || currentStat.dev !== openedStat.dev || currentStat.ino !== openedStat.ino) {
+    throwPathOutsideWorkspace();
   }
 }
 
