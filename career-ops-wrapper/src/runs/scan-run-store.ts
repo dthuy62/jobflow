@@ -2,29 +2,34 @@ import type { ScanRunDto } from "../contracts/index.js";
 
 export const SCAN_RUN_HISTORY_LIMIT = 20;
 
-/** In-memory registry of scan runs since wrapper startup. */
-export class ScanRunStore {
-  private readonly runs = new Map<string, ScanRunDto>();
+interface StoredRun {
+  readonly id: string;
+  readonly active: boolean;
+}
 
-  active(): ScanRunDto | undefined {
+/** In-memory registry of runs since wrapper startup; keeps the last {@link SCAN_RUN_HISTORY_LIMIT}. */
+export class RunStore<Run extends StoredRun> {
+  private readonly runs = new Map<string, Run>();
+
+  active(): Run | undefined {
     return [...this.runs.values()].find((run) => run.active);
   }
 
-  get(id: string): ScanRunDto | undefined {
+  get(id: string): Run | undefined {
     return this.runs.get(id);
   }
 
-  latest(): ScanRunDto | undefined {
+  latest(): Run | undefined {
     return [...this.runs.values()].at(-1);
   }
 
-  put(run: ScanRunDto): ScanRunDto {
+  put(run: Run): Run {
     this.runs.set(run.id, run);
     this.evictOldRuns();
     return run;
   }
 
-  update(id: string, patch: Partial<ScanRunDto>): ScanRunDto | undefined {
+  update(id: string, patch: Partial<Run>): Run | undefined {
     const current = this.runs.get(id);
     if (!current) {
       return undefined;
@@ -49,3 +54,6 @@ export class ScanRunStore {
     }
   }
 }
+
+/** In-memory registry of scan runs since wrapper startup. */
+export class ScanRunStore extends RunStore<ScanRunDto> {}

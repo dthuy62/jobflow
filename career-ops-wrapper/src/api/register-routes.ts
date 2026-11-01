@@ -1,6 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { registerArtifactRoutes } from "./artifact-routes.js";
 import { registerCvRoutes } from "./cv-routes.js";
+import { registerEvaluationRoutes } from "./evaluation-routes.js";
 import { registerHealthRoutes } from "./health-routes.js";
 import { registerOfferRoutes } from "./offer-routes.js";
 import { registerPortalRoutes } from "./portal-routes.js";
@@ -13,6 +14,8 @@ import { ApiError } from "../errors/api-error.js";
 import { registerLocalPairingTokenGuard } from "../security/local-pairing-token.js";
 import { createArtifactService } from "../services/artifact-service.js";
 import { createCvService } from "../services/cv-service.js";
+import { createEvaluationReadiness } from "../services/evaluation-readiness.js";
+import { createEvaluationService, type EvaluationServiceOptions } from "../services/evaluation-service.js";
 import { createHealthService } from "../services/health-service.js";
 import { createOfferService } from "../services/offer-service.js";
 import { createPortalService } from "../services/portal-service.js";
@@ -24,6 +27,7 @@ import { createScanRunService } from "../services/scan-run-service.js";
 export interface RegisterApiRoutesOptions {
   readonly config: RuntimeConfig;
   readonly registerAdditionalRoutes?: (apiV1: FastifyInstance) => Promise<void> | void;
+  readonly evaluationFetchPosting?: EvaluationServiceOptions["fetchPosting"];
 }
 
 export async function registerApiRoutes(
@@ -38,7 +42,9 @@ export async function registerApiRoutes(
       apiV1.setNotFoundHandler(async () => {
         throw new ApiError("NOT_FOUND", "Resource was not found.");
       });
-      await registerHealthRoutes(apiV1, createHealthService(options.config));
+      // Shared so health and POST /evaluations use one CLI auth cache.
+      const evaluationReadiness = createEvaluationReadiness(options.config);
+      await registerHealthRoutes(apiV1, createHealthService(options.config, evaluationReadiness));
       await registerCvRoutes(apiV1, createCvService(options.config));
       await registerProfileRoutes(apiV1, createProfileService(options.config));
       await registerPortalRoutes(apiV1, createPortalService(options.config));
@@ -46,6 +52,12 @@ export async function registerApiRoutes(
       const scanRunService = createScanRunService(options.config);
       apiV1.addHook("onClose", async () => scanRunService.shutdown());
       await registerScanRunRoutes(apiV1, scanRunService);
+      const evaluationService = createEvaluationService(options.config, {
+        readiness: evaluationReadiness,
+        ...(options.evaluationFetchPosting ? { fetchPosting: options.evaluationFetchPosting } : {})
+      });
+      apiV1.addHook("onClose", async () => evaluationService.shutdown());
+      await registerEvaluationRoutes(apiV1, evaluationService);
       await registerOfferRoutes(apiV1, createOfferService(options.config));
       await registerReportRoutes(apiV1, createReportService(options.config));
       await registerArtifactRoutes(apiV1, createArtifactService(options.config));

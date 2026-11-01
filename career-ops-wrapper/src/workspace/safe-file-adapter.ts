@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { copyFile, lstat, readFile, realpath, rename, rm, writeFile } from "node:fs/promises";
+import { copyFile, link, lstat, readFile, realpath, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { ApiError } from "../errors/api-error.js";
 import { isInsidePath, resolveWorkspaceRoot } from "./workspace-paths.js";
@@ -8,6 +8,8 @@ export interface WriteWorkspaceFileSafelyOptions {
   readonly workspacePath: string;
   readonly relativePath: string;
   readonly content: string;
+  /** Fail instead of replacing an existing file (no backup is made). */
+  readonly createOnly?: boolean;
 }
 
 export interface WriteWorkspaceFileSafelyResult {
@@ -33,14 +35,15 @@ export async function writeWorkspaceFileSafely(
   }
 
   return withTargetWriteLock(targetPath, () =>
-    writeWorkspaceFileSafelyUnlocked(workspaceRoot, targetPath, options.content)
+    writeWorkspaceFileSafelyUnlocked(workspaceRoot, targetPath, options.content, options.createOnly === true)
   );
 }
 
 async function writeWorkspaceFileSafelyUnlocked(
   workspaceRoot: string,
   targetPath: string,
-  content: string
+  content: string,
+  createOnly: boolean
 ): Promise<WriteWorkspaceFileSafelyResult> {
   const tempPath = path.join(path.dirname(targetPath), `.${path.basename(targetPath)}.${randomUUID()}.tmp`);
   const backupPath = `${targetPath}.bak`;
@@ -49,6 +52,23 @@ async function writeWorkspaceFileSafelyUnlocked(
   try {
     await assertSafeParentDirectory(workspaceRoot, path.dirname(targetPath));
     await assertSafeExistingPath(workspaceRoot, targetPath);
+    if (createOnly) {
+      await writeFile(tempPath, content, { encoding: "utf8", flag: "wx" });
+      try {
+        // link() fails with EEXIST instead of replacing, atomically.
+        await link(tempPath, targetPath);
+      } catch (error) {
+        if (!isLinkUnsupportedError(error)) {
+          throw error;
+        }
+        // Volumes without hard links: still create-only, just not atomic.
+        await writeFile(targetPath, content, { encoding: "utf8", flag: "wx" });
+      } finally {
+        await rm(tempPath, { force: true });
+      }
+      return { targetPath: await realpath(targetPath) };
+    }
+
     await assertSafeExistingPath(workspaceRoot, backupPath);
 
     try {
@@ -144,6 +164,15 @@ async function assertSafeExistingPath(workspaceRoot: string, filePath: string): 
       "Requested path is outside the configured Career Ops Workspace."
     );
   }
+}
+
+function isLinkUnsupportedError(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    ["EPERM", "ENOTSUP", "EOPNOTSUPP", "EXDEV", "ENOSYS"].includes(String(error.code))
+  );
 }
 
 function isMissingFileError(error: unknown): boolean {

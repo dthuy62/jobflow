@@ -36,6 +36,10 @@ describe("OpenAPI document", () => {
       "/api/v1/scan-runs",
       "/api/v1/scan-runs/latest",
       "/api/v1/scan-runs/{id}",
+      "/api/v1/evaluations",
+      "/api/v1/evaluations/latest",
+      "/api/v1/evaluations/{id}",
+      "/api/v1/evaluations/{id}/cancel",
       "/api/v1/offers",
       "/api/v1/offers/{id}",
       "/api/v1/reports",
@@ -339,5 +343,13 @@ describe("OpenAPI document", () => {
     });
     expect(document.info.description).toContain("/openapi.json");
     expect(document.paths["/api/v1/health"].get.security).toEqual([]);
+  });
+  it("marks the old geminiEvaluation capability as deprecated", () => {
+    const capabilities = JSON.stringify(buildOpenApiDocument()).match(/"geminiEvaluation":\{[^}]*\}/g) ?? [];
+
+    expect(capabilities.length).toBeGreaterThan(0);
+    for (const schema of capabilities) {
+      expect(JSON.parse(schema.slice('"geminiEvaluation":'.length))).toMatchObject({ type: "boolean", deprecated: true });
+    }
   });
 });

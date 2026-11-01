@@ -30,6 +30,15 @@ const scanRunReads: Partial<Record<ErrorCode, string>> = {
   WORKSPACE_UNHEALTHY: "Only startScan runs the readiness gate."
 };
 
+const evaluationReads: Partial<Record<ErrorCode, string>> = {
+  VALIDATION_ERROR: "Only start parses a request body.",
+  EVALUATION_ALREADY_RUNNING: "Only start checks for an active evaluation.",
+  WORKSPACE_UNHEALTHY: "Only start runs the readiness gate and reads the offer projection.",
+  PATH_OUTSIDE_WORKSPACE: "Only start reads the offer projection; the background run reports failures in the DTO.",
+  PAYLOAD_TOO_LARGE: "Only start reads the offer projection; the background run reports failures in the DTO.",
+  UNEXPECTED_ERROR: "The background run's write errors become a WRITE_FAILED failure in the DTO."
+};
+
 const toleratedSources = "readCareerOpsData is called with tolerateUnreadableSources; file listings skip bad entries.";
 
 const operations: readonly CoveredOperation[] = [
@@ -37,7 +46,12 @@ const operations: readonly CoveredOperation[] = [
     method: "get",
     path: "/api/v1/health",
     successStatus: "200",
-    sources: ["src/api/health-routes.ts", "src/services/health-service.ts"]
+    sources: ["src/api/health-routes.ts", "src/services/health-service.ts"],
+    unreachable: {
+      PATH_OUTSIDE_WORKSPACE: "Evaluation readiness turns unreadable files into checklist entries.",
+      PAYLOAD_TOO_LARGE: "Evaluation readiness turns oversized files into checklist entries.",
+      WORKSPACE_UNHEALTHY: "Evaluation readiness turns unreadable files into checklist entries."
+    }
   },
   {
     method: "get",
@@ -124,6 +138,33 @@ const operations: readonly CoveredOperation[] = [
     successStatus: "200",
     sources: ["src/api/scan-run-routes.ts", "src/services/scan-run-service.ts"],
     unreachable: scanRunReads
+  },
+  {
+    method: "post",
+    path: "/api/v1/evaluations",
+    successStatus: "202",
+    sources: ["src/api/evaluation-routes.ts", "src/services/evaluation-service.ts"]
+  },
+  {
+    method: "get",
+    path: "/api/v1/evaluations/latest",
+    successStatus: "200",
+    sources: ["src/api/evaluation-routes.ts", "src/services/evaluation-service.ts"],
+    unreachable: evaluationReads
+  },
+  {
+    method: "get",
+    path: "/api/v1/evaluations/{id}",
+    successStatus: "200",
+    sources: ["src/api/evaluation-routes.ts", "src/services/evaluation-service.ts"],
+    unreachable: evaluationReads
+  },
+  {
+    method: "post",
+    path: "/api/v1/evaluations/{id}/cancel",
+    successStatus: "200",
+    sources: ["src/api/evaluation-routes.ts", "src/services/evaluation-service.ts"],
+    unreachable: evaluationReads
   },
   {
     method: "get",

@@ -35,6 +35,8 @@ private fun ApiErrorCode.toUiError(): UiError = when (this) {
     ApiErrorCode.WORKSPACE_UNHEALTHY -> UiError(R.string.error_code_workspace_unhealthy, ErrorAction.Retry)
     ApiErrorCode.NOT_FOUND -> UiError(R.string.error_code_not_found, ErrorAction.None)
     ApiErrorCode.SCAN_ALREADY_RUNNING -> UiError(R.string.error_code_scan_already_running, ErrorAction.None)
+    ApiErrorCode.EVALUATION_ALREADY_RUNNING ->
+        UiError(R.string.error_code_evaluation_already_running, ErrorAction.None)
     ApiErrorCode.COMMAND_FAILED -> UiError(R.string.error_code_command_failed, ErrorAction.Retry)
     ApiErrorCode.PARSER_FAILED -> UiError(R.string.error_code_parser_failed, ErrorAction.None)
     ApiErrorCode.PATH_OUTSIDE_WORKSPACE -> UiError(R.string.error_code_path_outside_workspace, ErrorAction.None)

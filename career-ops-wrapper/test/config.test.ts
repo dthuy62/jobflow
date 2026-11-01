@@ -43,6 +43,38 @@ describe("runtime configuration parsing", () => {
     expect(() => loadEnvConfig({ CAREER_OPS_SCAN_TIMEOUT_MS: "1e4" })).toThrow();
   });
 
+  it("loads evaluation settings only when a provider is configured", () => {
+    expect(loadRuntimeConfig({ argv: [], env: {} }).evaluation).toBeUndefined();
+    expect(
+      loadRuntimeConfig({ argv: [], env: { CAREER_OPS_EVALUATION_TIMEOUT_MS: "120000" } }).evaluation
+    ).toBeUndefined();
+    expect(loadRuntimeConfig({ argv: [], env: { CAREER_OPS_EVALUATION_PROVIDER: "claude" } }).evaluation).toEqual({
+      provider: "claude",
+      timeoutMs: 900000
+    });
+    expect(
+      loadRuntimeConfig({
+        argv: [],
+        env: {
+          CAREER_OPS_EVALUATION_PROVIDER: "claude",
+          CAREER_OPS_EVALUATION_TIMEOUT_MS: "60000",
+          CAREER_OPS_EVALUATION_CLI: "/opt/bin/claude"
+        }
+      }).evaluation
+    ).toEqual({ provider: "claude", timeoutMs: 60000, cliPath: "/opt/bin/claude" });
+  });
+
+  it("rejects invalid evaluation settings", () => {
+    expect(() => loadEnvConfig({ CAREER_OPS_EVALUATION_PROVIDER: "gemini" })).toThrow(
+      'CAREER_OPS_EVALUATION_PROVIDER must be "claude".'
+    );
+    expect(() => loadEnvConfig({ CAREER_OPS_EVALUATION_TIMEOUT_MS: "59999" })).toThrow();
+    expect(() => loadEnvConfig({ CAREER_OPS_EVALUATION_TIMEOUT_MS: "3600001" })).toThrow();
+    expect(() => loadEnvConfig({ CAREER_OPS_EVALUATION_CLI: "bin/claude" })).toThrow(
+      "CAREER_OPS_EVALUATION_CLI must be an absolute path."
+    );
+  });
+
   it("loads local pairing token from env", () => {
     expect(
       loadEnvConfig({ CAREER_OPS_PAIRING_TOKEN: "local-secret" }).pairingToken

@@ -8,6 +8,8 @@ import {
   CollectionDtoSchema,
   ErrorCodeSchema,
   ErrorResponseDtoSchema,
+  EvaluationDtoSchema,
+  EvaluationModelOutputSchema,
   HealthDtoSchema,
   OfferCollectionDtoSchema,
   OfferDtoSchema,
@@ -51,7 +53,10 @@ describe("contract examples", () => {
     ["scan-run.succeeded.json", ScanRunDtoSchema],
     ["scan-run.failed.json", ScanRunDtoSchema],
     ["reports.collection.json", ReportCollectionDtoSchema],
-    ["artifacts.collection.json", ArtifactCollectionDtoSchema]
+    ["artifacts.collection.json", ArtifactCollectionDtoSchema],
+    ["evaluation.running.json", EvaluationDtoSchema],
+    ["evaluation.succeeded.json", EvaluationDtoSchema],
+    ["evaluation.failed.json", EvaluationDtoSchema]
   ])("validates %s", async (fixtureName, schema) => {
     const example = await readJsonFixture<unknown>(`contracts/examples/${fixtureName}`);
 
@@ -86,7 +91,8 @@ describe("contract examples", () => {
     expect(example.apiVersion).toBe("v1");
     expect(example.careerOps.executionMode).toBe("local-script-runner");
     expect(example.careerOps.providerApiKeyRequired).toBe(false);
-    expect(example.careerOps.aiCliRequired).toBe(false);
+    expect(example.careerOps.aiCliRequired).toBe(true);
+    expect(example.careerOps.evaluator).toEqual({ status: "ready", provider: "claude", missingRequirements: [] });
     expect(example.careerOps.scanner.checks.map((check) => check.name)).toEqual([
       "doctor-script",
       "scan-script",
@@ -97,8 +103,24 @@ describe("contract examples", () => {
       reports: false,
       artifacts: false,
       cvConversion: false,
-      geminiEvaluation: false
+      geminiEvaluation: false,
+      aiEvaluation: true
     });
+  });
+
+  it("rejects AI output that is not exactly the evaluation shape", () => {
+    const valid = {
+      score: 4.2,
+      legitimacy: "High Confidence",
+      note: "Strong match.",
+      reportMarkdown: "## A) Role Summary\n".padEnd(250, "x")
+    };
+
+    expect(EvaluationModelOutputSchema.safeParse(valid).success).toBe(true);
+    expect(EvaluationModelOutputSchema.safeParse({ ...valid, extra: 1 }).success).toBe(false);
+    expect(EvaluationModelOutputSchema.safeParse({ ...valid, score: 7 }).success).toBe(false);
+    expect(EvaluationModelOutputSchema.safeParse({ ...valid, reportMarkdown: "short" }).success).toBe(false);
+    expect(EvaluationModelOutputSchema.safeParse({ ...valid, legitimacy: "Maybe" }).success).toBe(false);
   });
 
   it.each([
@@ -108,6 +130,8 @@ describe("contract examples", () => {
     "contracts/examples/errors/path-outside-workspace.json",
     "contracts/examples/errors/scan-already-running.json",
     "contracts/examples/errors/scan-not-ready.json",
+    "contracts/examples/errors/evaluation-already-running.json",
+    "contracts/examples/errors/evaluation-not-ready.json",
     "contracts/examples/errors/not-found.json"
   ])("validates error example %s", async (fixturePath) => {
     const example = await readJsonFixture<unknown>(fixturePath);

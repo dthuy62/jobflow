@@ -6,7 +6,7 @@
 - Android app rebuilt from android-agentic-starter (Hilt, Navigation 3,
   Konsist, CI).
 - Wrapper exposes health, CV, profile, portal, scan-readiness, scan-run,
-  offer, report, artifact, docs, and OpenAPI route families.
+  evaluation, offer, report, artifact, docs, and OpenAPI route families.
 - Android wrapper health integration is done.
 
 ## Phase 1: Documentation And Agent Alignment
@@ -53,6 +53,20 @@ Status: backend done; Android planned.
 - [x] Use opaque backend IDs, not file paths.
 - [ ] Add Android list/detail surfaces.
 - [ ] Add report/artifact open/download flows as local/private features.
+
+## Phase 5b: AI Offer Evaluation
+
+Status: phase A backend done; Android planned. Issue #3,
+`docs/superpowers/specs/2026-10-31-ai-offer-evaluation-design.md`.
+
+- [x] Phase A: `POST /api/v1/evaluations` runs the desktop's logged-in
+  `claude` CLI with no tools; the wrapper fetches the posting and writes the
+  report and tracker row.
+- [ ] Android: start an evaluation from an offer and poll it.
+- [ ] Gemini/Codex providers (only if needed).
+- [ ] PDF generation from the app (separate issue).
+- [ ] Phase B: direct API calls with structured output, prompt caching and an
+  eval set (separate issue).
 
 ## Phase 6: Release Hardening
 
