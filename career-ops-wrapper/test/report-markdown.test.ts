@@ -11,6 +11,7 @@ const context: ReportMarkdownContext = {
     ["cv jane.pdf", "artifact_fedcba9876543210"]
   ]),
   localValues: ["/Users/jane", "/Users/jane/career-ops", "/private/var/jane/career-ops"],
+  reportIdByFileName: new Map([["002-globex-labs-2026-06-21.md", "report_002"]]),
   secrets: ["pairing-secret"]
 };
 
@@ -32,9 +33,47 @@ describe("report links", () => {
   });
 
   it.each([
+    ["[Globex](002-globex-labs-2026-06-21.md)", "[Globex](/api/v1/reports/report_002)"],
+    ["[Globex](./002-globex-labs-2026-06-21.md#scores)", "[Globex](/api/v1/reports/report_002)"],
+    ["[Globex](../reports/002-globex-labs-2026-06-21.md)", "[Globex](/api/v1/reports/report_002)"],
+    ["[Globex](reports/002-globex-labs-2026-06-21.md)", "[Globex](/api/v1/reports/report_002)"],
+    ["[g]: 002-globex-labs-2026-06-21.md", "[g]: /api/v1/reports/report_002"]
+  ])("rewrites a link to a listed report: %s", (input, expected) => {
+    expect(sanitize(input)).toBe(expected);
+  });
+
+  it("does not let the report path hide a following path", () => {
+    expect(sanitize("/api/v1/reports/report_002/../../etc/passwd")).not.toContain("passwd");
+    expect(sanitize("/api/v1/reports/report_002x/Users/bob")).toContain("[local path]");
+  });
+
+  it.each([
+    [`**PDF:** output/${CV}`, `**PDF:** [output/${CV}](${CV_URL})`],
+    [`**pdf:** output/${CV} (tailored)`, `**pdf:** [output/${CV}](${CV_URL}) (tailored)`],
+    ["**PDF:** output/other.pdf", "**PDF:** output/other.pdf"],
+    ["**PDF:** not generated — score below threshold", "**PDF:** not generated — score below threshold"],
+    [`**PDF:** [CV](../output/${CV})`, `**PDF:** [CV](${CV_URL})`],
+    [`\`\`\`\n**PDF:** output/${CV}\n\`\`\``, `\`\`\`\n**PDF:** output/${CV}\n\`\`\``]
+  ])("links the PDF header line to a listed artifact: %s", (input, expected) => {
+    expect(sanitize(input)).toBe(expected);
+  });
+
+  it.each([
+    ["<b>bold</b>", "<b>bold</b>"],
+    ["<b>bold</b>.", "<b>bold</b>."],
+    ["a <em>x</em> b </b>", "a <em>x</em> b </b>"],
+    ["<details><summary>More</summary>text</details>", "<details><summary>More</summary>text</details>"],
+    ["</b>/Users/bob/x", "</b>[local path]"],
+    ["</Users/bob/x>", "<[local path]>"]
+  ])("keeps closing HTML tags: %s", (input, expected) => {
+    expect(sanitize(input)).toBe(expected);
+  });
+
+  it.each([
     ["[missing](../output/other.pdf)", "missing"],
     ["[tracker](../data/applications.md)", "tracker"],
-    ["[Globex](002-globex-labs-2026-06-21.md)", "Globex"],
+    ["[other report](005-missing.md)", "other report"],
+    ["[nested](reports/x/002-globex-labs-2026-06-21.md)", "nested"],
     [`[out](../../output/${CV})`, "out"],
     ["[secret](../../../etc/passwd)", "secret"],
     ["[abs](/Users/jane/career-ops/output/x.pdf)", "abs"],
@@ -54,6 +93,8 @@ describe("report links", () => {
     ["[posting](https://jobs.example.com/acme/senior-android)"],
     ["[mail](mailto:jobs@example.com)"],
     ["[below](#scores)"],
+    ["[report](/api/v1/reports/report_7)"],
+    [`[CV](${CV_URL})`],
     ['[wiki](https://en.wikipedia.org/wiki/Kotlin_(programming_language) "Kotlin")']
   ])("keeps a web link: %s", (input) => {
     expect(sanitize(input)).toBe(input);
@@ -196,7 +237,6 @@ describe("local paths in report text", () => {
   it.each([
     "**Score:** 4.2/5",
     "**URL:** https://jobs.example.com/acme-robotics/senior-android",
-    `**PDF:** output/${CV}`,
     "CI/CD, iOS/Android, C++/Kotlin, C#/.NET, **Kotlin**/Java, +/- 10%, 24/7, N/A",
     "Read portals.yml... then retry...",
     "~5/10 fit, ~$120k, approx. ~4/5",
@@ -208,6 +248,12 @@ describe("local paths in report text", () => {
     "(empty report)"
   ])("leaves ordinary report text alone: %s", (text) => {
     expect(sanitize(text)).toBe(text);
+  });
+
+  it("matches home and workspace values case-insensitively even next to text whose case mapping changes length", () => {
+    const withSpace = { ...context, localValues: ["/Users/Jane Doe"] };
+    expect(sanitizeReportMarkdown("İstanbul: x/USERS/JANE DOE/cv.pdf", withSpace)).toBe("İstanbul: x[local path]");
+    expect(sanitizeReportMarkdown("ǅ x/users/jane doe/cv.pdf", withSpace)).toBe("ǅ x[local path]");
   });
 
   it("does not let the artifact path hide a climb", () => {
