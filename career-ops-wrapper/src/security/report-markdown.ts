@@ -5,8 +5,10 @@ import { redactSensitiveText } from "./redaction.js";
  * Report Markdown sanitizer. Design: docs/superpowers/specs/2026-10-31-report-markdown-links-design.md.
  *
  * 1. Token patterns and literal secrets become `[REDACTED]`.
- * 2. Links to listed artifacts point at the download route; other local links
- *    are reduced to their text.
+ * 2. Links to listed artifacts point at the download route, links to listed
+ *    reports at the report route, and a `**PDF:**` header naming a listed
+ *    artifact becomes a download link; other local links are reduced to their
+ *    text.
  * 3. Every token that is, contains, or continues a local path becomes
  *    `[local path]`. This pass covers the whole document and is the boundary;
  *    pass 2 only improves what the reader sees.
@@ -19,6 +21,8 @@ export interface ReportMarkdownContext {
   readonly artifactIdByFileName: ReadonlyMap<string, string>;
   /** Home directory and workspace path variants; a token containing one is removed. */
   readonly localValues: readonly string[];
+  /** Listed `reports/` files by file name. */
+  readonly reportIdByFileName: ReadonlyMap<string, string>;
   /** Literal secrets such as the pairing token. */
   readonly secrets: readonly string[];
 }
@@ -54,20 +58,13 @@ export function sanitizeReportMarkdown(markdown: string, context: ReportMarkdown
   return removeLocalPaths(linked, containsLocalValue).replaceAll(MARK, LOCAL_PATH_PLACEHOLDER);
 }
 
-/** Replaces every case-insensitive occurrence of `value` with plain string search. */
+/**
+ * Replaces every case-insensitive occurrence of `value`. A Unicode regex folds
+ * case per character, so indices stay on the original text even when it holds
+ * characters whose lowercase form has another length (`İ`).
+ */
 function replaceLiteral(text: string, value: string, replacement: string): string {
-  const lowerText = text.toLowerCase();
-  const lowerValue = value.toLowerCase();
-  if (lowerText.length !== text.length || lowerValue.length !== value.length) {
-    return text.split(value).join(replacement);
-  }
-  let result = "";
-  let cursor = 0;
-  for (let index = lowerText.indexOf(lowerValue); index !== -1; index = lowerText.indexOf(lowerValue, cursor)) {
-    result += text.slice(cursor, index) + replacement;
-    cursor = index + value.length;
-  }
-  return result + text.slice(cursor);
+  return text.replace(new RegExp(escapeRegExp(value), "giu"), () => replacement);
 }
 
 /** Matches `literal` also when Markdown escapes its punctuation (`tok\_x`). */
@@ -92,11 +89,16 @@ function stripEmphasis(value: string): string {
 type LinkAction = { readonly kind: "keep" } | { readonly kind: "reduce" } | { readonly kind: "rewrite"; readonly url: string };
 
 const ARTIFACT_DIR = "output/";
+const REPORT_DIR = "reports/";
 const MAX_TITLE_CHARS = 256;
 const FENCE_OPEN = /^ {0,3}(`{3,}|~{3,})(.*)$/;
 const FENCE_CLOSE = /^ {0,3}(`{3,}|~{3,})[ \t]*$/;
+/** The `**PDF:**` header field, as `parseReportHeader` reads it, with a plain path value. */
+const PDF_FIELD = /^([ \t]*\*\*PDF:\*\*[ \t]*)([^\s[\]()<>]+)/i;
 const REFERENCE_DEFINITION = /^ {0,3}\[([^\]\n]{1,999})\]:[ \t]*(<[^<>\n]*>|\S+)(.*)$/;
 const ESCAPABLE = /^[!-/:-@[-`{-~]$/;
+/** A destination this pass writes, so a rewritten line can be read again. */
+const WRAPPER_ROUTE = /^\/api\/v1\/(?:artifacts\/artifact_[a-f0-9]{16}\/download|reports\/report_\d{1,6})$/;
 
 function classifyDestination(
   rawDestination: string,
@@ -107,7 +109,7 @@ function classifyDestination(
   if (destination.includes(MARK)) {
     return { kind: "reduce" };
   }
-  if (destination.startsWith("#")) {
+  if (destination.startsWith("#") || WRAPPER_ROUTE.test(destination)) {
     return { kind: "keep" };
   }
 
@@ -135,16 +137,25 @@ function classifyDestination(
 
   for (const base of ["reports", "."]) {
     const resolved = path.posix.normalize(path.posix.join(base, relative));
-    if (!resolved.startsWith(ARTIFACT_DIR)) {
-      continue;
+    const artifactId = listedFile(resolved, ARTIFACT_DIR, context.artifactIdByFileName);
+    if (artifactId) {
+      return { kind: "rewrite", url: `/api/v1/artifacts/${artifactId}/download` };
     }
-    const fileName = resolved.slice(ARTIFACT_DIR.length);
-    const id = fileName.includes("/") ? undefined : context.artifactIdByFileName.get(fileName);
-    if (id) {
-      return { kind: "rewrite", url: `/api/v1/artifacts/${id}/download` };
+    const reportId = listedFile(resolved, REPORT_DIR, context.reportIdByFileName);
+    if (reportId) {
+      return { kind: "rewrite", url: `/api/v1/reports/${reportId}` };
     }
   }
   return { kind: "reduce" };
+}
+
+/** The ID of `resolved` when it names a listed file directly inside `directory`. */
+function listedFile(resolved: string, directory: string, idByFileName: ReadonlyMap<string, string>): string | undefined {
+  if (!resolved.startsWith(directory)) {
+    return undefined;
+  }
+  const fileName = resolved.slice(directory.length);
+  return fileName.includes("/") ? undefined : idByFileName.get(fileName);
 }
 
 /** Applies `classify` to every link and reference definition outside fenced code. */
@@ -178,6 +189,16 @@ function rewriteLinks(markdown: string, classify: (destination: string) => LinkA
       fence = { char: open[1][0] as string, length: open[1].length };
       output.push(line);
       continue;
+    }
+
+    const pdfField = PDF_FIELD.exec(content);
+    if (pdfField?.[1] && pdfField[2]) {
+      const action = classify(pdfField[2]);
+      if (action.kind === "rewrite") {
+        const end = pdfField[0].length;
+        prose.push(`${pdfField[1]}[${pdfField[2]}](${action.url})${line.slice(end)}`);
+        continue;
+      }
     }
 
     const definition = REFERENCE_DEFINITION.exec(content);
@@ -388,7 +409,10 @@ const RELATIVE_BEFORE = /[\p{L}\p{N}\p{M}\p{So}%+#)]/u;
 /** A character after a slash run that makes it a path. */
 const PATH_AFTER = /[\p{L}\p{N}._~$%{]/u;
 const ALPHANUMERIC = /[\p{L}\p{N}]/u;
-const ARTIFACT_DOWNLOAD_PATH = /\/api\/v1\/artifacts\/artifact_[a-f0-9]{16}\/download/y;
+/** Route paths that pass 2 writes; allowed when they stand alone. */
+const ROUTE_PATHS = [/\/api\/v1\/artifacts\/artifact_[a-f0-9]{16}\/download/y, /\/api\/v1\/reports\/report_\d{1,6}/y];
+/** A closing HTML tag such as `</b>`, from its `/`; the `>` may have been trimmed as trailing punctuation. */
+const CLOSING_TAG = /\/[A-Za-z][A-Za-z0-9-]{0,31}(?=>|$)/y;
 const HOME_TILDE = /~(?:[A-Za-z][\w.-]*)?[/\\]/y;
 const HOME_VARIABLE = /(?:\$HOME|\$\{HOME\})[/\\]|%(?:USERPROFILE|HOMEPATH|HOMEDRIVE|APPDATA|LOCALAPPDATA)%/iy;
 const DRIVE_OR_FILE = /[A-Za-z]:[/\\]|file:/iy;
@@ -452,7 +476,7 @@ function scrubToken(token: string, continuing: boolean, containsLocalValue: (val
     return whole;
   }
 
-  const scrubbed = scrubBody(body);
+  const scrubbed = scrubBody(body, lead);
   if (scrubbed.climbs) {
     return whole;
   }
@@ -460,7 +484,7 @@ function scrubToken(token: string, continuing: boolean, containsLocalValue: (val
     return { text: `${lead}${scrubbed.text}${trail}`, removed: true };
   }
   if (decoded !== body) {
-    const decodedScrub = scrubBody(decoded);
+    const decodedScrub = scrubBody(decoded, lead);
     if (decodedScrub.removed || decodedScrub.climbs) {
       return whole;
     }
@@ -473,7 +497,7 @@ function scrubToken(token: string, continuing: boolean, containsLocalValue: (val
  * to the end of the body or the next `](`. Web URLs lose their userinfo.
  * `climbs` reports a relative path outside a URL that leaves the workspace.
  */
-function scrubBody(body: string): { text: string; removed: boolean; climbs: boolean } {
+function scrubBody(body: string, lead: string): { text: string; removed: boolean; climbs: boolean } {
   let text = "";
   let removed = false;
   let climbs = false;
@@ -486,7 +510,7 @@ function scrubBody(body: string): { text: string; removed: boolean; climbs: bool
       url = findUrl(body, position);
     }
     const limit = url?.start ?? body.length;
-    const pathStart = findAbsolutePathStart(body, position, limit);
+    const pathStart = findAbsolutePathStart(body, position, limit, lead);
     // A web URL that holds a removed home or workspace value goes as a whole.
     const urlRemoved = url && (!url.web || url.span.includes(MARK)) ? url.start : undefined;
     const removeFrom = pathStart ?? urlRemoved;
@@ -544,11 +568,18 @@ function stripUserinfo(url: string): string {
   return at === -1 ? url : url.slice(0, authorityStart) + url.slice(authorityStart + at + 1);
 }
 
-function findAbsolutePathStart(body: string, from: number, to: number): number | undefined {
+function findAbsolutePathStart(body: string, from: number, to: number, lead: string): number | undefined {
   for (let index = from; index < to; index += 1) {
     const char = body[index] as string;
     if (char === MARK) {
       return index;
+    }
+    if (char === "/" && (index > 0 ? body[index - 1] : lead.at(-1)) === "<") {
+      CLOSING_TAG.lastIndex = index;
+      if (CLOSING_TAG.test(body)) {
+        index = CLOSING_TAG.lastIndex - 1;
+        continue;
+      }
     }
     if (char === "/" || char === "\\") {
       let runEnd = index;
@@ -561,7 +592,7 @@ function findAbsolutePathStart(body: string, from: number, to: number): number |
       const isPath = hasSlash ? PATH_AFTER.test(after) : ALPHANUMERIC.test(after);
       KNOWN_ROOT.lastIndex = runEnd - 1;
       if (isPath && (startsPath(body, index) || KNOWN_ROOT.test(body))) {
-        const allowed = matchArtifactDownloadPath(body, index);
+        const allowed = matchRoutePath(body, index);
         if (allowed === undefined) {
           return index;
         }
@@ -604,15 +635,18 @@ function startsPath(body: string, index: number): boolean {
   return !RELATIVE_BEFORE.test(previous);
 }
 
-/** End of the artifact download path at `index`, when it stands alone. */
-function matchArtifactDownloadPath(body: string, index: number): number | undefined {
-  ARTIFACT_DOWNLOAD_PATH.lastIndex = index;
-  if (!ARTIFACT_DOWNLOAD_PATH.test(body)) {
-    return undefined;
+/** End of an artifact download or report route path at `index`, when it stands alone. */
+function matchRoutePath(body: string, index: number): number | undefined {
+  for (const pattern of ROUTE_PATHS) {
+    pattern.lastIndex = index;
+    if (!pattern.test(body)) {
+      continue;
+    }
+    const end = pattern.lastIndex;
+    const next = body[end] ?? "";
+    return next === "" || !(PATH_AFTER.test(next) || next === "/" || next === "\\") ? end : undefined;
   }
-  const end = ARTIFACT_DOWNLOAD_PATH.lastIndex;
-  const next = body[end] ?? "";
-  return next === "" || !(PATH_AFTER.test(next) || next === "/" || next === "\\") ? end : undefined;
+  return undefined;
 }
 
 /** True when a relative path, resolved from `reports/`, leaves the workspace. */

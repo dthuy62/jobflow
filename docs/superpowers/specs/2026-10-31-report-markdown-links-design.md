@@ -1,6 +1,9 @@
 # Report Markdown: links to artifact IDs, local paths removed
 
 Issue: [#13](https://github.com/dthuy62/jobflow/issues/13). Tier L.
+Updated 2026-11-01 for issue [#17](https://github.com/dthuy62/jobflow/issues/17):
+links between reports, the `**PDF:**` header link, closing HTML tags, and the
+case-insensitive literal match.
 
 `GET /api/v1/reports/{id}` returns the report's Markdown. Until now it went
 through `redactLocalValues`, which replaced the workspace and home path strings
@@ -23,7 +26,9 @@ removed as a whole, and links are rebuilt from structured data (artifact IDs).
    the literal also matches when Markdown escapes its punctuation
    (`tok\_x`). Then every occurrence of the home directory or a workspace
    path variant (configured, resolved, real) is replaced literally and
-   case-insensitively, longest first, by plain string search, whatever
+   case-insensitively, longest first, with a Unicode case-insensitive regex
+   (indices stay on the original text, also next to characters such as `İ`
+   whose lowercase form has another length), whatever
    characters surround it (`item 1)/Users/jane`, `build/USERS/JANE/x`, a value
    with a space such as `/Users/jane/Career Ops`). Pass 3 treats the
    replacement as the start of an absolute path, so the rest of the path goes
@@ -66,9 +71,11 @@ What happens to the destination:
 | Destination | Result |
 | --- | --- |
 | `#fragment` | Kept |
+| The exact route paths this pass writes (`/api/v1/artifacts/artifact_<16 hex>/download`, `/api/v1/reports/report_<digits>`) | Kept |
 | `http:`, `https:`, `mailto:` | Kept (pass 3 still strips URL credentials and drops a URL that contains the workspace or home path) |
 | Relative, resolves to `output/<file>` and `<file>` is a listed artifact | Destination becomes `/api/v1/artifacts/<id>/download`; text and title kept |
-| Anything else: other relative paths (other reports, `data/…`, a missing PDF, climbing out), absolute paths, `~`, `file:` and other schemes, Windows drives | Inline link → its text only (`[CV](x)` → `CV`, `![alt](x)` → `alt`). Reference definition → the line is removed, so `[text][label]` shows as plain text |
+| Relative, resolves to `reports/<file>` and `<file>` is a listed report (`002-globex.md`, `../reports/002-globex.md`) | Destination becomes `/api/v1/reports/report_<NNN>`; the `#fragment` is dropped (issue #17) |
+| Anything else: other relative paths (unlisted reports, `data/…`, a missing PDF, climbing out), absolute paths, `~`, `file:` and other schemes, Windows drives | Inline link → its text only (`[CV](x)` → `CV`, `![alt](x)` → `alt`). Reference definition → the line is removed, so `[text][label]` shows as plain text |
 
 Relative destinations are percent-decoded, stripped of `?query` and
 `#fragment`, and resolved with POSIX rules against `reports/` (where report
@@ -76,7 +83,16 @@ files live) **(builder's call: also against the workspace root, so
 `output/x.pdf` matches too; both resolve inside the workspace or are
 rejected)**. The artifact map comes from the same `output/` listing as
 `GET /artifacts` (regular, non-symlink PDFs whose names pass
-`SanitizedTextSchema`), so a rewritten link always downloads.
+`SanitizedTextSchema`), so a rewritten link always downloads. The report map
+comes from the same `reports/` listing as `GET /reports` (the file that owns
+its number), so a rewritten report link always resolves.
+
+A `**PDF:** <value>` line outside fenced code, matched like
+`parseReportHeader` reads it (case-insensitive, leading spaces allowed), whose
+first word is a plain path (no brackets, parentheses or angle brackets) that
+resolves to a listed artifact becomes
+`**PDF:** [<value>](/api/v1/artifacts/<id>/download)`; the rest of the line is
+kept. Any other `**PDF:**` value is left as text (issue #17).
 
 ## Paths (pass 3)
 
@@ -115,8 +131,13 @@ The body is replaced by `[local path]` when any of these hold:
    - A Windows drive `C:\` or `C:/`.
    - `file:` and any `scheme://` other than `http` and `https`.
    - The exact artifact download path
-     `/api/v1/artifacts/artifact_<16 hex>/download` is not a start: it is the
-     one path pass 2 writes.
+     `/api/v1/artifacts/artifact_<16 hex>/download` and report path
+     `/api/v1/reports/report_<digits>` are not a start when they stand alone:
+     they are the paths pass 2 writes.
+   - A closing HTML tag is not a start: `/` right after `<`, then a tag name
+     (a letter, then up to 31 letters, digits or `-`), then `>` or the end of
+     the body (`</b>`, `text</em>.`). `</Users/bob>` is still a path, because
+     the name is followed by `/` (issue #17).
 3. **Climb.** Outside an `http(s)` URL, the body is a relative path that,
    resolved from `reports/`, leaves the workspace (`../../x`,
    `../../../Users/bob`). A relative path that stays inside shows no machine
@@ -200,12 +221,16 @@ HTML escapes). Others are known to get through:
 - An absolute path outside the known roots, glued to a word
   (`a/srv2/data/x`).
 
+Issue #17 reviewed these again and kept them documented: each fix would need
+another heuristic of the same kind. One former item was cheap and is fixed:
+text with a character whose lowercase form has another length (`İ`) used to
+make the literal pass fall back to a case-sensitive match.
+
 The design also does not trade leaks for mangled prose: rules that removed
 ordinary text were narrowed (known roots are case-sensitive and need two
 more segments).
 
 ## Out of scope (follow-ups)
 
-- Links to other reports (`002-globex.md`) could point at
-  `/api/v1/reports/report_002`. They become plain text for now.
-- The `**PDF:** output/<file>.pdf` header line is plain text, not a link.
+- None open. Links to other reports and the `**PDF:**` header link were done
+  in issue #17; the residual risks above stay documented.

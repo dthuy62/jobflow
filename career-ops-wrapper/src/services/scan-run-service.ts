@@ -1,4 +1,5 @@
 import { randomBytes } from "node:crypto";
+import { homedir } from "node:os";
 import {
   createCareerOpsEngineAdapter,
   type CareerOpsEngineAdapter,
@@ -12,6 +13,7 @@ import { ApiError } from "../errors/api-error.js";
 import { parseScanOutput } from "../parsers/index.js";
 import { ScanRunStore } from "../runs/index.js";
 import { createPortalFileAdapter } from "../workspace/portal-file-adapter.js";
+import { listWorkspacePathVariants } from "../workspace/workspace-paths.js";
 import { createScanReadinessService, type ScanReadinessService } from "./scan-readiness-service.js";
 
 export interface ScanRunService {
@@ -148,7 +150,9 @@ function finalRunPatch(
     exitCode: result?.exitCode ?? null,
     summary: {
       offersFound: parsed.offersFound,
-      offersProjected: failure || args.dryRun ? 0 : parsed.offersAdded,
+      // scan.mjs writes new rows before it prints the summary, so a failed run
+      // may still have added offers. A dry run writes nothing.
+      offersProjected: args.dryRun ? 0 : parsed.offersAdded,
       warnings: buildScanWarnings(parsed, companies)
     },
     failure
@@ -159,7 +163,10 @@ function finalRunPatch(
 async function readScanCompanyNames(config: RuntimeConfig): Promise<string[]> {
   try {
     const file = await createPortalFileAdapter(config.workspace).readPortalConfig();
-    return listScanCompanyNames(file.parsedPortal);
+    return listScanCompanyNames(file.parsedPortal, {
+      localValues: [homedir(), ...(await listWorkspacePathVariants(config.workspace))],
+      secrets: config.pairingToken ? [config.pairingToken] : []
+    });
   } catch {
     return [];
   }

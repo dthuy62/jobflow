@@ -1,5 +1,6 @@
-import { ScanCompanySchema, type ScanRunDto } from "../contracts/index.js";
+import { SanitizedTextSchema, ScanCompanySchema, type ScanRunDto } from "../contracts/index.js";
 import type { ParsedScanOutput } from "../parsers/index.js";
+import { sanitizeReportMarkdown } from "../security/report-markdown.js";
 import type { ScanProcessResult } from "./career-ops-engine-adapter.js";
 
 // Scan output is read here to pick categories and counts, but no text from it
@@ -58,19 +59,38 @@ const FAILURE_REASONS: ReadonlyArray<readonly [RegExp, string]> = [
   [/^Error: no providers loaded/m, "No scan providers could be loaded."]
 ];
 
+/** Local values and secrets a company name must not echo; see {@link listScanCompanyNames}. */
+export interface ScanNameEchoContext {
+  /** Home directory and workspace path variants. */
+  readonly localValues: readonly string[];
+  /** Literal secrets such as the pairing token. */
+  readonly secrets: readonly string[];
+}
+
 /**
  * Names of the `tracked_companies` and `job_boards` entries in a parsed
- * portals.yml, the lists `scan.mjs` scans. Names outside
- * {@link ScanCompanySchema} are dropped, so a name never carries a path or URL.
+ * portals.yml, the lists `scan.mjs` scans. A name is kept when it is a valid
+ * {@link ScanCompanySchema} value and the report sanitizer would leave it
+ * unchanged, so a warning never echoes a path, URL credential, or token.
  */
-export function listScanCompanyNames(portal: unknown): string[] {
+export function listScanCompanyNames(
+  portal: unknown,
+  echo: ScanNameEchoContext = { localValues: [], secrets: [] }
+): string[] {
   const root = asRecord(portal);
   const names = [root?.tracked_companies, root?.job_boards]
     .flatMap((entries) => (Array.isArray(entries) ? entries : []))
-    .map((entry) => asRecord(entry)?.name)
-    .filter((name): name is string => ScanCompanySchema.safeParse(name).success);
+    .flatMap((entry) => {
+      const parsed = ScanCompanySchema.safeParse(asRecord(entry)?.name);
+      return parsed.success && isSafeToEcho(parsed.data, echo) ? [parsed.data] : [];
+    });
 
   return [...new Set(names)];
+}
+
+function isSafeToEcho(name: string, echo: ScanNameEchoContext): boolean {
+  const sanitized = sanitizeReportMarkdown(name, { artifactIdByFileName: new Map(), reportIdByFileName: new Map(), ...echo });
+  return sanitized === name && SanitizedTextSchema.safeParse(name).success;
 }
 
 export function classifyScanError(text: string): ScanErrorCategory {

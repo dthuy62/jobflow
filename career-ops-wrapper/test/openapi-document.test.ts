@@ -315,6 +315,11 @@ describe("OpenAPI document", () => {
       "dryRun",
       "company"
     ]);
+    expect(document.components.schemas.StartScanRunRequestDto.properties?.company).toMatchObject({
+      maxLength: 100,
+      pattern: "^(?!-)[^\\p{Cc}\\u2028\\u2029]+$",
+      description: expect.stringContaining("must not start with '-'")
+    });
     expect(Object.keys(document.components.schemas.OfferDto.properties ?? {})).toContain("evaluationStatus");
     expect(document.components.examples.OffersCollection.value).toEqual(
       await readJsonFixture<unknown>("contracts/examples/offers.collection.json")

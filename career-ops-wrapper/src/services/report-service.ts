@@ -26,6 +26,7 @@ export function createReportService(config: RuntimeConfig): ReportService {
     items: ReportListItemDto[];
     files: ReportFile[];
     artifactIdByFileName: Map<string, string>;
+    reportIdByFileName: Map<string, string>;
     revisionHash: string;
   }> {
     const data = await readCareerOpsData(config.workspace, { tolerateUnreadableSources: true });
@@ -35,6 +36,7 @@ export function createReportService(config: RuntimeConfig): ReportService {
       files,
       items: files.map((report) => toListItem(report, offerIdByReportId.get(report.id) ?? null)),
       artifactIdByFileName: new Map(data.artifacts.map((artifact) => [artifact.fileName, artifact.id])),
+      reportIdByFileName: new Map(data.reports.map((report) => [report.fileName, report.id])),
       revisionHash: data.revisionHash
     };
   }
@@ -50,7 +52,7 @@ export function createReportService(config: RuntimeConfig): ReportService {
     },
 
     async getReport(id: string): Promise<ReportDetailDto> {
-      const { items, files, artifactIdByFileName } = await loadReports();
+      const { items, files, artifactIdByFileName, reportIdByFileName } = await loadReports();
       const index = items.findIndex((item) => item.id === id);
       const file = files[index];
       const item = items[index];
@@ -63,6 +65,7 @@ export function createReportService(config: RuntimeConfig): ReportService {
 
       const markdown = sanitizeReportMarkdown(file.markdown, {
         artifactIdByFileName,
+        reportIdByFileName,
         localValues: [homedir(), ...(await listWorkspacePathVariants(config.workspace))],
         secrets: config.pairingToken ? [config.pairingToken] : []
       });

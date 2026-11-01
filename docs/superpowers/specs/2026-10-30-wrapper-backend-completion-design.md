@@ -71,9 +71,13 @@ persistence)**.
   exposed **(builder's call: `--verify` needs Playwright/Chromium, can run for a
   long time, and its headed fallback needs a display; the desktop can still run
   it)**.
-- `company` must be 1–100 characters, must not start with `-`, and may only
-  contain letters, digits, spaces, and `. & ' ( ) + , -` **(builder's call)**.
-  Unknown body keys are rejected with `VALIDATION_ERROR`.
+- `company` is any company name: it is trimmed, then must be 1–100
+  characters, must not start with `-` (it would read as a flag after
+  `--company`), and must not contain control characters or line breaks
+  (`\p{Cc}`, U+2028, U+2029). `/`, `—`, `:`, `?` and a leading `(` or `.` are
+  fine. It is passed as one argv element, never through a shell **(owner
+  ruling 2026-11-01: no name policy, only argv safety)**. Unknown body keys
+  are rejected with `VALIDATION_ERROR`.
 - Order of checks:
   1. Body validation → `VALIDATION_ERROR` (400).
   2. An active run exists → `SCAN_ALREADY_RUNNING` (409) with
@@ -122,8 +126,10 @@ persistence)**.
 
 - `id`: `scan_<UTC yyyymmddHHMMss>_<6 hex>`; never a path.
 - `summary.offersFound` comes from the `Total jobs found:` line;
-  `summary.offersProjected` from `New offers added:` (0 for dry runs, because
-  nothing is written) **(builder's call)**. Missing lines → 0.
+  `summary.offersProjected` from `New offers added:`, also when the run
+  failed, because `scan.mjs` writes the new rows before it prints the summary;
+  0 for dry runs, because nothing is written **(owner ruling 2026-11-01)**.
+  Missing lines → 0.
 - `summary.warnings` and `failure.message` are built from structured data
   only; see [Scan diagnostics](#scan-diagnostics) **(agreed, issue #9)**.
 - `failure.code` is one of `COMMAND_FAILED`, `COMMAND_TIMEOUT`, `SPAWN_FAILED`.
@@ -155,10 +161,13 @@ error lines.
 
 The wrapper reads `portals.yml` (or `portals.yaml`) after the scan finishes and
 collects the `name` of every entry in `tracked_companies` and `job_boards`, the
-two lists `scan.mjs` scans. A name is kept only if it passes
-`ScanCompanySchema` (letters, digits, space and `.&'()+,-`, at most 100
-characters), so a name can never carry `/`, `:`, `@`, `%`, `?` or `#`
-**(builder's call)**. An unreadable or invalid `portals.yml` gives an empty
+two lists `scan.mjs` scans. A name is kept when it passes `ScanCompanySchema`
+(the same argv-safety rules as the request) **(owner ruling 2026-11-01)** and
+is safe to echo: the report Markdown sanitizer
+(`src/security/report-markdown.ts`, with the home directory, workspace path
+variants and pairing token) leaves it unchanged, and it passes
+`SanitizedTextSchema`. So a name holding a path, a URL with credentials or a
+token is dropped, and its error lines count as unmatched **(builder's call)**. An unreadable or invalid `portals.yml` gives an empty
 list: every error line then counts as unmatched, and the run still completes
 **(builder's call)**.
 
@@ -272,8 +281,11 @@ Missing files are treated as empty.
   | Discarded, SKIP | `archived` |
   | anything else | `unknown` |
 
-  Without a tracker row: processed pipeline line → `tracked`; pending line or
-  scan history only → `new` **(builder's call)**.
+  Without a tracker row: processed pipeline line or an evaluation report
+  (`**URL:**`) → `tracked`, because it was evaluated; pending line or scan
+  history only → `new` **(builder's call; report → `tracked` is an owner
+  ruling of 2026-11-01)**. A report whose `**URL:**` has no other source still
+  becomes an offer **(owner ruling 2026-11-01)**.
 - `score`: `x/5` → `round(x × 20, 1)`, so `4.2/5` → `84`. Values outside 0–5 or
   unparsable → `null`. The contract keeps its 0–100 range **(builder's call:
   the agreed mapping; no contract change)**.
@@ -312,17 +324,24 @@ Missing files are treated as empty.
   `NNN-<slug>.md`). Other files are ignored. Symlinks are skipped.
 - `id`: `report_NNN` **(agreed: from the report number)**. If two files share a
   number, the first by file name wins **(builder's call)**.
-- `title`: the `# Evaluation: …` (or `# Evaluación: …`) heading text, else
-  `Report NNN`. `kind`: `evaluation` for those headings, else `unknown`.
+- `title`: the first `# ` heading, with an `Evaluation:` or `Evaluación:`
+  prefix stripped, else `Report NNN` (also when the heading looks like a
+  path) **(owner ruling 2026-11-01)**. `kind`: `evaluation` for headings with
+  that prefix, else `unknown`.
 - `createdAt`: `**Date:**`, else the file-name date. `updatedAt`: file mtime.
-- `offerId`: from `**URL:**` (same hash as offers), else from a tracker row
-  that links the report **(agreed)**.
+- `offerId`: the offer of the report's own normalized `**URL:**` (same hash as
+  offers), else the offer of the first tracker row that links the report, else
+  `null` **(agreed; enforced 2026-11-01)**. A pipeline `#NNN` never decides it.
+  Several reports for one URL all get that offer; `OfferDto.reportId` stays the
+  latest linked report (tracker link, else processed `#NNN`, else the first
+  report with that URL).
 - `sourceRevision`: `report_sha256_<8 hex>` of the file.
 - `markdown`: the file, capped at 1 MiB (`PAYLOAD_TOO_LARGE` over it, or when
   rewritten links push it over), sanitized as in
-  `2026-10-31-report-markdown-links-design.md`: links to listed PDFs point at
-  `/api/v1/artifacts/{id}/download`, other local links become their text, and
-  local paths become `[local path]`. The contract's `markdown` field is a
+  `2026-10-31-report-markdown-links-design.md`: links to listed PDFs (and a
+  `**PDF:**` header naming one) point at `/api/v1/artifacts/{id}/download`,
+  links to listed reports at `/api/v1/reports/{id}`, other local links become
+  their text, and local paths become `[local path]`. The contract's `markdown` field is a
   bounded string, not `SanitizedTextSchema`, because reports keep relative
   paths such as `output/x.pdf` that the path pattern rejects **(builder's call)**.
 - `GET /reports` → `{ items: ReportListItemDto[], syncedAt, sourceRevision }`,

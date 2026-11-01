@@ -37,11 +37,12 @@ All routes live under `/api/v1`. Workspace validation and path containment keep 
 Scan execution goes through the typed `career-ops-engine` adapter (`runScan()`). The wrapper never exposes generic shell endpoints such as `/run`, `/exec`, or `/command`. `scan.mjs` only finds job links; scores and reports come from AI evaluation, on the desktop or through [AI Evaluations](#ai-evaluations).
 
 - The wrapper spawns `node scan.mjs` with the current Node binary, the workspace as `cwd`, and no shell.
-- Only `--dry-run` and `--company <name>` are forwarded. `--verify` and the other flags are not exposed.
+- Only `--dry-run` and `--company <name>` are forwarded. `--verify` and the other flags are not exposed. `company` is any trimmed name of 1–100 characters that does not start with `-` and has no control characters or line breaks; it is one argv element.
 - Only one scan runs at a time; a second start returns `409 SCAN_ALREADY_RUNNING`. A start while scan readiness is not ready returns `503 WORKSPACE_UNHEALTHY` with `details.reason: "scan-not-ready"`.
 - `CAREER_OPS_*` variables are removed from the child environment.
 - Runs time out after 10 minutes by default (`CAREER_OPS_SCAN_TIMEOUT_MS`, 1000–3600000).
-- stdout/stderr are bounded and never leave the wrapper. Warnings and failure messages are fixed sentences built from `portals.yml` company names, an error category, and counts; unknown companies are only counted.
+- stdout/stderr are bounded and never leave the wrapper. Warnings and failure messages are fixed sentences built from `portals.yml` company names, an error category, and counts; unknown companies, and names that would echo a path, URL credential or token, are only counted.
+- `summary.offersProjected` is the `New offers added:` count, also for a failed run (rows are written before the summary); 0 for dry runs.
 - Run state is in memory; a wrapper restart forgets past runs.
 
 ## AI Evaluations
@@ -63,7 +64,7 @@ These are read-only projections. Apart from AI evaluations (above), the wrapper 
 
 - Offers merge `data/scan-history.tsv`, `data/pipeline.md`, `data/applications.md`, and report `**URL:**` headers by normalized URL. IDs are `offer_<16 hex>` hashes, never paths.
 - Scores map Career Ops `x/5` to 0–100 (`4.2/5` → `84`). Offers with no score or report have `evaluationStatus: "notEvaluated"`.
-- Reports are `reports/NNN-<slug>.md` files with IDs `report_NNN`. Links to workspace PDFs are rewritten to `/api/v1/artifacts/{id}/download`, other local links become plain text, and local paths become `[local path]`; reports over 1 MiB return `413`.
+- Reports are `reports/NNN-<slug>.md` files with IDs `report_NNN`. A report's `offerId` is the offer of its own `**URL:**`, else of the tracker row that links it. An offer with an evaluation report and no tracker row is `tracked`. Links to workspace PDFs (and the `**PDF:**` header) are rewritten to `/api/v1/artifacts/{id}/download`, links to other reports to `/api/v1/reports/{id}`, other local links become plain text, and local paths become `[local path]`; reports over 1 MiB return `413`.
 - Artifacts are regular PDF files directly inside `output/`, with IDs `artifact_<16 hex>`. Downloads stream with `Content-Type: application/pdf` and `Content-Disposition: attachment`.
 - Symbolic links in `reports/` and `output/` are skipped, and IDs are matched against directory listings instead of being joined into paths.
 

@@ -52,21 +52,47 @@ describe("listScanCompanyNames", () => {
     ).toEqual(["Acme Robotics", "Globex Labs", "Remote Board"]);
   });
 
-  it("drops names that could carry a path, URL, or credential", () => {
+  it("keeps any company name that is safe to pass as one argument", () => {
     expect(
       listScanCompanyNames({
         tracked_companies: [
-          { name: "/Users/jane/career-ops" },
-          { name: "https://jane:hunter2@host" },
-          { name: "Acme %2e%2e" },
+          { name: "AT&T / Mobile" },
+          { name: "Acme — Labs" },
+          { name: "(Stealth) Startup" },
+          { name: ".NET Shop" },
+          { name: "  Padded Co  " },
           { name: "Acme?x" },
-          { name: "-flag" },
-          { name: "x".repeat(101) },
-          { name: 42 },
-          null,
-          { name: "Initech" }
+          { name: "Acme %2e%2e" }
         ]
       })
+    ).toEqual(["AT&T / Mobile", "Acme — Labs", "(Stealth) Startup", ".NET Shop", "Padded Co", "Acme?x", "Acme %2e%2e"]);
+  });
+
+  it("drops names that are not one safe argument or that would echo a path, URL credential, or token", () => {
+    expect(
+      listScanCompanyNames(
+        {
+          tracked_companies: [
+            { name: "/Users/jane/career-ops" },
+            { name: "Acme /Users/jane/x" },
+            { name: "Acme ~/secrets" },
+            { name: "Acme C:\\Users\\jane" },
+            { name: "Acme ../x" },
+            { name: "https://jane:hunter2@host" },
+            { name: "Acme CAREER_OPS_PAIRING_TOKEN=abc" },
+            { name: "Acme pairing-secret" },
+            { name: "Acme in /srv/ws" },
+            { name: "-flag" },
+            { name: "Acme\nRobotics" },
+            { name: "Acme\u0007" },
+            { name: "x".repeat(101) },
+            { name: 42 },
+            null,
+            { name: "Initech" }
+          ]
+        },
+        { localValues: ["/srv/ws"], secrets: ["pairing-secret"] }
+      )
     ).toEqual(["Initech"]);
   });
 

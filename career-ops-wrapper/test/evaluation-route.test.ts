@@ -8,6 +8,7 @@ import { EvaluationDtoSchema, ErrorResponseDtoSchema, OfferDtoSchema, type Evalu
 import type { PostingResult } from "../src/evaluation/posting-fetcher.js";
 import { createServer } from "../src/server.js";
 import { createFakeClaude, type FakeClaude, type FakeClaudeBehaviour } from "./support/fake-claude.js";
+import { EvaluationNotReadyDetailsSchema } from "./support/evaluation-not-ready.js";
 import { copyProjectionFixture, removeWorkspaces } from "./support/fixture-workspace.js";
 
 const OFFER_ID = "offer_5d9b8e7eb781eeca";
@@ -251,11 +252,13 @@ describe("evaluation routes", () => {
       code: "WORKSPACE_UNHEALTHY",
       details: { reason: "evaluation-not-ready", missingRequirements: ["evaluation.provider-not-configured"] }
     });
+    EvaluationNotReadyDetailsSchema.parse(notConfigured.json().error.details);
 
     const loggedOut = await setup({ behaviour: { auth: { loggedIn: false } } });
     const response = await start(loggedOut.server);
     expect(response.statusCode).toBe(503);
     expect(response.json().error.details.missingRequirements).toEqual(["evaluation.cli-logged-out"]);
+    EvaluationNotReadyDetailsSchema.parse(response.json().error.details);
     expect(await loggedOut.fake.calls()).toEqual([]);
   });
 
@@ -273,6 +276,7 @@ describe("evaluation routes", () => {
       const unreadable = await start(server);
       expect(unreadable.statusCode).toBe(503);
       expect(unreadable.json().error.details.missingRequirements).toEqual(["modes.offer-missing"]);
+      EvaluationNotReadyDetailsSchema.parse(unreadable.json().error.details);
     } finally {
       await chmod(path.join(workspace, "modes/oferta.md"), 0o644);
     }
