@@ -176,6 +176,40 @@ describe("offer service", () => {
     });
   });
 
+  it("marks an offer known only from an evaluation report as tracked", async () => {
+    const workspace = await mkdtemp(path.join(tmpdir(), "offers-report-only-"));
+    workspaces.push(workspace);
+    await mkdir(path.join(workspace, "reports"));
+    await writeFile(
+      path.join(workspace, "reports/004-solo-2026-07-01.md"),
+      "# Evaluation: Solo Co — Android Lead\n\n**URL:** https://jobs.example.com/solo/android\n**Score:** 4/5\n"
+    );
+
+    const offer = await serviceFor(workspace).getOffer(urlId("https://jobs.example.com/solo/android"));
+
+    expect(offer).toMatchObject({
+      company: "Solo Co",
+      title: "Android Lead",
+      status: "tracked",
+      evaluationStatus: "evaluated",
+      reportId: "report_004",
+      rawSource: "report"
+    });
+  });
+
+  it("marks a scanned offer with an evaluation report as tracked when no tracker row exists", async () => {
+    const workspace = await copyProjectionFixture();
+    workspaces.push(workspace);
+    await writeFile(
+      path.join(workspace, "reports/004-hooli-2026-07-01.md"),
+      "# Evaluation: Hooli — Kotlin Developer\n\n**URL:** https://jobs.example.com/hooli/kotlin-dev\n"
+    );
+
+    const offer = await serviceFor(workspace).getOffer(urlId("https://jobs.example.com/hooli/kotlin-dev"));
+
+    expect(offer).toMatchObject({ status: "tracked", evaluationStatus: "evaluated", reportId: "report_004" });
+  });
+
   it.each([
     ["Evaluated", "tracked"],
     ["evaluada", "tracked"],

@@ -1,10 +1,10 @@
-import { chmod, cp, mkdir, mkdtemp, realpath, rm, symlink, writeFile } from "node:fs/promises";
+import { chmod, cp, mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { ReportCollectionDtoSchema, ReportDetailDtoSchema } from "../src/contracts/index.js";
 import { artifactIdForFileName } from "../src/outputs/index.js";
-import { normalizeOfferUrl, offerIdForUrl } from "../src/parsers/index.js";
+import { normalizeOfferUrl, offerIdForTrackerNumber, offerIdForUrl } from "../src/parsers/index.js";
 import { createServer } from "../src/server.js";
 import { copyProjectionFixture, projectionFixturePath, removeWorkspaces } from "./support/fixture-workspace.js";
 
@@ -21,6 +21,11 @@ async function withServer<T>(workspace: string, run: (server: Awaited<ReturnType
   } finally {
     await server.close();
   }
+}
+
+async function appendTrackerRow(workspace: string, row: string): Promise<void> {
+  const file = path.join(workspace, "data/applications.md");
+  await writeFile(file, `${(await readFile(file, "utf8")).trimEnd()}\n${row}\n`);
 }
 
 describe("report routes", () => {
@@ -46,6 +51,61 @@ describe("report routes", () => {
     });
   });
 
+  it("links each report to the offer of its own URL, even when the tracker links a later report", async () => {
+    const workspace = await copyProjectionFixture();
+    workspaces.push(workspace);
+    const url = "https://jobs.example.com/twice/android";
+    for (const number of ["004", "009"]) {
+      await writeFile(
+        path.join(workspace, `reports/${number}-twice-2026-07-01.md`),
+        `# Evaluation: Twice Co — Android\n\n**URL:** ${url}\n**Score:** 4/5\n`
+      );
+    }
+    await appendTrackerRow(workspace, "| 4 | 2026-07-02 | Twice Co | Android | 4/5 | Evaluated | ❌ | [009](../reports/009-twice-2026-07-01.md) | |");
+
+    await withServer(workspace, async (server) => {
+      const collection = ReportCollectionDtoSchema.parse((await server.inject({ method: "GET", url: "/api/v1/reports" })).json());
+      const offerId = offerIdForUrl(normalizeOfferUrl(url) as string);
+      expect(collection.items.find((item) => item.id === "report_004")?.offerId).toBe(offerId);
+      expect(collection.items.find((item) => item.id === "report_009")?.offerId).toBe(offerId);
+
+      const offer = (await server.inject({ method: "GET", url: `/api/v1/offers/${offerId}` })).json();
+      expect(offer.reportId).toBe("report_009");
+    });
+  });
+
+  it("does not let a pipeline line for another URL take a report's own offer", async () => {
+    const workspace = await copyProjectionFixture();
+    workspaces.push(workspace);
+    await writeFile(
+      path.join(workspace, "reports/007-own-2026-07-01.md"),
+      "# Evaluation: Own Co — Android\n\n**URL:** https://jobs.example.com/own/android\n"
+    );
+    await writeFile(
+      path.join(workspace, "data/pipeline.md"),
+      "# Pipeline\n\n## Procesadas\n\n- [x] #007 | https://jobs.example.com/other/android | Other Co | Android | 3/5 | PDF ❌\n"
+    );
+
+    await withServer(workspace, async (server) => {
+      const collection = ReportCollectionDtoSchema.parse((await server.inject({ method: "GET", url: "/api/v1/reports" })).json());
+      expect(collection.items.find((item) => item.id === "report_007")?.offerId).toBe(
+        offerIdForUrl(normalizeOfferUrl("https://jobs.example.com/own/android") as string)
+      );
+    });
+  });
+
+  it("falls back to the tracker row for a report without a URL", async () => {
+    const workspace = await copyProjectionFixture();
+    workspaces.push(workspace);
+    await writeFile(path.join(workspace, "reports/005-nourl-2026-07-01.md"), "# Evaluation: No URL Co — Role\n");
+    await appendTrackerRow(workspace, "| 5 | 2026-07-02 | No URL Co | Role | 3/5 | Evaluated | ❌ | [005](../reports/005-nourl-2026-07-01.md) | |");
+
+    await withServer(workspace, async (server) => {
+      const collection = ReportCollectionDtoSchema.parse((await server.inject({ method: "GET", url: "/api/v1/reports" })).json());
+      expect(collection.items.find((item) => item.id === "report_005")?.offerId).toBe(offerIdForTrackerNumber("5"));
+    });
+  });
+
   it("rewrites workspace links to artifact download links", async () => {
     await withServer(projectionFixturePath, async (server) => {
       const response = await server.inject({ method: "GET", url: "/api/v1/reports/report_001" });
@@ -56,9 +116,31 @@ describe("report routes", () => {
       expect(report.markdown).toContain("# Evaluation: Acme Robotics");
       expect(report.markdown).toContain(`[tailored CV](/api/v1/artifacts/${artifactId}/download)`);
       expect(report.markdown).not.toContain("../output");
+      expect(report.markdown).toContain(
+        `**PDF:** [output/cv-jane-doe-acme-robotics-2026-06-20.pdf](/api/v1/artifacts/${artifactId}/download)`
+      );
 
       const download = await server.inject({ method: "GET", url: `/api/v1/artifacts/${artifactId}/download` });
       expect(download.statusCode).toBe(200);
+    });
+  });
+
+  it("rewrites links between reports to the report route", async () => {
+    const workspace = await copyProjectionFixture();
+    workspaces.push(workspace);
+    await writeFile(
+      path.join(workspace, "reports/004-follow-up-2026-07-01.md"),
+      "# Evaluation: Follow Up — Role\n\nSee [the first one](001-acme-robotics-2026-06-20.md#scores) and [gone](099-gone.md).\n"
+    );
+
+    await withServer(workspace, async (server) => {
+      const report = ReportDetailDtoSchema.parse(
+        (await server.inject({ method: "GET", url: "/api/v1/reports/report_004" })).json()
+      );
+      expect(report.markdown).toContain("See [the first one](/api/v1/reports/report_001) and gone.");
+
+      const linked = await server.inject({ method: "GET", url: "/api/v1/reports/report_001" });
+      expect(linked.statusCode).toBe(200);
     });
   });
 

@@ -119,11 +119,15 @@ export function projectCareerOps(data: CareerOpsData): CareerOpsProjection {
     }
   }
 
+  const trackerOfferIdByReportNumber = new Map<string, string>();
   for (const row of data.tracker) {
     const reportUrl = row.reportNumber ? reportsByNumber.get(row.reportNumber)?.header.url : undefined;
     const offer =
       (reportUrl ? accumulatorForUrl(reportUrl) : undefined) ??
       getOrCreate(offers, offerIdForTrackerNumber(row.number));
+    if (row.reportNumber && !trackerOfferIdByReportNumber.has(row.reportNumber)) {
+      trackerOfferIdByReportNumber.set(row.reportNumber, offer.id);
+    }
     offer.sources.add("tracker");
     offer.company = row.company ?? offer.company;
     offer.title = row.role ?? offer.title;
@@ -134,8 +138,15 @@ export function projectCareerOps(data: CareerOpsData): CareerOpsProjection {
     offer.trackerDate ??= checkedDate(offer, row.date) ? row.date : undefined;
   }
 
+  // A report belongs to the offer of its own URL, else to the offer of the
+  // first tracker row that links it.
+  const offerIdByReportId = new Map<string, string>();
   for (const report of data.reports) {
     const offer = report.header.url ? accumulatorForUrl(report.header.url) : undefined;
+    const offerId = offer?.id ?? trackerOfferIdByReportNumber.get(report.number);
+    if (offerId) {
+      offerIdByReportId.set(report.id, offerId);
+    }
     if (!offer) {
       continue;
     }
@@ -149,7 +160,6 @@ export function projectCareerOps(data: CareerOpsData): CareerOpsProjection {
   }
 
   const artifactIdByFileName = new Map(data.artifacts.map((artifact) => [artifact.fileName, artifact.id]));
-  const offerIdByReportId = new Map<string, string>();
   const reportIdByArtifactFileName = new Map<string, string>();
 
   for (const report of data.reports) {
@@ -160,9 +170,6 @@ export function projectCareerOps(data: CareerOpsData): CareerOpsProjection {
 
   const projected = [...offers.values()].map((offer) => {
     const report = offer.reportNumber ? reportsByNumber.get(offer.reportNumber) : undefined;
-    if (report && !offerIdByReportId.has(report.id)) {
-      offerIdByReportId.set(report.id, offer.id);
-    }
     return toOfferDto(offer, report, artifactIdByFileName);
   });
 
@@ -231,7 +238,8 @@ function statusFor(offer: OfferAccumulator): OfferDto["status"] {
     const key = offer.trackerStatus.replace(/\*/g, "").trim().toLowerCase();
     return TRACKER_STATUS[key] ?? "unknown";
   }
-  return offer.processed ? "tracked" : "new";
+  // A processed pipeline line or an evaluation report means it was evaluated.
+  return offer.processed || offer.sources.has("report") ? "tracked" : "new";
 }
 
 function workModeFor(location: string | undefined): OfferDto["workMode"] {
