@@ -26,6 +26,7 @@ import {
 import { createArtifactService } from "../src/services/artifact-service.js";
 import { createOfferService } from "../src/services/offer-service.js";
 import { createReportService } from "../src/services/report-service.js";
+import { EvaluationNotReadyDetailsSchema } from "./support/evaluation-not-ready.js";
 import { projectionFixturePath } from "./support/fixture-workspace.js";
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -137,6 +138,24 @@ describe("contract examples", () => {
     const example = await readJsonFixture<unknown>(fixturePath);
 
     expect(() => ErrorResponseDtoSchema.parse(example)).not.toThrow();
+  });
+
+  it("pins the evaluation-not-ready example details to the shape the route returns", async () => {
+    const example = ErrorResponseDtoSchema.parse(
+      await readJsonFixture<unknown>("contracts/examples/errors/evaluation-not-ready.json")
+    );
+
+    expect(example.error.code).toBe("WORKSPACE_UNHEALTHY");
+    expect(() => EvaluationNotReadyDetailsSchema.parse(example.error.details)).not.toThrow();
+    for (const drifted of [
+      { reason: "scan-not-ready", missingRequirements: ["cv.missing"] },
+      { reason: "evaluation-not-ready", missingRequirements: [] },
+      { reason: "evaluation-not-ready", missingRequirements: ["cv.unknown"] },
+      { reason: "evaluation-not-ready", missingRequirements: ["cv.missing"], extra: true },
+      { reason: "evaluation-not-ready" }
+    ]) {
+      expect(() => EvaluationNotReadyDetailsSchema.parse(drifted), JSON.stringify(drifted)).toThrow();
+    }
   });
 
   it.each([
