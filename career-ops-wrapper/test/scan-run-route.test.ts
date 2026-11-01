@@ -1,4 +1,4 @@
-import { access, realpath, rm, writeFile } from "node:fs/promises";
+import { access, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
 import type { FastifyInstance } from "fastify";
@@ -85,6 +85,46 @@ describe("scan run routes", () => {
     const finished = await pollUntilDone(server, ScanRunDtoSchema.parse(start.json()).id);
 
     expect(finished.summary).toMatchObject({ offersFound: 4, offersProjected: 0 });
+  });
+
+  it.each([
+    ["Acme / Robotics", "Acme / Robotics"],
+    ["Acme — Robotics", "Acme — Robotics"],
+    ["(Stealth) Startup", "(Stealth) Startup"],
+    [".NET Shop", ".NET Shop"],
+    ["  Acme: Robotics?  ", "Acme: Robotics?"],
+    ["x".repeat(100), "x".repeat(100)]
+  ])("forwards company %j as one trimmed argument", async (company, forwarded) => {
+    const workspace = await fixtureWorkspace();
+    await writeFile(
+      path.join(workspace, "scan.mjs"),
+      "import { writeFileSync } from 'node:fs'; writeFileSync('argv.json', JSON.stringify(process.argv.slice(2)));"
+    );
+    const server = await serverFor(workspace);
+
+    const start = await server.inject({ method: "POST", url: "/api/v1/scan-runs", payload: { company } });
+
+    expect(start.statusCode).toBe(202);
+    await pollUntilDone(server, start.json().id);
+    expect(JSON.parse(await readFile(path.join(workspace, "argv.json"), "utf8"))).toEqual(["--company", forwarded]);
+  });
+
+  it.each([
+    [false, "New offers added: 2", 2],
+    [false, "", 0],
+    [true, "New offers added: 2", 0]
+  ])("reports offers written before a failure (dryRun %s, %j)", async (dryRun, summaryLine, expected) => {
+    const workspace = await fixtureWorkspace();
+    await writeFile(
+      path.join(workspace, "scan.mjs"),
+      [`console.log('Total jobs found: 5');`, `console.log(${JSON.stringify(summaryLine)});`, "process.exit(1);"].join("\n")
+    );
+    const server = await serverFor(workspace);
+
+    const start = await server.inject({ method: "POST", url: "/api/v1/scan-runs", payload: { dryRun } });
+    const finished = await pollUntilDone(server, start.json().id);
+
+    expect(finished).toMatchObject({ status: "failed", summary: { offersFound: 5, offersProjected: expected } });
   });
 
   it("rejects a second scan while one is active", async () => {
@@ -177,6 +217,11 @@ describe("scan run routes", () => {
     [{ company: "--verify" }],
     [{ company: "" }],
     [{ company: "Acme\nRobotics" }],
+    [{ company: "Acme\u0000Robotics" }],
+    [{ company: "Acme\tRobotics" }],
+    [{ company: "Acme\u2028Robotics" }],
+    [{ company: "   " }],
+    [{ company: "  -flag" }],
     [{ company: "x".repeat(101) }],
     [{ verify: true }],
     [{ dryRun: "yes" }],
