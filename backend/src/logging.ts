@@ -60,6 +60,8 @@ export function describeFailure(error: unknown): string {
   return message || code || "unknown error";
 }
 
+const STACK_FRAME = /^\s+at (?:.*\((?:.*:\d+:\d+|<anonymous>|native)\)|\S*:\d+:\d+)$/;
+
 /**
  * For a job that failed: what finds the fault, and no text from the error. Jobs handle CVs and
  * postings, and a parser's or driver's message can quote its input.
@@ -67,7 +69,14 @@ export function describeFailure(error: unknown): string {
 export function describeJobFailure(error: unknown): { type: string; code?: string; frames: string } {
   if (!(error instanceof Error)) return { type: "NonError", frames: "" };
   const { code } = error as { code?: unknown };
-  const frames = typeof error.stack === "string" ? error.stack.split("\n").filter((line) => /^\s+at /.test(line)).join("\n") : "";
+  const stack = typeof error.stack === "string" ? error.stack : "";
+  // The stack starts with the message, which can hold lines shaped like frames.
+  const header = `${error.name}: ${String(error.message)}`;
+  const body = stack.startsWith(header) ? stack.slice(header.length) : stack;
+  const frames = body
+    .split("\n")
+    .filter((line) => STACK_FRAME.test(line))
+    .join("\n");
   return { type: error.name, ...(typeof code === "string" ? { code } : {}), frames };
 }
 

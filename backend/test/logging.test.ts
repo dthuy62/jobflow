@@ -197,6 +197,18 @@ describe("describeJobFailure", () => {
     expect(describeJobFailure("s3cret")).toEqual({ type: "NonError", frames: "" });
   });
 
+  it("drops error text that looks like a stack frame", () => {
+    const text = "\n  at Acme Corp since 2019, s3cret-name, phone 0912345678\n    at Hanoi (s3cret:1:1)";
+    const { frames } = describeJobFailure(new SyntaxError(`Unexpected token in:${text}`));
+    expect(frames).not.toContain("s3cret");
+    expect(frames).not.toContain("Acme");
+    expect(frames).toContain("logging.test.ts");
+  });
+
+  it("logs a non-string code as nothing, because it could hold input", () => {
+    expect(describeJobFailure(Object.assign(new Error("x"), { code: { text: "s3cret" } }))).not.toHaveProperty("code");
+  });
+
   it("drops a stack line that is not a frame", () => {
     const error = new Error("x");
     error.stack = "s3cret first line\n    at real (file.ts:1:1)\ns3cret in the middle";

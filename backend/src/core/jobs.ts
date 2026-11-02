@@ -12,8 +12,10 @@ export const JOB_EXPIRE_SECONDS = 300;
 
 export interface JobDefinition<T> {
   readonly name: string;
+  /** Must fit what JSON can hold, because the payload is stored as JSON and parsed again when it runs. */
   readonly schema: z.ZodType<T>;
   readonly retry?: RetryPolicy;
+  readonly expireSeconds?: number;
 }
 
 export type JobHandler<T> = (payload: T, signal: AbortSignal) => Promise<void>;

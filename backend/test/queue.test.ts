@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import pg from "pg";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
-import { createPgBossQueue, installJobs, type PgBossQueue } from "../src/adapters/pg-boss-queue.js";
+import { bossRoleOptions, createPgBossQueue, installJobs, type PgBossQueue } from "../src/adapters/pg-boss-queue.js";
 import { ALL_JOBS, JOB_EXPIRE_SECONDS, systemHeartbeat, type JobDefinition } from "../src/core/jobs.js";
 import { migrateUp } from "../src/db/migrate.js";
 import { createWorkerLogger } from "../src/logging.js";
@@ -22,7 +22,13 @@ const slow = job("test.slow");
 const failing = job("test.failing");
 const mismatched = job("test.mismatched");
 const scheduled = job("test.scheduled");
-const TEST_JOBS = [received, retried, invalid, idempotent, slow, failing, mismatched, scheduled];
+const stored = job("test.stored");
+const withDefaults: JobDefinition<{ value: string }> = { name: "test.defaults", schema: PayloadSchema };
+const overrun: JobDefinition<{ value: string }> = { ...job("test.overrun"), retry: { limit: 0, delaySeconds: 1, backoff: false }, expireSeconds: 1 };
+const aborted = job("test.aborted");
+const failingRow = job("test.failing-row");
+const nonJson: JobDefinition<{ at: Date }> = { name: "test.non-json", schema: z.strictObject({ at: z.date() }) };
+const TEST_JOBS = [received, retried, invalid, idempotent, slow, failing, mismatched, scheduled, stored, withDefaults, overrun, aborted, failingRow, { name: nonJson.name, schema: nonJson.schema }] as JobDefinition<never>[];
 
 describe("the queue, with real PostgreSQL and the app role", () => {
   let database: TestDatabase;
@@ -127,16 +133,79 @@ describe("the queue, with real PostgreSQL and the app role", () => {
     const text = logged.join("");
     expect(text).not.toContain("s3cret");
     const line = JSON.parse(logged.find((entry) => entry.includes("job failed")) ?? "{}");
-    expect(line).toMatchObject({ job: "test.failing", failure: { type: "TypeError", code: "E_PARSE" } });
+    expect(line).toMatchObject({ job: "test.failing", jobId: expect.any(String), retryCount: expect.any(Number), failure: { type: "TypeError", code: "E_PARSE" } });
     expect(line.failure.frames).toContain("queue.test.ts");
   });
 
-  it("the job's row holds no text from the error either", async () => {
+  const ownerQuery = async (text: string, values: unknown[] = []) => {
     const owner = new pg.Client({ connectionString: database.ownerUrl });
     await owner.connect();
-    const { rows } = await owner.query("select output from pgboss.job where name = 'test.failing' and output is not null");
-    await owner.end();
+    try {
+      return (await owner.query(text, values)).rows;
+    } finally {
+      await owner.end();
+    }
+  };
+
+  it("the job's row holds no text from the error either", async () => {
+    await queue.register(failingRow, async ({ value }) => {
+      throw new Error(`could not parse: ${value}`);
+    });
+    await queue.enqueue(failingRow, { value: "s3cret-cv-text" });
+    let rows: unknown[] = [];
+    await eventually(async () => {
+      rows = await ownerQuery("select output from pgboss.job where name = 'test.failing-row' and output is not null");
+      expect(rows.length).toBeGreaterThan(0);
+    });
     expect(JSON.stringify(rows)).not.toContain("s3cret");
+  });
+
+  it("an enqueued job stores the default retry and expiry settings", async () => {
+    await queue.enqueue(withDefaults, { value: "x" });
+    const [row] = await ownerQuery("select retry_limit, retry_delay, retry_backoff, expire_seconds from pgboss.job where name = 'test.defaults'");
+    expect(row).toEqual({ retry_limit: 3, retry_delay: 5, retry_backoff: true, expire_seconds: 300 });
+  });
+
+  it("a job's own retry settings override the defaults", async () => {
+    await queue.enqueue(stored, { value: "x" });
+    const [row] = await ownerQuery("select retry_limit, retry_delay, retry_backoff from pgboss.job where name = 'test.stored'");
+    expect(row).toEqual({ retry_limit: 3, retry_delay: 1, retry_backoff: false });
+  });
+
+  it("a payload that would not survive being stored as JSON is refused at enqueue", async () => {
+    await expect(queue.enqueue(nonJson, { at: new Date() })).rejects.toBeInstanceOf(z.ZodError);
+  });
+
+  it("a payload with a NUL is refused with fixed text, not a driver error that quotes it", async () => {
+    const error = await queue.enqueue(stored, { value: "s3cret-cv-text\u0000" }).catch((caught: Error) => caught);
+    expect(error).toBeInstanceOf(Error);
+    expect(String((error as Error).message)).not.toContain("s3cret");
+    expect(JSON.stringify(error)).not.toContain("s3cret");
+  });
+
+  it("a handler that overruns its expiry leaves a warning in the log, with no payload", async () => {
+    await queue.register(overrun, async () => {
+      await new Promise((resolve) => setTimeout(resolve, 4_000));
+    });
+    await queue.enqueue(overrun, { value: "s3cret-cv-text" });
+    await eventually(() => expect(logged.join("")).toContain("queue warning"), 25_000);
+    expect(logged.join("")).toContain("test.overrun");
+    expect(logged.join("")).not.toContain("s3cret");
+  }, 30_000);
+
+  it("a handler gets the signal that stop aborts when its wait runs out", async () => {
+    const short = await createPgBossQueue(database.appUrl, { logger, role: "worker", stopTimeoutMs: 500 });
+    let wasAborted = false;
+    let started = false;
+    await short.register(aborted, async (_payload, signal) => {
+      started = true;
+      await new Promise<void>((resolve) => signal.addEventListener("abort", () => resolve()));
+      wasAborted = true;
+    });
+    await short.enqueue(aborted, { value: "x" });
+    await eventually(() => expect(started).toBe(true));
+    await short.stop();
+    await eventually(() => expect(wasAborted).toBe(true));
   });
 
   it("a scheduled job gets the same retry and expiry settings as an enqueued one", async () => {
@@ -160,16 +229,27 @@ describe("the queue, with real PostgreSQL and the app role", () => {
     await queue.register(stricter, async () => {
       called = true;
     });
-    await eventually(() => expect(JSON.stringify(logged)).toContain("test.mismatched"));
+    await eventually(() => expect(logged.join("")).toContain("test.mismatched"));
     expect(called).toBe(false);
-    expect(JSON.stringify(logged)).not.toContain("old shape");
+    expect(logged.join("")).not.toContain("old shape");
+    await eventually(async () => {
+      const rows = await ownerQuery("select state from pgboss.job where name = 'test.mismatched'");
+      expect(rows.map((row: { state: string }) => row.state)).not.toContain("completed");
+      expect(["retry", "failed"]).toContain(rows[0].state);
+    });
   });
 
-  it("a client can enqueue and does not run the schedule or maintenance", async () => {
+  it("a client can enqueue, but cannot run or schedule jobs", async () => {
     const client = await createPgBossQueue(database.appUrl, { logger, role: "client" });
     await expect(client.enqueue(received, { value: "from-api" })).resolves.toBeUndefined();
     await expect(client.register(received, async () => undefined)).rejects.toThrow(/worker/);
+    await expect(client.schedule(received, "* * * * *", { value: "x" })).rejects.toThrow(/worker/);
     await client.stop();
+  });
+
+  it("only a worker runs the schedule and maintenance, and no role migrates", () => {
+    expect(bossRoleOptions("client")).toEqual({ migrate: false, createSchema: false, schedule: false, supervise: false });
+    expect(bossRoleOptions("worker")).toEqual({ migrate: false, createSchema: false, schedule: true, supervise: true });
   });
 
   it("enqueueing to a queue the migrate step did not install fails, because the adapter creates none", async () => {
@@ -202,9 +282,53 @@ describe("the migrate step and pg-boss", () => {
     expect(systemHeartbeat.name).toBe("system.heartbeat");
   });
 
+  const silent = { info: () => undefined, warn: () => undefined, error: () => undefined };
+
   it("the app role can start pg-boss without migrating", async () => {
-    const queue = await createPgBossQueue(database.appUrl, { logger: { info: () => undefined, error: () => undefined }, role: "worker" });
+    const queue = await createPgBossQueue(database.appUrl, { logger: silent, role: "worker" });
     await queue.stop();
+  });
+
+  it("finishes pg-boss's background index builds before it reports success", async () => {
+    const owner = new pg.Client({ connectionString: database.ownerUrl });
+    await owner.connect();
+    await owner.query("create table pgboss.test_bam (id int)");
+    await owner.query(
+      "insert into pgboss.bam (name, version, status, table_name, command) select 'test_bam_i1', version, 'pending', 'test_bam', 'CREATE INDEX CONCURRENTLY test_bam_i1 ON pgboss.test_bam (id)' from pgboss.version"
+    );
+    await owner.query("update pgboss.version set bam_on = null");
+    await migrateUp(database.ownerUrl);
+    const { rows } = await owner.query("select status from pgboss.bam where name = 'test_bam_i1'");
+    expect(rows).toEqual([{ status: "completed" }]);
+    await owner.query("delete from pgboss.bam where name = 'test_bam_i1'");
+    await owner.end();
+  }, 30_000);
+
+  it("fails the step when a background index build fails, so a release is not reported as migrated", async () => {
+    const owner = new pg.Client({ connectionString: database.ownerUrl });
+    await owner.connect();
+    await owner.query(
+      "insert into pgboss.bam (name, version, status, table_name, command) select 'test_bam_bad', version, 'pending', 'test_bam', 'CREATE INDEX CONCURRENTLY test_bad ON pgboss.no_such_table (id)' from pgboss.version"
+    );
+    await owner.query("update pgboss.version set bam_on = null");
+    await expect(migrateUp(database.ownerUrl)).rejects.toThrow(/background/);
+    await owner.query("delete from pgboss.bam where name = 'test_bam_bad'");
+    await owner.end();
+  }, 30_000);
+
+  it("a worker refuses a schema behind its version, naming the fix, and leaves no connection open", async () => {
+    const lagging = await withTestDatabase();
+    try {
+      await migrateUp(lagging.ownerUrl);
+      const owner = new pg.Client({ connectionString: lagging.ownerUrl });
+      await owner.connect();
+      await owner.query("update pgboss.version set version = version - 1");
+      await owner.end();
+      await expect(createPgBossQueue(lagging.appUrl, { logger: silent, role: "worker" })).rejects.toThrow(/requires migrations/);
+    } finally {
+      // Fails with a permission error if the refused start left a connection open.
+      await lagging.drop();
+    }
   });
 
   it.each([
@@ -239,6 +363,11 @@ describe("the worker process", () => {
       await migrateUp(database.ownerUrl);
       const worker = startWorker(database.appUrl);
       await vi.waitFor(() => expect(worker.output()).toContain("worker started"), { timeout: 20_000, interval: 200 });
+      // The worker registered a heartbeat handler, so a job sent now reaches it.
+      const client = await createPgBossQueue(database.appUrl, { logger: { info: () => undefined, warn: () => undefined, error: () => undefined }, role: "client" });
+      await client.enqueue(systemHeartbeat, {});
+      await client.stop();
+      await vi.waitFor(() => expect(worker.output()).toContain('"msg":"heartbeat"'), { timeout: 20_000, interval: 200 });
       worker.child.kill("SIGTERM");
       expect(await worker.exited).toBe(0);
     } finally {

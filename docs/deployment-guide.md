@@ -47,7 +47,8 @@ docker compose down
 - Migrations are a separate step (`node backend/dist/db/migrate-cli.js`, with
   `DATABASE_MIGRATION_URL` and `JOBFLOW_ENV`), never run at API start. The API and the worker
   never hold the owner's URL. This step also installs pg-boss, in the `pgboss` schema, and creates
-  each queue, so run it before starting a release that adds a job.
+  each queue, so run it before starting a release that adds a job. A pg-boss upgrade can queue
+  index builds, which this step waits for, up to 30 minutes; it fails if one fails.
 - Run the worker with `node backend/dist/worker.js`, with `DATABASE_URL` and `JOBFLOW_ENV`. It
   exits 1 if it cannot run, so give it a restart policy. On SIGTERM it waits up to 30 seconds for
   running jobs, so allow it longer than that before a kill; a job cut off is retried.
