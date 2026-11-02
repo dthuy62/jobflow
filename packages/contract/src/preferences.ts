@@ -4,10 +4,12 @@ import { NameSchema, named, textSchema } from "./common.js";
 export const RemotePolicySchema = named("RemotePolicy", z.enum(["remote", "hybrid", "onsite"]));
 export const SenioritySchema = named("Seniority", z.enum(["intern", "junior", "mid", "senior", "lead", "executive"]));
 export const CurrencySchema = z.string().regex(/^[A-Z]{3}$/);
+/** Far above any real pay, and small enough for any numeric column. */
+export const SALARY_MAX = 1e12;
 export const SalaryPeriodSchema = named("SalaryPeriod", z.enum(["hour", "day", "week", "month", "year"]));
 
 const MinimumSalarySchema = z.strictObject({
-  amount: z.number().positive(),
+  amount: z.number().positive().max(SALARY_MAX),
   currency: CurrencySchema,
   period: SalaryPeriodSchema
 });

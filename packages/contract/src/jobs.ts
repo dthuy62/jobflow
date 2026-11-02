@@ -1,13 +1,13 @@
 import { z } from "zod";
-import { NameSchema, OpaqueIdSchema, TimestampSchema, WebUrlSchema, named } from "./common.js";
-import { CurrencySchema, SalaryPeriodSchema } from "./preferences.js";
+import { NameSchema, OpaqueIdSchema, TimestampSchema, WebUrlSchema, named, textSchema } from "./common.js";
+import { CurrencySchema, SALARY_MAX, SalaryPeriodSchema } from "./preferences.js";
 
 export const JobRemotePolicySchema = named("JobRemotePolicy", z.enum(["remote", "hybrid", "onsite", "unknown"]));
 
 /** Only what the posting states; any part may be missing. */
 const SalarySchema = z.strictObject({
-  min: z.number().nonnegative().nullable(),
-  max: z.number().nonnegative().nullable(),
+  min: z.number().nonnegative().max(SALARY_MAX).nullable(),
+  max: z.number().nonnegative().max(SALARY_MAX).nullable(),
   currency: CurrencySchema.nullable(),
   period: SalaryPeriodSchema.nullable()
 });
@@ -35,9 +35,9 @@ export const JobDtoSchema = named(
     /** The source's own id, in the source's format. */
     externalId: NameSchema.nullable(),
     /** ISO 3166-1 alpha-2, when the posting states them. */
-    acceptedCountries: z.array(z.string().regex(/^[A-Z]{2}$/)),
-    acceptedTimezones: z.array(NameSchema),
-    descriptionText: z.string().min(1).max(100_000),
+    acceptedCountries: z.array(z.string().regex(/^[A-Z]{2}$/)).max(250),
+    acceptedTimezones: z.array(NameSchema).max(50),
+    descriptionText: textSchema(100_000),
     lastSeenAt: TimestampSchema
   })
 );

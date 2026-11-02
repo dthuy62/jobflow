@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { OpaqueIdSchema, TimestampSchema, named } from "./common.js";
+import { OpaqueIdSchema, TimestampSchema, named, textSchema } from "./common.js";
 
 export const EvaluationStageSchema = named(
   "EvaluationStage",
@@ -8,8 +8,8 @@ export const EvaluationStageSchema = named(
 
 const EvaluationResultSchema = z.strictObject({
   score: z.number().min(0).max(100),
-  summary: z.string().min(1).max(2000),
-  reportMarkdown: z.string().min(1).max(200_000),
+  summary: textSchema(2000),
+  reportMarkdown: textSchema(200_000),
   /** The app labels this as AI output. */
   aiGenerated: z.literal(true)
 });
@@ -24,7 +24,7 @@ export const EvaluationDtoSchema = named(
       createdAt: TimestampSchema,
       updatedAt: TimestampSchema,
       result: EvaluationResultSchema.nullable(),
-      failureMessage: z.string().min(1).max(500).nullable()
+      failureMessage: textSchema(500).nullable()
     })
     .refine(({ stage, result }) => (stage === "done") === (result !== null), {
       message: "result must be present exactly when the stage is done."

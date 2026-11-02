@@ -7,6 +7,7 @@ import {
   CV_IMPORT_RETENTION_HOURS,
   CV_UPLOAD_MAX_BYTES,
   CompanyCreateRequestSchema,
+  DEVICE_MAX_PER_USER,
   CvUpdateRequestSchema,
   DeviceUpdateRequestSchema,
   ErrorDtoSchema,
@@ -158,12 +159,29 @@ describe("operations", () => {
     }
   });
 
-  it("never answers 404 on device routes: registering takes the installation over and removing is idempotent", () => {
+  it("scopes devices to the user: another user's installation id changes nothing of theirs", () => {
     for (const name of ["PUT /api/v1/me/devices/{installationId}", "DELETE /api/v1/me/devices/{installationId}"]) {
       expect(find(name).responses[404], name).toBeUndefined();
       expect(find(name).responses[204], name).toBeDefined();
     }
-    expect(find("PUT /api/v1/me/devices/{installationId}").summary).toMatch(/takes over/i);
+    const { summary } = find("PUT /api/v1/me/devices/{installationId}");
+    expect(summary).not.toMatch(/takes over/i);
+    expect(summary).toMatch(/same FCM token/i);
+    expect(DEVICE_MAX_PER_USER).toBe(10);
+    expect(summary).toContain("10");
+  });
+
+  it("gives one answer for an import that is expired, used or another user's", () => {
+    const putCv = find("PUT /api/v1/me/cv");
+    expect(putCv.responses[409]?.description).toMatch(/not this user's/i);
+    expect(putCv.responses[404]).toBeUndefined();
+    expect(putCv.summary).toMatch(/random/i);
+  });
+
+  it("documents a limit on pending imports that anonymous accounts cannot avoid", () => {
+    const importCv = find("POST /api/v1/me/cv/import");
+    expect(importCv.responses[429]?.description).toMatch(/address/i);
+    expect(importCv.summary).toMatch(/per address/i);
   });
 });
 
@@ -293,6 +311,10 @@ describe("schemas", () => {
     const rejected: readonly (readonly [string, z.ZodType, unknown])[] = [
       ["a description over the cap", JobDtoSchema, { ...job, descriptionText: "x".repeat(100_001) }],
       ["a job URL over the cap", JobDtoSchema, { ...job, url: `https://jobs.example.com/${"x".repeat(2048)}` }],
+      ["too many accepted countries", JobDtoSchema, { ...job, acceptedCountries: Array.from({ length: 251 }, () => "VN") }],
+      ["too many accepted time zones", JobDtoSchema, { ...job, acceptedTimezones: Array.from({ length: 51 }, () => "UTC") }],
+      ["an absurd salary", JobDtoSchema, { ...job, salary: { min: 1e308, max: null, currency: null, period: null } }],
+      ["an absurd minimum salary", PreferencesDtoSchema, { ...(loadExample(examplesDir, "preferences.valid") as object), minimumSalary: { amount: 1e308, currency: "USD", period: "year" } }],
       ["an impossible date", JobDtoSchema, { ...job, firstSeenAt: "2026-02-30T00:00:00.000Z" }],
       ["an id over the cap", MeDtoSchema, { userId: "x".repeat(201), isAnonymous: true, createdAt: "2026-11-02T00:00:00.000Z" }],
       ["CV text over the cap", CvUpdateRequestSchema, { markdown: "x".repeat(200_001) }],
@@ -315,6 +337,14 @@ describe("schemas", () => {
     expect(DeviceUpdateRequestSchema.safeParse({ fcmToken: "a\u0000b" }).success).toBe(false);
     expect(CvUpdateRequestSchema.safeParse({ markdown: "a\u0000b" }).success).toBe(false);
     expect(PreferencesDtoSchema.safeParse({ ...preferences, aim: "two\nlines" }).success).toBe(true);
+
+    const job = loadExample(examplesDir, "job.valid") as Record<string, unknown>;
+    expect(JobDtoSchema.safeParse({ ...job, descriptionText: "a\u0000b" }).success).toBe(false);
+    const done = loadExample(examplesDir, "evaluation.done") as { result: Record<string, unknown> };
+    expect(EvaluationDtoSchema.safeParse({ ...done, result: { ...done.result, summary: "a\u0000b" } }).success).toBe(false);
+    expect(EvaluationDtoSchema.safeParse({ ...done, result: { ...done.result, reportMarkdown: "a\u0000b" } }).success).toBe(false);
+    const failed = loadExample(examplesDir, "evaluation.failed") as Record<string, unknown>;
+    expect(EvaluationDtoSchema.safeParse({ ...failed, failureMessage: "a\u0000b" }).success).toBe(false);
   });
 
   it("accept only web URLs for a job", () => {
@@ -334,7 +364,10 @@ describe("schemas", () => {
     "https://\\/jobs.example.com@evil.example/login",
     "https://\t/jobs.example.com@evil.example/login",
     "http:////user:s3cret@careers.example.com/",
-    "https://evil.example\\.jobs.example.com/"
+    "https://evil.example\\.jobs.example.com/",
+    "https://a.example/\u0000",
+    "https://a.example/\u0001\u001b[31mFAKE",
+    "https://a.example/\u007f"
   ])("reject %s, which is not a plain web URL", (careersUrl) => {
     expect(() => CompanyCreateRequestSchema.parse({ careersUrl })).toThrow(z.ZodError);
   });

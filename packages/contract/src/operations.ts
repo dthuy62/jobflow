@@ -1,7 +1,7 @@
 import type { z } from "zod";
 import { OPAQUE_ID_PATTERN } from "./common.js";
 import { CV_IMPORT_RETENTION_HOURS, CV_UPLOAD_MAX_BYTES, CvDtoSchema, CvImportDtoSchema, CvUpdateRequestSchema } from "./cv.js";
-import { DeviceUpdateRequestSchema } from "./devices.js";
+import { DEVICE_MAX_PER_USER, DeviceUpdateRequestSchema } from "./devices.js";
 import { ErrorResponseDtoSchema } from "./errors.js";
 import { EntitlementDtoSchema, PurchaseRequestSchema } from "./billing.js";
 import { EvaluationDtoSchema } from "./evaluations.js";
@@ -144,7 +144,7 @@ export const operations: readonly Operation[] = [
     method: "POST",
     path: "/api/v1/me/cv/import",
     operationId: "importCv",
-    summary: `Extract a CV file (PDF or DOCX, at most ${CV_UPLOAD_MAX_BYTES / (1024 * 1024)} MiB) as Markdown for review. The file and text are held encrypted under importId for at most ${CV_IMPORT_RETENTION_HOURS} hours, until PUT /me/cv uses them. A new import replaces the pending one. A file whose extracted text is over the CV limit gets 413.`,
+    summary: `Extract a CV file (PDF or DOCX, at most ${CV_UPLOAD_MAX_BYTES / (1024 * 1024)} MiB) as Markdown for review. The file and text are held encrypted under importId for at most ${CV_IMPORT_RETENTION_HOURS} hours, until PUT /me/cv uses them. A new import replaces the pending one. Pending imports are also capped per address and in total, because anonymous accounts are free. A file whose extracted text is over the CV limit gets 413.`,
     phase: 2,
     headers: [integrity(false, "Optional in this draft. Phase 3, which ships Play Integrity, makes it required: a missing or failed token then gets 403 INTEGRITY_FAILED.")],
     request: { kind: "cv-upload" },
@@ -155,7 +155,7 @@ export const operations: readonly Operation[] = [
       413: error("The file, or the text extracted from it, is too large.", "errors/payload-too-large"),
       415: error("Not a PDF or DOCX file.", "errors/unsupported-media-type"),
       422: error("No text could be read, for example a scanned image.", "errors/cv-unreadable"),
-      429: quotaUsedUp
+      429: error("The plan's quota is used up, or this address has too many pending imports.", "errors/quota-exceeded")
     }
   }),
   authed({
@@ -170,13 +170,13 @@ export const operations: readonly Operation[] = [
     method: "PUT",
     path: "/api/v1/me/cv",
     operationId: "putCv",
-    summary: "Store the reviewed CV.",
+    summary: "Store the reviewed CV. importId is random and works only for the user who made the import.",
     phase: 2,
     request: { kind: "json", schema: CvUpdateRequestSchema, example: "requests/cv-update" },
     responses: {
       200: body("The stored CV.", CvDtoSchema, "cv.valid"),
       400: badRequest,
-      409: error("That import has expired or was already used.", "errors/conflict")
+      409: error("That import has expired, was already used, or is not this user's. All three get the same answer.", "errors/conflict")
     }
   }),
   authed({
@@ -243,7 +243,7 @@ export const operations: readonly Operation[] = [
     method: "PUT",
     path: "/api/v1/me/devices/{installationId}",
     operationId: "putDevice",
-    summary: "Register this installation's FCM token. The caller takes over the installation, so a phone that changes user keeps getting push.",
+    summary: `Register this installation's FCM token for the caller. Rows are per user and installation, so another user's id changes nothing of theirs. Other users' rows with the same FCM token are removed, because only that phone holds it; a phone that changes user keeps getting push for the new user only. A user has at most ${DEVICE_MAX_PER_USER} devices; the oldest is removed.`,
     phase: 2,
     pathParams: ["installationId"],
     request: { kind: "json", schema: DeviceUpdateRequestSchema, example: "requests/device-update" },

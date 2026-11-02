@@ -26,12 +26,13 @@ export const VendorTokenSchema = z.string().regex(/^[^\s\u0000]{1,4096}$/);
 /**
  * http or https with no user info, so `https://jobs.example.com@evil.example` cannot pass
  * as a link to jobs.example.com. Browsers skip extra slashes and read `\\` as `/`, so the host
- * must start right after `//` and hold neither. Written out so the published schema states it too.
+ * must start right after `//` and hold neither. Control characters stay out of the rest. Written
+ * out so the published schema states it too.
  */
 export const WebUrlSchema = z
   .url({ protocol: /^https?$/ })
   .max(2048)
-  .regex(/^[Hh][Tt][Tt][Pp][Ss]?:\/\/[^/\\?#@\s]+(?:[/?#]|$)/);
+  .regex(/^[Hh][Tt][Tt][Pp][Ss]?:\/\/[^/\\?#@\s]+(?:[/?#][^\u0000-\u001f\u007f]*)?$/);
 
 /** One page of a list. `nextCursor` is opaque and is null on the last page. */
 export function pageSchema<Item extends z.ZodType>(item: Item) {

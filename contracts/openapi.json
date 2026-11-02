@@ -699,7 +699,7 @@
     "/api/v1/me/cv/import": {
       "post": {
         "operationId": "importCv",
-        "summary": "Extract a CV file (PDF or DOCX, at most 5 MiB) as Markdown for review. The file and text are held encrypted under importId for at most 24 hours, until PUT /me/cv uses them. A new import replaces the pending one. A file whose extracted text is over the CV limit gets 413.",
+        "summary": "Extract a CV file (PDF or DOCX, at most 5 MiB) as Markdown for review. The file and text are held encrypted under importId for at most 24 hours, until PUT /me/cv uses them. A new import replaces the pending one. Pending imports are also capped per address and in total, because anonymous accounts are free. A file whose extracted text is over the CV limit gets 413.",
         "x-phase": 2,
         "security": [
           {
@@ -904,7 +904,7 @@
             }
           },
           "429": {
-            "description": "The plan's quota is used up.",
+            "description": "The plan's quota is used up, or this address has too many pending imports.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1129,7 +1129,7 @@
       },
       "put": {
         "operationId": "putCv",
-        "summary": "Store the reviewed CV.",
+        "summary": "Store the reviewed CV. importId is random and works only for the user who made the import.",
         "x-phase": 2,
         "security": [
           {
@@ -1219,7 +1219,7 @@
             }
           },
           "409": {
-            "description": "That import has expired or was already used.",
+            "description": "That import has expired, was already used, or is not this user's. All three get the same answer.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2528,7 +2528,7 @@
     "/api/v1/me/devices/{installationId}": {
       "put": {
         "operationId": "putDevice",
-        "summary": "Register this installation's FCM token. The caller takes over the installation, so a phone that changes user keeps getting push.",
+        "summary": "Register this installation's FCM token for the caller. Rows are per user and installation, so another user's id changes nothing of theirs. Other users' rows with the same FCM token are removed, because only that phone holds it; a phone that changes user keeps getting push for the new user only. A user has at most 10 devices; the oldest is removed.",
         "x-phase": 2,
         "security": [
           {
@@ -3654,7 +3654,7 @@
           "careersUrl": {
             "type": "string",
             "maxLength": 2048,
-            "pattern": "^[Hh][Tt][Tt][Pp][Ss]?:\\/\\/[^/\\\\?#@\\s]+(?:[/?#]|$)"
+            "pattern": "^[Hh][Tt][Tt][Pp][Ss]?:\\/\\/[^/\\\\?#@\\s]+(?:[/?#][^\\u0000-\\u001f\\u007f]*)?$"
           }
         },
         "required": [
@@ -3685,7 +3685,7 @@
           "careersUrl": {
             "type": "string",
             "maxLength": 2048,
-            "pattern": "^[Hh][Tt][Tt][Pp][Ss]?:\\/\\/[^/\\\\?#@\\s]+(?:[/?#]|$)"
+            "pattern": "^[Hh][Tt][Tt][Pp][Ss]?:\\/\\/[^/\\\\?#@\\s]+(?:[/?#][^\\u0000-\\u001f\\u007f]*)?$"
           }
         },
         "required": [
@@ -3944,12 +3944,14 @@
                   "summary": {
                     "type": "string",
                     "minLength": 1,
-                    "maxLength": 2000
+                    "maxLength": 2000,
+                    "pattern": "^[^\\u0000]*$"
                   },
                   "reportMarkdown": {
                     "type": "string",
                     "minLength": 1,
-                    "maxLength": 200000
+                    "maxLength": 200000,
+                    "pattern": "^[^\\u0000]*$"
                   },
                   "aiGenerated": {
                     "type": "boolean",
@@ -3974,7 +3976,8 @@
               {
                 "type": "string",
                 "minLength": 1,
-                "maxLength": 500
+                "maxLength": 500,
+                "pattern": "^[^\\u0000]*$"
               },
               {
                 "type": "null"
@@ -4149,7 +4152,8 @@
                     "anyOf": [
                       {
                         "type": "number",
-                        "minimum": 0
+                        "minimum": 0,
+                        "maximum": 1000000000000
                       },
                       {
                         "type": "null"
@@ -4160,7 +4164,8 @@
                     "anyOf": [
                       {
                         "type": "number",
-                        "minimum": 0
+                        "minimum": 0,
+                        "maximum": 1000000000000
                       },
                       {
                         "type": "null"
@@ -4205,7 +4210,7 @@
           "url": {
             "type": "string",
             "maxLength": 2048,
-            "pattern": "^[Hh][Tt][Tt][Pp][Ss]?:\\/\\/[^/\\\\?#@\\s]+(?:[/?#]|$)"
+            "pattern": "^[Hh][Tt][Tt][Pp][Ss]?:\\/\\/[^/\\\\?#@\\s]+(?:[/?#][^\\u0000-\\u001f\\u007f]*)?$"
           },
           "firstSeenAt": {
             "type": "string",
@@ -4235,6 +4240,7 @@
             ]
           },
           "acceptedCountries": {
+            "maxItems": 250,
             "type": "array",
             "items": {
               "type": "string",
@@ -4242,6 +4248,7 @@
             }
           },
           "acceptedTimezones": {
+            "maxItems": 50,
             "type": "array",
             "items": {
               "type": "string",
@@ -4253,7 +4260,8 @@
           "descriptionText": {
             "type": "string",
             "minLength": 1,
-            "maxLength": 100000
+            "maxLength": 100000,
+            "pattern": "^[^\\u0000]*$"
           },
           "lastSeenAt": {
             "type": "string",
@@ -4333,7 +4341,8 @@
                     "anyOf": [
                       {
                         "type": "number",
-                        "minimum": 0
+                        "minimum": 0,
+                        "maximum": 1000000000000
                       },
                       {
                         "type": "null"
@@ -4344,7 +4353,8 @@
                     "anyOf": [
                       {
                         "type": "number",
-                        "minimum": 0
+                        "minimum": 0,
+                        "maximum": 1000000000000
                       },
                       {
                         "type": "null"
@@ -4389,7 +4399,7 @@
           "url": {
             "type": "string",
             "maxLength": 2048,
-            "pattern": "^[Hh][Tt][Tt][Pp][Ss]?:\\/\\/[^/\\\\?#@\\s]+(?:[/?#]|$)"
+            "pattern": "^[Hh][Tt][Tt][Pp][Ss]?:\\/\\/[^/\\\\?#@\\s]+(?:[/?#][^\\u0000-\\u001f\\u007f]*)?$"
           },
           "firstSeenAt": {
             "type": "string",
@@ -4501,7 +4511,8 @@
                 "properties": {
                   "amount": {
                     "type": "number",
-                    "exclusiveMinimum": 0
+                    "exclusiveMinimum": 0,
+                    "maximum": 1000000000000
                   },
                   "currency": {
                     "type": "string",
