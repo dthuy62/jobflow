@@ -12,4 +12,4 @@ export {
   type PostingFailureReason,
   type PostingResult
 } from "./posting-fetcher.js";
-export { redactSensitiveText, type RedactionOptions } from "./redaction.js";
+export { LOG_TEXT_MAX_CHARS, redactLogText, redactSensitiveText, type RedactionOptions } from "./redaction.js";

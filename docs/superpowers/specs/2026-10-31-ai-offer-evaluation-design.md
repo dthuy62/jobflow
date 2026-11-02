@@ -427,7 +427,7 @@ inside `scan.mjs`); it is part of [Owner decision 2](#2-allowed-tools-and-prompt
   ends the fetch.
 - 20-second total timeout, 2 MiB body cap, `content-type` must be
   `text/html`, `text/plain`, or `application/json`.
-- Fixed `User-Agent: JobFlow-Wrapper/<version>`; no cookies; no auth headers.
+- Fixed `User-Agent: JobFlow/<version>`; no cookies; no auth headers.
 - HTML → text in the wrapper: drop `script`, `style`, `noscript`, `svg`,
   `head`; turn block tags into newlines; decode basic entities; collapse
   whitespace. No new dependency.

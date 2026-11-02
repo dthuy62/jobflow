@@ -7,6 +7,7 @@ Local Node.js/TypeScript wrapper API for Career Ops Mobile.
 ```bash
 # from the repo root: the wrapper is part of the npm workspace
 npm ci
+cd career-ops-wrapper
 npm run dev
 npm run build
 npm test

@@ -607,3 +607,20 @@ test("prints no tests-prove-change command for a change with no package source",
   const report = mapAfterCommit({ "README.md": { before: "a\n", after: "b\n" } });
   assert.deepEqual(report.proveCommands, []);
 });
+
+test("renders the tests-prove-change commands under Layer 0 gates", () => {
+  const root = mkdtempSync(path.join(tmpdir(), "impact-map-"));
+  try {
+    git(root, "init", "-q");
+    write(root, "career-ops-wrapper/src/x.ts", "export const a = 1;\n");
+    git(root, "add", "-A");
+    git(root, "commit", "-qm", "base");
+    write(root, "career-ops-wrapper/src/x.ts", "export const a = 2;\n");
+    git(root, "commit", "-qam", "head");
+    const markdown = execFileSync("node", [script, "--base", "HEAD~1"], { cwd: root, encoding: "utf8" });
+    const gates = markdown.slice(markdown.indexOf("## Layer 0 gates"), markdown.indexOf("## Risk areas"));
+    assert.match(gates, /tests-prove-change\.mjs --base [0-9a-f]+ --package career-ops-wrapper/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});

@@ -115,7 +115,7 @@ describe("security boundaries", () => {
   // Overlong ids reach their routes, behind the pairing token guard, because the
   // server raises Fastify's path parameter limit; each route answers with the envelope.
   it.each(Object.keys(sampleIds))("returns NOT_FOUND without leaking for an overlong id on %s", async (route) => {
-    for (const id of ["x".repeat(101), "x".repeat(300), `${sampleIds[route]}${"0".repeat(100)}`]) {
+    for (const id of ["x".repeat(101), "x".repeat(300), "x".repeat(16_000), `${sampleIds[route]}${"0".repeat(100)}`]) {
       const response = await server.inject({
         method: "GET",
         url: concreteUrl(route, id),
@@ -143,8 +143,8 @@ describe("security boundaries", () => {
     expect(buildOpenApiDocument().paths[route]?.get?.responses).toHaveProperty("400");
   });
 
-  it("requires the pairing token before answering an overlong id", async () => {
-    const response = await server.inject({ method: "GET", url: concreteUrl("/api/v1/offers/{id}", "x".repeat(300)) });
+  it.each([300, 16_000])("requires the pairing token before answering a %i-character id", async (length) => {
+    const response = await server.inject({ method: "GET", url: concreteUrl("/api/v1/offers/{id}", "x".repeat(length)) });
 
     expect(response.statusCode).toBe(401);
     expect(response.json().error.code).toBe("UNAUTHORIZED");

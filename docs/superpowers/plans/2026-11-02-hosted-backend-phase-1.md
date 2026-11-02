@@ -224,7 +224,7 @@ git commit -m "docs: align repo rules and the review skill with the hosted desig
 - Produces: `@jobflow/safety` exports `isBlockedAddress`, `htmlToText`,
   `fetchPostingText`, `checkRedirect`, `PostingResult`, `PostingFailureReason`,
   `FetchPostingOptions`, the `POSTING_*` constants, `redactSensitiveText`,
-  `RedactionOptions`. `tests-prove-change.mjs --package <dir>` (default
+  `RedactionOptions`, `redactLogText`, `LOG_TEXT_MAX_CHARS`. `tests-prove-change.mjs --package <dir>` (default
   `career-ops-wrapper`).
 
 - [ ] **Step 1: Record the wrapper's baseline**
@@ -246,18 +246,24 @@ the root, then run `npm install`.
 - [ ] **Step 3: Move the four modules and their tests with `git mv`**
 
 The package exports `./dist/index.js` with types and has no runtime dependencies.
+Dependents name it as `file:../packages/safety`, never `*`, which would fetch from the
+public registry when a folder is installed outside the workspace.
 Wrapper `pretest`, `prebuild` and `predev` scripts build `@jobflow/safety`,
 so the wrapper's documented commands keep working.
 
-- [ ] **Step 4: Write failing tests for two new redaction patterns**
+- [ ] **Step 4: Write failing tests for `redactLogText`**
+
+A separate function, because `redactSensitiveText` also runs on report Markdown, which
+these patterns would corrupt.
 
 ```ts
-expect(redactSensitiveText("Authorization: Bearer abc.def.ghi")).toBe("Authorization: Bearer [REDACTED]");
-expect(redactSensitiveText("postgres://app:s3cret@db:5432/jobflow failed"))
+expect(redactLogText("Authorization: Bearer abc.def.ghi")).toBe("Authorization: Bearer [REDACTED]");
+expect(redactLogText("postgres://app:s3cret@db:5432/jobflow failed"))
   .toBe("postgres://app:[REDACTED]@db:5432/jobflow failed");
+expect(redactSensitiveText("[db](postgres://app:s3cret@db/x)")).toBe("[db](postgres://app:s3cret@db/x)");
 ```
 
-- [ ] **Step 5: Add the patterns to `redactSensitiveText` and run the package tests**
+- [ ] **Step 5: Add `redactLogText` and run the package tests**
 
 Run: `npm test -w @jobflow/safety`
 Expected: PASS.
@@ -438,7 +444,7 @@ git commit -m "feat(contract): draft the hosted API contract with a mock server"
   `backend/test/support/{database,server}.ts`
 
 **Interfaces:**
-- Consumes: `@jobflow/contract`, `redactSensitiveText` from `@jobflow/safety`.
+- Consumes: `@jobflow/contract`, `redactLogText` from `@jobflow/safety`.
 - Produces:
 
 ```ts
@@ -518,7 +524,7 @@ Fastify `bodyLimit` 1 MiB, `requestTimeout` 30 s. The error handler maps `ApiErr
 Zod errors, then Fastify client errors by their `statusCode`, then falls back to the
 fixed 500. `setNotFoundHandler` returns the envelope. Logging: pino through Fastify
 with request and response serializers that keep only id, method, route, status and
-duration, and an error serializer that runs `redactSensitiveText`.
+duration, and an error serializer that runs `redactLogText`.
 
 - [ ] **Step 5: Implement `db/pool`, `db/migrate`, the migration and `routes/health`**
 
