@@ -2,11 +2,12 @@ import { z } from "zod";
 import { OpaqueIdSchema, TimestampSchema, named } from "./common.js";
 
 export const CV_UPLOAD_MAX_BYTES = 5 * 1024 * 1024;
+export const CV_IMPORT_RETENTION_HOURS = 24;
 const CV_MARKDOWN_MAX_CHARS = 200_000;
 
 const CvMarkdownSchema = z.string().trim().min(1).max(CV_MARKDOWN_MAX_CHARS);
 
-/** The extracted text, for the user to review and edit. It is stored only by `PUT /me/cv`. */
+/** The extracted text, for the user to review and edit. It becomes the CV only by `PUT /me/cv`. */
 export const CvImportDtoSchema = named(
   "CvImportDto",
   z.strictObject({

@@ -4,8 +4,11 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import {
+  CV_IMPORT_RETENTION_HOURS,
   CV_UPLOAD_MAX_BYTES,
+  CompanyCreateRequestSchema,
   CvUpdateRequestSchema,
+  ErrorDtoSchema,
   ERROR_STATUS,
   ErrorCodeSchema,
   ErrorResponseDtoSchema,
@@ -22,6 +25,12 @@ import { buildOpenApiDocument, loadExample, serializeOpenApiDocument } from "../
 const contractsDir = fileURLToPath(new URL("../../../contracts/", import.meta.url));
 const examplesDir = path.join(contractsDir, "examples");
 const operationName = ({ method, path: route }: Operation) => `${method} ${route}`;
+
+function find(name: string): Operation {
+  const operation = operations.find((candidate) => operationName(candidate) === name);
+  if (!operation) throw new Error(`No operation ${name}`);
+  return operation;
+}
 
 function listFiles(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {
@@ -80,29 +89,72 @@ describe("operations", () => {
     }
   });
 
-  it("documents the rules that cost money", () => {
-    const evaluate = operations.find((operation) => operationName(operation) === "POST /api/v1/jobs/{jobId}/evaluations");
-    expect(evaluate?.headers).toEqual([expect.objectContaining({ name: "X-Integrity-Token", required: true })]);
-    expect(evaluate?.responses[403]?.examples).toEqual(
-      expect.arrayContaining(["errors/sign-in-required", "errors/entitlement-required", "errors/integrity-failed"])
-    );
-    expect(evaluate?.responses[429]?.examples).toEqual(expect.arrayContaining(["errors/quota-exceeded", "errors/rate-limited"]));
+  it("documents the rate limit on the public route too, because limits apply before auth", () => {
+    for (const operation of operations) {
+      expect(operation.responses[429]?.examples, operationName(operation)).toContain("errors/rate-limited");
+    }
+  });
 
-    const importCv = operations.find((operation) => operationName(operation) === "POST /api/v1/me/cv/import");
-    expect(importCv?.headers).toEqual([expect.objectContaining({ name: "X-Integrity-Token", required: false })]);
-    expect(importCv?.responses[403]?.examples).toEqual(
+  it("refuses anonymous users and enforces a cap when adding to the shared job index", () => {
+    const addCompany = find("POST /api/v1/companies");
+    expect(addCompany.responses[403]?.examples).toEqual(["errors/sign-in-required"]);
+    expect(addCompany.responses[429]?.examples).toEqual(expect.arrayContaining(["errors/quota-exceeded", "errors/rate-limited"]));
+  });
+
+  it("documents the rules that cost money", () => {
+    const evaluate = find("POST /api/v1/jobs/{jobId}/evaluations");
+    expect(evaluate.headers).toEqual([expect.objectContaining({ name: "X-Integrity-Token", required: true })]);
+    expect(evaluate.headers?.[0]?.description).toContain("INTEGRITY_FAILED");
+    expect(evaluate.responses[403]?.examples).toEqual(
       expect.arrayContaining(["errors/sign-in-required", "errors/entitlement-required", "errors/integrity-failed"])
     );
-    expect(Object.keys(importCv?.responses ?? {})).toEqual(expect.arrayContaining(["413", "415", "422"]));
+    expect(evaluate.responses[429]?.examples).toEqual(expect.arrayContaining(["errors/quota-exceeded", "errors/rate-limited"]));
+
+    const importCv = find("POST /api/v1/me/cv/import");
+    expect(importCv.headers).toEqual([expect.objectContaining({ name: "X-Integrity-Token", required: false })]);
+    expect(importCv.responses[403]?.examples).toEqual(
+      expect.arrayContaining(["errors/sign-in-required", "errors/entitlement-required", "errors/integrity-failed"])
+    );
+    expect(importCv.responses[429]?.examples).toEqual(expect.arrayContaining(["errors/quota-exceeded", "errors/rate-limited"]));
+    expect(Object.keys(importCv.responses)).toEqual(expect.arrayContaining(["413", "415", "422"]));
     expect(CV_UPLOAD_MAX_BYTES).toBe(5 * 1024 * 1024);
+  });
+
+  it("says how long a pending CV import is held, and that deleting the account removes it", () => {
+    const importCv = find("POST /api/v1/me/cv/import");
+    expect(importCv.summary).not.toMatch(/nothing is stored/i);
+    expect(importCv.summary).toMatch(/encrypted/i);
+    expect(importCv.summary).toContain(`${CV_IMPORT_RETENTION_HOURS} hours`);
+    expect(importCv.summary).toMatch(/replaces/i);
+    expect(find("DELETE /api/v1/me").summary).toMatch(/pending CV import/i);
   });
 
   it("declares every path parameter", () => {
     for (const operation of operations) {
       const inPath = [...operation.path.matchAll(/\{(\w+)\}/g)].map((match) => match[1]);
       expect(operation.pathParams ?? [], operationName(operation)).toEqual(inPath);
-      if (inPath.length > 0) expect(operation.responses[404], operationName(operation)).toBeDefined();
+      if (inPath.length > 0) expect(operation.responses[400], `${operationName(operation)} 400`).toBeDefined();
     }
+  });
+
+  it("documents 404 where a path id looks up a resource", () => {
+    for (const name of [
+      "GET /api/v1/jobs/{jobId}",
+      "PUT /api/v1/jobs/{jobId}/tracker",
+      "DELETE /api/v1/jobs/{jobId}/tracker",
+      "POST /api/v1/jobs/{jobId}/evaluations",
+      "GET /api/v1/evaluations/{evaluationId}"
+    ]) {
+      expect(find(name).responses[404], name).toBeDefined();
+    }
+  });
+
+  it("never answers 404 on device routes: registering takes the installation over and removing is idempotent", () => {
+    for (const name of ["PUT /api/v1/me/devices/{installationId}", "DELETE /api/v1/me/devices/{installationId}"]) {
+      expect(find(name).responses[404], name).toBeUndefined();
+      expect(find(name).responses[204], name).toBeDefined();
+    }
+    expect(find("PUT /api/v1/me/devices/{installationId}").summary).toMatch(/takes over/i);
   });
 });
 
@@ -219,6 +271,56 @@ describe("schemas", () => {
     expect(() => JobDtoSchema.parse({ ...job, url: "file:///etc/passwd" })).toThrow(z.ZodError);
     expect(() => JobDtoSchema.parse({ ...job, url: "javascript:alert(1)" })).toThrow(z.ZodError);
   });
+
+  it.each([
+    "https://jobs.example.com@evil.example/login",
+    "http://user:s3cret@careers.example.com/",
+    "https://a\\@b.example/",
+    "gopher://x.example/",
+    "ftp://x.example/"
+  ])("reject %s, which is not a plain web URL", (careersUrl) => {
+    expect(() => CompanyCreateRequestSchema.parse({ careersUrl })).toThrow(z.ZodError);
+  });
+
+  it.each(["https://careers.example.com", "HTTP://careers.example.com/jobs?a=1#b", "https://careers.example.com/@team", "https://careers.example.com:8443/x?who=a@b.example"])(
+    "accept %s",
+    (careersUrl) => {
+      expect(CompanyCreateRequestSchema.parse({ careersUrl }).careersUrl).toBeDefined();
+    }
+  );
+
+  it.each([
+    ["no stack traces", { stack: "Error at /srv/app/x.js:1" }],
+    ["no connection strings", { connection: "postgres://u:p@db/x" }]
+  ])("limit error details to known fields: %s", (_name, details) => {
+    expect(() => ErrorDtoSchema.parse({ code: "UNEXPECTED_ERROR", message: "Something went wrong.", details })).toThrow(z.ZodError);
+  });
+
+  it("accept the error details clients use", () => {
+    expect(() => ErrorDtoSchema.parse({ code: "VALIDATION_ERROR", message: "Bad.", details: { fields: ["roles"] } })).not.toThrow();
+    expect(() => ErrorDtoSchema.parse({ code: "RATE_LIMITED", message: "Slow down.", details: { retryAfterSeconds: 30 } })).not.toThrow();
+  });
+
+  it.each(["../u2/original.pdf", "a/b", "a\nINFO forged log line", "%2e%2e%2f", ".hidden", ""])("reject the id %j", (importId) => {
+    expect(() => CvUpdateRequestSchema.parse({ importId, markdown: "# CV" })).toThrow(z.ZodError);
+  });
+
+  it("hold what postings state about pay: decimals, a missing currency or period, day and week rates", () => {
+    const job = loadExample(examplesDir, "job.valid") as Record<string, unknown>;
+    for (const salary of [
+      { min: 22.5, max: 28.75, currency: "USD", period: "hour" },
+      { min: 120000, max: 150000, currency: null, period: null },
+      { min: 800, max: null, currency: "EUR", period: "day" },
+      { min: null, max: 2000, currency: "GBP", period: "week" }
+    ]) {
+      expect(() => JobDtoSchema.parse({ ...job, salary })).not.toThrow();
+    }
+  });
+
+  it("accept an hourly minimum with decimals", () => {
+    const preferences = loadExample(examplesDir, "preferences.valid") as Record<string, unknown>;
+    expect(() => PreferencesDtoSchema.parse({ ...preferences, minimumSalary: { amount: 18.5, currency: "USD", period: "hour" } })).not.toThrow();
+  });
 });
 
 describe("OpenAPI document", () => {
@@ -242,6 +344,26 @@ describe("OpenAPI document", () => {
     const entry = document.paths["/api/v1/health"]?.get;
     expect(Object.keys(entry.responses["503"].content["application/json"].examples)).toEqual(["health.degraded"]);
     expect(entry.responses["503"].content["application/json"].examples["health.degraded"].value).toEqual(loadExample(examplesDir, "health.degraded"));
+  });
+
+  it("publishes the web URL rule, so clients built from it see it too", () => {
+    const { pattern } = document.components.schemas.CompanyCreateRequest.properties.careersUrl;
+    const rule = new RegExp(pattern);
+    expect(rule.test("https://careers.example.com/jobs")).toBe(true);
+    expect(rule.test("gopher://x.example/")).toBe(false);
+    expect(rule.test("https://jobs.example.com@evil.example/")).toBe(false);
+  });
+
+  it("publishes the id rule on path parameters", () => {
+    const [parameter] = document.paths["/api/v1/jobs/{jobId}"].get.parameters;
+    expect(new RegExp(parameter.schema.pattern).test("job_01")).toBe(true);
+    expect(new RegExp(parameter.schema.pattern).test("../x")).toBe(false);
+  });
+
+  it("says what restructure does before phase 3", () => {
+    const { restructure } = document.paths["/api/v1/me/cv/import"].post.requestBody.content["multipart/form-data"].schema.properties;
+    expect(restructure.description).toContain("phase 3");
+    expect(restructure.description).toContain("ENTITLEMENT_REQUIRED");
   });
 
   it("resolves every schema reference", () => {

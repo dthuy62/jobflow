@@ -4,17 +4,17 @@ import { NameSchema, named } from "./common.js";
 export const RemotePolicySchema = named("RemotePolicy", z.enum(["remote", "hybrid", "onsite"]));
 export const SenioritySchema = named("Seniority", z.enum(["intern", "junior", "mid", "senior", "lead", "executive"]));
 export const CurrencySchema = z.string().regex(/^[A-Z]{3}$/);
-export const SalaryPeriodSchema = named("SalaryPeriod", z.enum(["hour", "month", "year"]));
+export const SalaryPeriodSchema = named("SalaryPeriod", z.enum(["hour", "day", "week", "month", "year"]));
 
 const MinimumSalarySchema = z.strictObject({
-  amount: z.number().int().positive(),
+  amount: z.number().positive(),
   currency: CurrencySchema,
   period: SalaryPeriodSchema
 });
 
 const textList = z.array(NameSchema).max(50);
 
-/** What the user wants. A new user gets every list empty, not a 404. */
+/** What the user wants. A new user gets every list empty, not a 404. Null clears `aim` and `minimumSalary`. */
 export const PreferencesDtoSchema = named(
   "PreferencesDto",
   z.strictObject({

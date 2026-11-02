@@ -33,6 +33,29 @@
               }
             }
           },
+          "429": {
+            "description": "Too many requests from this address.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.rate-limited": {
+                    "value": {
+                      "error": {
+                        "code": "RATE_LIMITED",
+                        "message": "Too many requests. Try again soon.",
+                        "details": {
+                          "retryAfterSeconds": 30
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
           "503": {
             "description": "A dependency is down.",
             "content": {
@@ -181,7 +204,7 @@
       },
       "delete": {
         "operationId": "deleteMe",
-        "summary": "Delete the account and all of the user's data.",
+        "summary": "Delete the account and all of the user's data, including any pending CV import.",
         "x-phase": 3,
         "security": [
           {
@@ -676,7 +699,7 @@
     "/api/v1/me/cv/import": {
       "post": {
         "operationId": "importCv",
-        "summary": "Extract a CV file (PDF or DOCX, at most 5 MiB) as Markdown for review. Nothing is stored until PUT /me/cv.",
+        "summary": "Extract a CV file (PDF or DOCX, at most 5 MiB) as Markdown for review. The file and text are held encrypted under importId for at most 24 hours, until PUT /me/cv uses them. A new import replaces the pending one.",
         "x-phase": 2,
         "security": [
           {
@@ -688,7 +711,7 @@
             "name": "X-Integrity-Token",
             "in": "header",
             "required": false,
-            "description": "Play Integrity token. Optional in this draft. Phase 3, which ships Play Integrity, makes it required.",
+            "description": "Play Integrity token. Optional in this draft. Phase 3, which ships Play Integrity, makes it required: a missing or failed token then gets 403 INTEGRITY_FAILED.",
             "schema": {
               "type": "string",
               "minLength": 1
@@ -713,7 +736,7 @@
                   "restructure": {
                     "type": "boolean",
                     "default": false,
-                    "description": "Ask AI to restructure the text. Needs Google sign-in, and an entitlement or the trial. Without it, the server extracts plain text."
+                    "description": "Ask AI to restructure the text. Needs Google sign-in, and an entitlement or the trial. Without it, the server extracts plain text. AI ships in phase 3; until then, true gets 403 ENTITLEMENT_REQUIRED."
                   }
                 }
               }
@@ -881,13 +904,21 @@
             }
           },
           "429": {
-            "description": "Too many requests.",
+            "description": "The plan's quota is used up.",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponseDto"
                 },
                 "examples": {
+                  "errors.quota-exceeded": {
+                    "value": {
+                      "error": {
+                        "code": "QUOTA_EXCEEDED",
+                        "message": "This plan's quota is used up."
+                      }
+                    }
+                  },
                   "errors.rate-limited": {
                     "value": {
                       "error": {
@@ -1299,8 +1330,7 @@
             "description": "`nextCursor` from the previous page.",
             "schema": {
               "type": "string",
-              "minLength": 1,
-              "maxLength": 200
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,199}$"
             }
           },
           {
@@ -1503,8 +1533,7 @@
             "required": true,
             "schema": {
               "type": "string",
-              "minLength": 1,
-              "maxLength": 200
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,199}$"
             }
           }
         ],
@@ -1562,6 +1591,59 @@
                       "acceptedTimezones": [],
                       "descriptionText": "Example Hospital is hiring a staff nurse for its pediatrics ward.",
                       "lastSeenAt": "2026-11-02T09:30:00.000Z"
+                    }
+                  },
+                  "job.hourly": {
+                    "value": {
+                      "jobId": "job_03",
+                      "title": "Home Care Aide",
+                      "company": "Example Hospital",
+                      "location": "Hanoi",
+                      "remotePolicy": "onsite",
+                      "salary": {
+                        "min": 22.5,
+                        "max": 28.75,
+                        "currency": null,
+                        "period": "hour"
+                      },
+                      "url": "https://jobs.example.com/postings/1",
+                      "firstSeenAt": "2026-11-02T08:00:00.000Z",
+                      "closed": false,
+                      "source": "example-board",
+                      "externalId": "posting 3/a",
+                      "acceptedCountries": [
+                        "VN"
+                      ],
+                      "acceptedTimezones": [
+                        "Asia/Ho_Chi_Minh"
+                      ],
+                      "descriptionText": "Example Hospital is hiring a staff nurse for its pediatrics ward.",
+                      "lastSeenAt": "2026-11-02T09:30:00.000Z"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request is not valid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.validation-error": {
+                    "value": {
+                      "error": {
+                        "code": "VALIDATION_ERROR",
+                        "message": "The request is not valid.",
+                        "details": {
+                          "fields": [
+                            "roles"
+                          ]
+                        }
+                      }
                     }
                   }
                 }
@@ -1699,8 +1781,7 @@
             "required": true,
             "schema": {
               "type": "string",
-              "minLength": 1,
-              "maxLength": 200
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,199}$"
             }
           }
         ],
@@ -1910,14 +1991,38 @@
             "required": true,
             "schema": {
               "type": "string",
-              "minLength": 1,
-              "maxLength": 200
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,199}$"
             }
           }
         ],
         "responses": {
           "204": {
             "description": "Removed, or was not marked."
+          },
+          "400": {
+            "description": "The request is not valid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.validation-error": {
+                    "value": {
+                      "error": {
+                        "code": "VALIDATION_ERROR",
+                        "message": "The request is not valid.",
+                        "details": {
+                          "fields": [
+                            "roles"
+                          ]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
           },
           "401": {
             "description": "The token is missing or not valid. The app signs in again.",
@@ -2051,8 +2156,7 @@
             "description": "`nextCursor` from the previous page.",
             "schema": {
               "type": "string",
-              "minLength": 1,
-              "maxLength": 200
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,199}$"
             }
           },
           {
@@ -2230,7 +2334,7 @@
     "/api/v1/companies": {
       "post": {
         "operationId": "addCompany",
-        "summary": "Add a company careers page to the shared job index.",
+        "summary": "Add a company careers page to the shared job index. Needs Google sign-in, and each user has a cap, because this adds work for the server.",
         "x-phase": 2,
         "security": [
           {
@@ -2319,14 +2423,42 @@
               }
             }
           },
-          "429": {
-            "description": "Too many requests.",
+          "403": {
+            "description": "Anonymous users cannot add companies.",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponseDto"
                 },
                 "examples": {
+                  "errors.sign-in-required": {
+                    "value": {
+                      "error": {
+                        "code": "SIGN_IN_REQUIRED",
+                        "message": "Sign in with Google to use this."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "This user has added too many companies.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.quota-exceeded": {
+                    "value": {
+                      "error": {
+                        "code": "QUOTA_EXCEEDED",
+                        "message": "This plan's quota is used up."
+                      }
+                    }
+                  },
                   "errors.rate-limited": {
                     "value": {
                       "error": {
@@ -2396,7 +2528,7 @@
     "/api/v1/me/devices/{installationId}": {
       "put": {
         "operationId": "putDevice",
-        "summary": "Register this installation's FCM token.",
+        "summary": "Register this installation's FCM token. The caller takes over the installation, so a phone that changes user keeps getting push.",
         "x-phase": 2,
         "security": [
           {
@@ -2410,8 +2542,7 @@
             "required": true,
             "schema": {
               "type": "string",
-              "minLength": 1,
-              "maxLength": 200
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,199}$"
             }
           }
         ],
@@ -2474,26 +2605,6 @@
                       "error": {
                         "code": "UNAUTHORIZED",
                         "message": "Sign in again."
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not found, or not this user's.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                },
-                "examples": {
-                  "errors.not-found": {
-                    "value": {
-                      "error": {
-                        "code": "NOT_FOUND",
-                        "message": "Resource was not found."
                       }
                     }
                   }
@@ -2590,14 +2701,38 @@
             "required": true,
             "schema": {
               "type": "string",
-              "minLength": 1,
-              "maxLength": 200
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,199}$"
             }
           }
         ],
         "responses": {
           "204": {
             "description": "Removed, or was not registered."
+          },
+          "400": {
+            "description": "The request is not valid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.validation-error": {
+                    "value": {
+                      "error": {
+                        "code": "VALIDATION_ERROR",
+                        "message": "The request is not valid.",
+                        "details": {
+                          "fields": [
+                            "roles"
+                          ]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
           },
           "401": {
             "description": "The token is missing or not valid. The app signs in again.",
@@ -2612,26 +2747,6 @@
                       "error": {
                         "code": "UNAUTHORIZED",
                         "message": "Sign in again."
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not found, or not this user's.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                },
-                "examples": {
-                  "errors.not-found": {
-                    "value": {
-                      "error": {
-                        "code": "NOT_FOUND",
-                        "message": "Resource was not found."
                       }
                     }
                   }
@@ -2730,15 +2845,14 @@
             "required": true,
             "schema": {
               "type": "string",
-              "minLength": 1,
-              "maxLength": 200
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,199}$"
             }
           },
           {
             "name": "X-Integrity-Token",
             "in": "header",
             "required": true,
-            "description": "Play Integrity token. Required: this request costs money.",
+            "description": "Play Integrity token. Required, because this request costs money. A missing or failed token gets 403 INTEGRITY_FAILED, before any AI call.",
             "schema": {
               "type": "string",
               "minLength": 1
@@ -2763,6 +2877,31 @@
                       "result": null,
                       "failureMessage": null,
                       "stage": "queued"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request is not valid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.validation-error": {
+                    "value": {
+                      "error": {
+                        "code": "VALIDATION_ERROR",
+                        "message": "The request is not valid.",
+                        "details": {
+                          "fields": [
+                            "roles"
+                          ]
+                        }
+                      }
                     }
                   }
                 }
@@ -2944,8 +3083,7 @@
             "required": true,
             "schema": {
               "type": "string",
-              "minLength": 1,
-              "maxLength": 200
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,199}$"
             }
           }
         ],
@@ -3005,6 +3143,31 @@
                       "result": null,
                       "failureMessage": "The job posting could not be fetched.",
                       "stage": "failed"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request is not valid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.validation-error": {
+                    "value": {
+                      "error": {
+                        "code": "VALIDATION_ERROR",
+                        "message": "The request is not valid.",
+                        "details": {
+                          "fields": [
+                            "roles"
+                          ]
+                        }
+                      }
                     }
                   }
                 }
@@ -3491,7 +3654,7 @@
           "careersUrl": {
             "type": "string",
             "maxLength": 2048,
-            "format": "uri"
+            "pattern": "^[Hh][Tt][Tt][Pp][Ss]?:\\/\\/[^/?#@]*(?:[/?#]|$)"
           }
         },
         "required": [
@@ -3504,8 +3667,7 @@
         "properties": {
           "companyId": {
             "type": "string",
-            "minLength": 1,
-            "maxLength": 200
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,199}$"
           },
           "name": {
             "anyOf": [
@@ -3522,7 +3684,7 @@
           "careersUrl": {
             "type": "string",
             "maxLength": 2048,
-            "format": "uri"
+            "pattern": "^[Hh][Tt][Tt][Pp][Ss]?:\\/\\/[^/?#@]*(?:[/?#]|$)"
           }
         },
         "required": [
@@ -3557,8 +3719,7 @@
         "properties": {
           "importId": {
             "type": "string",
-            "minLength": 1,
-            "maxLength": 200
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,199}$"
           },
           "markdown": {
             "type": "string",
@@ -3577,8 +3738,7 @@
         "properties": {
           "importId": {
             "type": "string",
-            "minLength": 1,
-            "maxLength": 200
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,199}$"
           },
           "markdown": {
             "type": "string",
@@ -3704,10 +3864,23 @@
           },
           "details": {
             "type": "object",
-            "propertyNames": {
-              "type": "string"
+            "properties": {
+              "fields": {
+                "maxItems": 50,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                }
+              },
+              "retryAfterSeconds": {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991
+              }
             },
-            "additionalProperties": {}
+            "additionalProperties": false
           }
         },
         "required": [
@@ -3733,13 +3906,11 @@
         "properties": {
           "evaluationId": {
             "type": "string",
-            "minLength": 1,
-            "maxLength": 200
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,199}$"
           },
           "jobId": {
             "type": "string",
-            "minLength": 1,
-            "maxLength": 200
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,199}$"
           },
           "stage": {
             "$ref": "#/components/schemas/EvaluationStage"
@@ -3880,8 +4051,7 @@
             "anyOf": [
               {
                 "type": "string",
-                "minLength": 1,
-                "maxLength": 200
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,199}$"
               },
               {
                 "type": "null"
@@ -3933,8 +4103,7 @@
         "properties": {
           "jobId": {
             "type": "string",
-            "minLength": 1,
-            "maxLength": 200
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,199}$"
           },
           "title": {
             "type": "string",
@@ -3969,9 +4138,8 @@
                   "min": {
                     "anyOf": [
                       {
-                        "type": "integer",
-                        "minimum": 0,
-                        "maximum": 9007199254740991
+                        "type": "number",
+                        "minimum": 0
                       },
                       {
                         "type": "null"
@@ -3981,9 +4149,8 @@
                   "max": {
                     "anyOf": [
                       {
-                        "type": "integer",
-                        "minimum": 0,
-                        "maximum": 9007199254740991
+                        "type": "number",
+                        "minimum": 0
                       },
                       {
                         "type": "null"
@@ -3991,11 +4158,25 @@
                     ]
                   },
                   "currency": {
-                    "type": "string",
-                    "pattern": "^[A-Z]{3}$"
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "pattern": "^[A-Z]{3}$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   },
                   "period": {
-                    "$ref": "#/components/schemas/SalaryPeriod"
+                    "anyOf": [
+                      {
+                        "$ref": "#/components/schemas/SalaryPeriod"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   }
                 },
                 "required": [
@@ -4014,7 +4195,7 @@
           "url": {
             "type": "string",
             "maxLength": 2048,
-            "format": "uri"
+            "pattern": "^[Hh][Tt][Tt][Pp][Ss]?:\\/\\/[^/?#@]*(?:[/?#]|$)"
           },
           "firstSeenAt": {
             "type": "string",
@@ -4100,8 +4281,7 @@
         "properties": {
           "jobId": {
             "type": "string",
-            "minLength": 1,
-            "maxLength": 200
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,199}$"
           },
           "title": {
             "type": "string",
@@ -4136,9 +4316,8 @@
                   "min": {
                     "anyOf": [
                       {
-                        "type": "integer",
-                        "minimum": 0,
-                        "maximum": 9007199254740991
+                        "type": "number",
+                        "minimum": 0
                       },
                       {
                         "type": "null"
@@ -4148,9 +4327,8 @@
                   "max": {
                     "anyOf": [
                       {
-                        "type": "integer",
-                        "minimum": 0,
-                        "maximum": 9007199254740991
+                        "type": "number",
+                        "minimum": 0
                       },
                       {
                         "type": "null"
@@ -4158,11 +4336,25 @@
                     ]
                   },
                   "currency": {
-                    "type": "string",
-                    "pattern": "^[A-Z]{3}$"
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "pattern": "^[A-Z]{3}$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   },
                   "period": {
-                    "$ref": "#/components/schemas/SalaryPeriod"
+                    "anyOf": [
+                      {
+                        "$ref": "#/components/schemas/SalaryPeriod"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   }
                 },
                 "required": [
@@ -4181,7 +4373,7 @@
           "url": {
             "type": "string",
             "maxLength": 2048,
-            "format": "uri"
+            "pattern": "^[Hh][Tt][Tt][Pp][Ss]?:\\/\\/[^/?#@]*(?:[/?#]|$)"
           },
           "firstSeenAt": {
             "type": "string",
@@ -4210,8 +4402,7 @@
         "properties": {
           "userId": {
             "type": "string",
-            "minLength": 1,
-            "maxLength": 200
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,199}$"
           },
           "isAnonymous": {
             "type": "boolean"
@@ -4289,9 +4480,8 @@
                 "type": "object",
                 "properties": {
                   "amount": {
-                    "type": "integer",
-                    "exclusiveMinimum": 0,
-                    "maximum": 9007199254740991
+                    "type": "number",
+                    "exclusiveMinimum": 0
                   },
                   "currency": {
                     "type": "string",
@@ -4351,8 +4541,7 @@
         "properties": {
           "productId": {
             "type": "string",
-            "minLength": 1,
-            "maxLength": 200
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,199}$"
           },
           "purchaseToken": {
             "type": "string",
@@ -4378,6 +4567,8 @@
         "type": "string",
         "enum": [
           "hour",
+          "day",
+          "week",
           "month",
           "year"
         ]
@@ -4428,8 +4619,7 @@
             "anyOf": [
               {
                 "type": "string",
-                "minLength": 1,
-                "maxLength": 200
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,199}$"
               },
               {
                 "type": "null"

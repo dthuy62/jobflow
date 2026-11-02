@@ -6,10 +6,10 @@ export const JobRemotePolicySchema = named("JobRemotePolicy", z.enum(["remote", 
 
 /** Only what the posting states; any part may be missing. */
 const SalarySchema = z.strictObject({
-  min: z.number().int().nonnegative().nullable(),
-  max: z.number().int().nonnegative().nullable(),
-  currency: CurrencySchema,
-  period: SalaryPeriodSchema
+  min: z.number().nonnegative().nullable(),
+  max: z.number().nonnegative().nullable(),
+  currency: CurrencySchema.nullable(),
+  period: SalaryPeriodSchema.nullable()
 });
 
 export const JobSummaryDtoSchema = named(
@@ -32,7 +32,8 @@ export const JobDtoSchema = named(
   z.strictObject({
     ...JobSummaryDtoSchema.shape,
     source: NameSchema,
-    externalId: OpaqueIdSchema.nullable(),
+    /** The source's own id, in the source's format. */
+    externalId: NameSchema.nullable(),
     /** ISO 3166-1 alpha-2, when the posting states them. */
     acceptedCountries: z.array(z.string().regex(/^[A-Z]{2}$/)),
     acceptedTimezones: z.array(NameSchema),

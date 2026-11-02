@@ -30,7 +30,13 @@ export const ErrorDtoSchema = named(
   z.strictObject({
     code: ErrorCodeSchema,
     message: z.string().min(1).max(500),
-    details: z.record(z.string(), z.unknown()).optional()
+    /** A closed shape, so a stack trace or driver error cannot pass as details. */
+    details: z
+      .strictObject({
+        fields: z.array(z.string().min(1).max(200)).max(50).optional(),
+        retryAfterSeconds: z.number().int().positive().optional()
+      })
+      .optional()
   })
 );
 

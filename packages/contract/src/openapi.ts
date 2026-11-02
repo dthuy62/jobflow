@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { z } from "zod";
-import { contractRegistry } from "./common.js";
+import { OPAQUE_ID_PATTERN, contractRegistry } from "./common.js";
 import { CV_UPLOAD_MAX_BYTES } from "./cv.js";
 import { operations, type Operation, type ResponseSpec } from "./operations.js";
 
@@ -71,7 +71,7 @@ export function buildOpenApiDocument(examplesDir: string): OpenApiDocument {
                   restructure: {
                     type: "boolean",
                     default: false,
-                    description: "Ask AI to restructure the text. Needs Google sign-in, and an entitlement or the trial. Without it, the server extracts plain text."
+                    description: "Ask AI to restructure the text. Needs Google sign-in, and an entitlement or the trial. Without it, the server extracts plain text. AI ships in phase 3; until then, true gets 403 ENTITLEMENT_REQUIRED."
                   }
                 }
               }
@@ -95,7 +95,7 @@ export function buildOpenApiDocument(examplesDir: string): OpenApiDocument {
 
   const operationEntry = (operation: Operation) => {
     const parameters = [
-      ...(operation.pathParams ?? []).map((name) => ({ name, in: "path", required: true, schema: { type: "string", minLength: 1, maxLength: 200 } })),
+      ...(operation.pathParams ?? []).map((name) => ({ name, in: "path", required: true, schema: { type: "string", pattern: OPAQUE_ID_PATTERN } })),
       ...(operation.query ?? []).map(({ name, description, schema }) => ({ name, in: "query", required: false, description, schema })),
       ...(operation.headers ?? []).map(({ name, required, description }) => ({
         name,

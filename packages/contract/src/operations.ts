@@ -1,5 +1,6 @@
 import type { z } from "zod";
-import { CvDtoSchema, CvImportDtoSchema, CvUpdateRequestSchema, CV_UPLOAD_MAX_BYTES } from "./cv.js";
+import { OPAQUE_ID_PATTERN } from "./common.js";
+import { CV_IMPORT_RETENTION_HOURS, CV_UPLOAD_MAX_BYTES, CvDtoSchema, CvImportDtoSchema, CvUpdateRequestSchema } from "./cv.js";
 import { DeviceUpdateRequestSchema } from "./devices.js";
 import { ErrorResponseDtoSchema } from "./errors.js";
 import { EntitlementDtoSchema, PurchaseRequestSchema } from "./billing.js";
@@ -65,7 +66,7 @@ const authenticatedErrors = {
 } as const;
 
 const paging: readonly QueryParam[] = [
-  { name: "cursor", description: "`nextCursor` from the previous page.", schema: { type: "string", minLength: 1, maxLength: 200 } },
+  { name: "cursor", description: "`nextCursor` from the previous page.", schema: { type: "string", pattern: OPAQUE_ID_PATTERN } },
   { name: "limit", description: "Page size.", schema: { type: "integer", minimum: 1, maximum: 100, default: 20 } }
 ];
 
@@ -74,6 +75,8 @@ const integrity = (required: boolean, when: string): HeaderParam => ({
   required,
   description: `Play Integrity token. ${when}`
 });
+
+const quotaUsedUp = error("The plan's quota is used up.", "errors/quota-exceeded");
 
 const aiRefused = error(
   "Refused before any AI call: not signed in with Google, no entitlement or trial left, or a failed integrity check.",
@@ -100,6 +103,7 @@ export const operations: readonly Operation[] = [
     phase: 1,
     responses: {
       200: body("The service is healthy.", HealthDtoSchema, "health.ok"),
+      429: error("Too many requests from this address.", "errors/rate-limited"),
       503: body("A dependency is down.", HealthDtoSchema, "health.degraded")
     }
   },
@@ -115,7 +119,7 @@ export const operations: readonly Operation[] = [
     method: "DELETE",
     path: "/api/v1/me",
     operationId: "deleteMe",
-    summary: "Delete the account and all of the user's data.",
+    summary: "Delete the account and all of the user's data, including any pending CV import.",
     phase: 3,
     responses: { 202: empty("Deletion has started.") }
   }),
@@ -140,9 +144,9 @@ export const operations: readonly Operation[] = [
     method: "POST",
     path: "/api/v1/me/cv/import",
     operationId: "importCv",
-    summary: `Extract a CV file (PDF or DOCX, at most ${CV_UPLOAD_MAX_BYTES / (1024 * 1024)} MiB) as Markdown for review. Nothing is stored until PUT /me/cv.`,
+    summary: `Extract a CV file (PDF or DOCX, at most ${CV_UPLOAD_MAX_BYTES / (1024 * 1024)} MiB) as Markdown for review. The file and text are held encrypted under importId for at most ${CV_IMPORT_RETENTION_HOURS} hours, until PUT /me/cv uses them. A new import replaces the pending one.`,
     phase: 2,
-    headers: [integrity(false, "Optional in this draft. Phase 3, which ships Play Integrity, makes it required.")],
+    headers: [integrity(false, "Optional in this draft. Phase 3, which ships Play Integrity, makes it required: a missing or failed token then gets 403 INTEGRITY_FAILED.")],
     request: { kind: "cv-upload" },
     responses: {
       200: body("The extracted text.", CvImportDtoSchema, "cv-import.valid"),
@@ -150,7 +154,8 @@ export const operations: readonly Operation[] = [
       403: aiRefused,
       413: error("The file is too large.", "errors/payload-too-large"),
       415: error("Not a PDF or DOCX file.", "errors/unsupported-media-type"),
-      422: error("No text could be read, for example a scanned image.", "errors/cv-unreadable")
+      422: error("No text could be read, for example a scanned image.", "errors/cv-unreadable"),
+      429: quotaUsedUp
     }
   }),
   authed({
@@ -190,7 +195,7 @@ export const operations: readonly Operation[] = [
     summary: "One job.",
     phase: 2,
     pathParams: ["jobId"],
-    responses: { 200: body("The job.", JobDtoSchema, "job.valid", "job.closed"), 404: notFound }
+    responses: { 200: body("The job.", JobDtoSchema, "job.valid", "job.closed", "job.hourly"), 400: badRequest, 404: notFound }
   }),
   authed({
     method: "PUT",
@@ -209,7 +214,7 @@ export const operations: readonly Operation[] = [
     summary: "Remove the mark from a job.",
     phase: 2,
     pathParams: ["jobId"],
-    responses: { 204: empty("Removed, or was not marked."), 404: notFound }
+    responses: { 204: empty("Removed, or was not marked."), 400: badRequest, 404: notFound }
   }),
   authed({
     method: "GET",
@@ -224,20 +229,25 @@ export const operations: readonly Operation[] = [
     method: "POST",
     path: "/api/v1/companies",
     operationId: "addCompany",
-    summary: "Add a company careers page to the shared job index.",
+    summary: "Add a company careers page to the shared job index. Needs Google sign-in, and each user has a cap, because this adds work for the server.",
     phase: 2,
     request: { kind: "json", schema: CompanyCreateRequestSchema, example: "requests/company-create" },
-    responses: { 200: body("The company.", CompanyDtoSchema, "company.valid"), 400: badRequest }
+    responses: {
+      200: body("The company.", CompanyDtoSchema, "company.valid"),
+      400: badRequest,
+      403: error("Anonymous users cannot add companies.", "errors/sign-in-required"),
+      429: error("This user has added too many companies.", "errors/quota-exceeded")
+    }
   }),
   authed({
     method: "PUT",
     path: "/api/v1/me/devices/{installationId}",
     operationId: "putDevice",
-    summary: "Register this installation's FCM token.",
+    summary: "Register this installation's FCM token. The caller takes over the installation, so a phone that changes user keeps getting push.",
     phase: 2,
     pathParams: ["installationId"],
     request: { kind: "json", schema: DeviceUpdateRequestSchema, example: "requests/device-update" },
-    responses: { 204: empty("Registered."), 400: badRequest, 404: notFound }
+    responses: { 204: empty("Registered."), 400: badRequest }
   }),
   authed({
     method: "DELETE",
@@ -246,7 +256,7 @@ export const operations: readonly Operation[] = [
     summary: "Stop sending push to this installation.",
     phase: 2,
     pathParams: ["installationId"],
-    responses: { 204: empty("Removed, or was not registered."), 404: notFound }
+    responses: { 204: empty("Removed, or was not registered."), 400: badRequest }
   }),
   authed({
     method: "POST",
@@ -255,12 +265,13 @@ export const operations: readonly Operation[] = [
     summary: "Start an AI evaluation of one job against the user's CV.",
     phase: 3,
     pathParams: ["jobId"],
-    headers: [integrity(true, "Required: this request costs money.")],
+    headers: [integrity(true, "Required, because this request costs money. A missing or failed token gets 403 INTEGRITY_FAILED, before any AI call.")],
     responses: {
       202: body("Queued. Progress also arrives by push.", EvaluationDtoSchema, "evaluation.queued"),
+      400: badRequest,
       403: aiRefused,
       404: notFound,
-      429: error("The plan's quota is used up.", "errors/quota-exceeded")
+      429: quotaUsedUp
     }
   }),
   authed({
@@ -272,6 +283,7 @@ export const operations: readonly Operation[] = [
     pathParams: ["evaluationId"],
     responses: {
       200: body("The evaluation.", EvaluationDtoSchema, "evaluation.queued", "evaluation.analyzing", "evaluation.done", "evaluation.failed"),
+      400: badRequest,
       404: notFound
     }
   }),

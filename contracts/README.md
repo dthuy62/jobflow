@@ -45,6 +45,12 @@ curl -s -H 'Authorization: Bearer x' -H 'Prefer: code=503, example=errors.auth-u
 Any bearer token works: the mock checks only that one is present. It does not store anything,
 so a `PUT` does not change a later `GET`.
 
+The mock is not the server for a request it finds invalid: it answers with the first
+documented 4xx that fits, or its own 422. For example, an import with no file gets
+`CV_UNREADABLE`, where the server sends `VALIDATION_ERROR`, and an evaluation with no integrity
+token gets `VALIDATION_ERROR`, where the server sends `INTEGRITY_FAILED`. To test an error
+path, choose it with `Prefer`.
+
 Prove the mock serves every documented status and example:
 
 ```bash
@@ -57,4 +63,9 @@ npm run mock:smoke -w @jobflow/contract
 - `401 UNAUTHORIZED` means sign in again. `503 AUTH_UNAVAILABLE` means the check could not
   run: retry and keep the user signed in.
 - Lists are `{ "items", "nextCursor" }`. `nextCursor` is opaque and null on the last page.
-- Ids are opaque strings.
+- Ids are opaque strings of letters, digits, `.`, `_` and `-`.
+- A field with no value is an explicit `null`, not absent. Only `importId` in `PUT /me/cv`
+  and `details` in an error may be absent. Send `null` to clear `aim`; an empty string is a
+  400.
+- Links are `http` or `https` with no user info. Still open them as untrusted, because job
+  sources supply them.
