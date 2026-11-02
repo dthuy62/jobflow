@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { NameSchema, named } from "./common.js";
+import { NameSchema, named, textSchema } from "./common.js";
 
 export const RemotePolicySchema = named("RemotePolicy", z.enum(["remote", "hybrid", "onsite"]));
 export const SenioritySchema = named("Seniority", z.enum(["intern", "junior", "mid", "senior", "lead", "executive"]));
@@ -28,7 +28,7 @@ export const PreferencesDtoSchema = named(
     minimumSalary: MinimumSalarySchema.nullable(),
     seniority: z.array(SenioritySchema).max(6),
     /** Optional "what I'm aiming for": target roles and two or three highlights. */
-    aim: z.string().trim().min(1).max(1000).nullable()
+    aim: textSchema(1000).nullable()
   })
 );
 

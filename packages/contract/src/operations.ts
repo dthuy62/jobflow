@@ -144,7 +144,7 @@ export const operations: readonly Operation[] = [
     method: "POST",
     path: "/api/v1/me/cv/import",
     operationId: "importCv",
-    summary: `Extract a CV file (PDF or DOCX, at most ${CV_UPLOAD_MAX_BYTES / (1024 * 1024)} MiB) as Markdown for review. The file and text are held encrypted under importId for at most ${CV_IMPORT_RETENTION_HOURS} hours, until PUT /me/cv uses them. A new import replaces the pending one.`,
+    summary: `Extract a CV file (PDF or DOCX, at most ${CV_UPLOAD_MAX_BYTES / (1024 * 1024)} MiB) as Markdown for review. The file and text are held encrypted under importId for at most ${CV_IMPORT_RETENTION_HOURS} hours, until PUT /me/cv uses them. A new import replaces the pending one. A file whose extracted text is over the CV limit gets 413.`,
     phase: 2,
     headers: [integrity(false, "Optional in this draft. Phase 3, which ships Play Integrity, makes it required: a missing or failed token then gets 403 INTEGRITY_FAILED.")],
     request: { kind: "cv-upload" },
@@ -152,7 +152,7 @@ export const operations: readonly Operation[] = [
       200: body("The extracted text.", CvImportDtoSchema, "cv-import.valid"),
       400: badRequest,
       403: aiRefused,
-      413: error("The file is too large.", "errors/payload-too-large"),
+      413: error("The file, or the text extracted from it, is too large.", "errors/payload-too-large"),
       415: error("Not a PDF or DOCX file.", "errors/unsupported-media-type"),
       422: error("No text could be read, for example a scanned image.", "errors/cv-unreadable"),
       429: quotaUsedUp

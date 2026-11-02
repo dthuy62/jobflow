@@ -296,7 +296,8 @@ git commit -m "refactor: extract shared safety modules into an npm workspace pac
 ### Task 3: Contract draft and mock
 
 Android can start from here. The draft covers the first release; later phases
-may refine shapes through their own contract PRs.
+may refine shapes through their own contract PRs. Their scan and evaluator workers must
+validate data against these schemas before writing it (see `contracts/README.md`).
 
 **Files:**
 - Create: `packages/contract/{package.json,tsconfig.json,vitest.config.ts}` (builds to

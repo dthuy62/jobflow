@@ -8,6 +8,7 @@ import {
   CV_UPLOAD_MAX_BYTES,
   CompanyCreateRequestSchema,
   CvUpdateRequestSchema,
+  DeviceUpdateRequestSchema,
   ErrorDtoSchema,
   ERROR_STATUS,
   ErrorCodeSchema,
@@ -17,6 +18,7 @@ import {
   JobDtoSchema,
   MeDtoSchema,
   PreferencesDtoSchema,
+  PurchaseRequestSchema,
   operations,
   type Operation
 } from "../src/index.js";
@@ -120,11 +122,18 @@ describe("operations", () => {
     expect(CV_UPLOAD_MAX_BYTES).toBe(5 * 1024 * 1024);
   });
 
+  it("documents that text too long to return is a 413, not a server error", () => {
+    const importCv = find("POST /api/v1/me/cv/import");
+    expect(importCv.responses[413]?.description).toMatch(/extracted/i);
+    expect(importCv.summary).toMatch(/extracted text/i);
+  });
+
   it("says how long a pending CV import is held, and that deleting the account removes it", () => {
     const importCv = find("POST /api/v1/me/cv/import");
     expect(importCv.summary).not.toMatch(/nothing is stored/i);
     expect(importCv.summary).toMatch(/encrypted/i);
-    expect(importCv.summary).toContain(`${CV_IMPORT_RETENTION_HOURS} hours`);
+    expect(CV_IMPORT_RETENTION_HOURS).toBe(24);
+    expect(importCv.summary).toContain("24 hours");
     expect(importCv.summary).toMatch(/replaces/i);
     expect(find("DELETE /api/v1/me").summary).toMatch(/pending CV import/i);
   });
@@ -225,7 +234,21 @@ describe("examples", () => {
 });
 
 describe("schemas", () => {
-  it("reject unknown fields, so a response cannot carry extra data unnoticed", () => {
+  it("reject unknown fields everywhere, so a response cannot carry extra data unnoticed", () => {
+    const objects: { readonly type?: unknown; readonly additionalProperties?: unknown }[] = [];
+    const walk = (node: unknown): void => {
+      if (Array.isArray(node)) node.forEach(walk);
+      else if (node !== null && typeof node === "object") {
+        if ((node as { type?: unknown }).type === "object") objects.push(node);
+        Object.values(node).forEach(walk);
+      }
+    };
+    walk(buildOpenApiDocument(examplesDir).components.schemas);
+    expect(objects.length).toBeGreaterThan(20);
+    for (const object of objects) expect(object.additionalProperties, JSON.stringify(object).slice(0, 80)).toBe(false);
+  });
+
+  it("reject unknown fields in a sample of schemas", () => {
     expect(() => MeDtoSchema.parse({ userId: "user_1", isAnonymous: true, createdAt: "2026-11-02T00:00:00.000Z", email: "a@example.com" })).toThrow(z.ZodError);
     expect(() => CvUpdateRequestSchema.parse({ markdown: "# CV", extra: 1 })).toThrow(z.ZodError);
   });
@@ -262,7 +285,36 @@ describe("schemas", () => {
     expect(() => PreferencesDtoSchema.parse({ ...preferences, roles: ["x".repeat(201)] })).toThrow(z.ZodError);
     expect(() => PreferencesDtoSchema.parse({ ...preferences, countries: ["Vietnam"] })).toThrow(z.ZodError);
     expect(() => PreferencesDtoSchema.parse({ ...preferences, aim: "x".repeat(1001) })).toThrow(z.ZodError);
-    expect(JobDtoSchema).toBeDefined();
+  });
+
+  it("pin the limits that protect the server", () => {
+    const job = loadExample(examplesDir, "job.valid") as Record<string, unknown>;
+    const evaluation = loadExample(examplesDir, "evaluation.done") as { result: Record<string, unknown> };
+    const rejected: readonly (readonly [string, z.ZodType, unknown])[] = [
+      ["a description over the cap", JobDtoSchema, { ...job, descriptionText: "x".repeat(100_001) }],
+      ["a job URL over the cap", JobDtoSchema, { ...job, url: `https://jobs.example.com/${"x".repeat(2048)}` }],
+      ["an impossible date", JobDtoSchema, { ...job, firstSeenAt: "2026-02-30T00:00:00.000Z" }],
+      ["an id over the cap", MeDtoSchema, { userId: "x".repeat(201), isAnonymous: true, createdAt: "2026-11-02T00:00:00.000Z" }],
+      ["CV text over the cap", CvUpdateRequestSchema, { markdown: "x".repeat(200_001) }],
+      ["a purchase token over the cap", PurchaseRequestSchema, { productId: "plan", purchaseToken: "x".repeat(4097) }],
+      ["a purchase token with spaces", PurchaseRequestSchema, { productId: "plan", purchaseToken: "a b" }],
+      ["an FCM token over the cap", DeviceUpdateRequestSchema, { fcmToken: "x".repeat(4097) }],
+      ["an FCM token with a newline", DeviceUpdateRequestSchema, { fcmToken: "a\nb" }],
+      ["a score over 100", EvaluationDtoSchema, { ...evaluation, result: { ...evaluation.result, score: 101 } }],
+      ["a negative retry time", ErrorDtoSchema, { code: "RATE_LIMITED", message: "Slow down.", details: { retryAfterSeconds: -1 } }]
+    ];
+    for (const [name, schema, value] of rejected) {
+      expect(schema.safeParse(value).success, name).toBe(false);
+    }
+  });
+
+  it("reject NUL in text, which PostgreSQL cannot store", () => {
+    const preferences = loadExample(examplesDir, "preferences.valid") as Record<string, unknown>;
+    expect(PreferencesDtoSchema.safeParse({ ...preferences, roles: ["a\u0000b"] }).success).toBe(false);
+    expect(PreferencesDtoSchema.safeParse({ ...preferences, aim: "a\u0000b" }).success).toBe(false);
+    expect(DeviceUpdateRequestSchema.safeParse({ fcmToken: "a\u0000b" }).success).toBe(false);
+    expect(CvUpdateRequestSchema.safeParse({ markdown: "a\u0000b" }).success).toBe(false);
+    expect(PreferencesDtoSchema.safeParse({ ...preferences, aim: "two\nlines" }).success).toBe(true);
   });
 
   it("accept only web URLs for a job", () => {
@@ -277,7 +329,12 @@ describe("schemas", () => {
     "http://user:s3cret@careers.example.com/",
     "https://a\\@b.example/",
     "gopher://x.example/",
-    "ftp://x.example/"
+    "ftp://x.example/",
+    "https:///jobs.example.com@evil.example/login",
+    "https://\\/jobs.example.com@evil.example/login",
+    "https://\t/jobs.example.com@evil.example/login",
+    "http:////user:s3cret@careers.example.com/",
+    "https://evil.example\\.jobs.example.com/"
   ])("reject %s, which is not a plain web URL", (careersUrl) => {
     expect(() => CompanyCreateRequestSchema.parse({ careersUrl })).toThrow(z.ZodError);
   });
@@ -358,6 +415,16 @@ describe("OpenAPI document", () => {
     const [parameter] = document.paths["/api/v1/jobs/{jobId}"].get.parameters;
     expect(new RegExp(parameter.schema.pattern).test("job_01")).toBe(true);
     expect(new RegExp(parameter.schema.pattern).test("../x")).toBe(false);
+  });
+
+  it("publishes the rules that protect the server", () => {
+    const parameter = (route: string, method: string, name: string) =>
+      document.paths[route][method].parameters.find((candidate: { name: string }) => candidate.name === name);
+    expect(parameter("/api/v1/jobs/{jobId}/evaluations", "post", "X-Integrity-Token").required).toBe(true);
+    expect(parameter("/api/v1/me/cv/import", "post", "X-Integrity-Token").required).toBe(false);
+    expect(document.paths["/api/v1/me/cv/import"].post.requestBody.content["multipart/form-data"].schema.required).toEqual(["file"]);
+    expect(parameter("/api/v1/feed", "get", "limit").schema.maximum).toBe(100);
+    expect(new RegExp(parameter("/api/v1/feed", "get", "cursor").schema.pattern).test("../x")).toBe(false);
   });
 
   it("says what restructure does before phase 3", () => {

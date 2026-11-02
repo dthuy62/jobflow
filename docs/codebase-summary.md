@@ -48,7 +48,7 @@ Key implementation facts:
 - Home is MVI; Settings is MVVM-lite; three Navigation 3 tabs keep Home at the
   bottom of the stack.
 - Retrofit/OkHttp/kotlinx.serialization call the wrapper; contract tests parse
-  `career-ops-wrapper/contracts/examples` and `contracts/error-codes.json`.
+  `career-ops-wrapper/contracts/examples` and `career-ops-wrapper/contracts/error-codes.json`.
 - Errors: `Either<AppError, T>`, one mapper per data source, one UI mapper.
 - Konsist enforces layers; detekt and ktlint run in the verify command and CI.
 - `dev` and `prod` product flavors exist; `dev` allows cleartext access to

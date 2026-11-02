@@ -36,6 +36,8 @@
   B's data.
 - Routes validate input with Zod schemas from `@jobflow/contract`.
 - HTTP handlers answer fast; scans and AI calls are queue jobs.
+- Workers validate job source and AI data against the contract before writing it, so a
+  stored row can never fail a response.
 - Schema changes are migrations, run as a separate step. The app's database role
   cannot change the schema.
 - The full list is the Security baseline in

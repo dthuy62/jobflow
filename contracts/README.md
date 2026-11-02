@@ -57,13 +57,21 @@ Prove the mock serves every documented status and example:
 npm run mock:smoke -w @jobflow/contract
 ```
 
+## Rules for the backend
+
+The schemas limit stored text from job sources and AI, such as a title's length or a currency
+code. One bad row would fail a whole feed page if a response were the first place it was
+checked. So scan and evaluator workers normalize each value and validate against
+`JobDtoSchema` or `EvaluationDtoSchema` before writing, and clip or skip what still fails.
+
 ## Rules the app relies on
 
 - Errors are `{ "error": { "code", "message", "details"? } }`. Branch on `code`, not `message`.
 - `401 UNAUTHORIZED` means sign in again. `503 AUTH_UNAVAILABLE` means the check could not
   run: retry and keep the user signed in.
 - Lists are `{ "items", "nextCursor" }`. `nextCursor` is opaque and null on the last page.
-- Ids are opaque strings of letters, digits, `.`, `_` and `-`.
+- Ids and cursors are opaque strings of letters, digits, `.`, `_` and `-`, starting with a
+  letter or digit. A backend that encodes a cursor must keep to this, for example with hex.
 - A field with no value is an explicit `null`, not absent. Only `importId` in `PUT /me/cv`
   and `details` in an error may be absent. Send `null` to clear `aim`; an empty string is a
   400.

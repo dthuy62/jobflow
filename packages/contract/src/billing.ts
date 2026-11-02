@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { NameSchema, OpaqueIdSchema, TimestampSchema, named } from "./common.js";
+import { NameSchema, OpaqueIdSchema, TimestampSchema, VendorTokenSchema, named } from "./common.js";
 
 /**
  * Generic on purpose: a plan grants features and counters with a reset rule, so this can
@@ -26,7 +26,7 @@ export const PurchaseRequestSchema = named(
   "PurchaseRequest",
   z.strictObject({
     productId: OpaqueIdSchema,
-    purchaseToken: z.string().min(1).max(4096)
+    purchaseToken: VendorTokenSchema
   })
 );
 

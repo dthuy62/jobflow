@@ -699,7 +699,7 @@
     "/api/v1/me/cv/import": {
       "post": {
         "operationId": "importCv",
-        "summary": "Extract a CV file (PDF or DOCX, at most 5 MiB) as Markdown for review. The file and text are held encrypted under importId for at most 24 hours, until PUT /me/cv uses them. A new import replaces the pending one.",
+        "summary": "Extract a CV file (PDF or DOCX, at most 5 MiB) as Markdown for review. The file and text are held encrypted under importId for at most 24 hours, until PUT /me/cv uses them. A new import replaces the pending one. A file whose extracted text is over the CV limit gets 413.",
         "x-phase": 2,
         "security": [
           {
@@ -844,7 +844,7 @@
             }
           },
           "413": {
-            "description": "The file is too large.",
+            "description": "The file, or the text extracted from it, is too large.",
             "content": {
               "application/json": {
                 "schema": {
@@ -855,7 +855,7 @@
                     "value": {
                       "error": {
                         "code": "PAYLOAD_TOO_LARGE",
-                        "message": "The file is too large."
+                        "message": "The file, or the text extracted from it, is too large."
                       }
                     }
                   }
@@ -3654,7 +3654,7 @@
           "careersUrl": {
             "type": "string",
             "maxLength": 2048,
-            "pattern": "^[Hh][Tt][Tt][Pp][Ss]?:\\/\\/[^/?#@]*(?:[/?#]|$)"
+            "pattern": "^[Hh][Tt][Tt][Pp][Ss]?:\\/\\/[^/\\\\?#@\\s]+(?:[/?#]|$)"
           }
         },
         "required": [
@@ -3674,7 +3674,8 @@
               {
                 "type": "string",
                 "minLength": 1,
-                "maxLength": 200
+                "maxLength": 200,
+                "pattern": "^[^\\u0000]*$"
               },
               {
                 "type": "null"
@@ -3684,7 +3685,7 @@
           "careersUrl": {
             "type": "string",
             "maxLength": 2048,
-            "pattern": "^[Hh][Tt][Tt][Pp][Ss]?:\\/\\/[^/?#@]*(?:[/?#]|$)"
+            "pattern": "^[Hh][Tt][Tt][Pp][Ss]?:\\/\\/[^/\\\\?#@\\s]+(?:[/?#]|$)"
           }
         },
         "required": [
@@ -3700,7 +3701,8 @@
           "markdown": {
             "type": "string",
             "minLength": 1,
-            "maxLength": 200000
+            "maxLength": 200000,
+            "pattern": "^[^\\u0000]*$"
           },
           "updatedAt": {
             "type": "string",
@@ -3724,7 +3726,8 @@
           "markdown": {
             "type": "string",
             "minLength": 1,
-            "maxLength": 200000
+            "maxLength": 200000,
+            "pattern": "^[^\\u0000]*$"
           }
         },
         "required": [
@@ -3743,7 +3746,8 @@
           "markdown": {
             "type": "string",
             "minLength": 1,
-            "maxLength": 200000
+            "maxLength": 200000,
+            "pattern": "^[^\\u0000]*$"
           }
         },
         "required": [
@@ -3756,8 +3760,7 @@
         "properties": {
           "fcmToken": {
             "type": "string",
-            "minLength": 1,
-            "maxLength": 4096
+            "pattern": "^[^\\s\\u0000]{1,4096}$"
           }
         },
         "required": [
@@ -3771,14 +3774,16 @@
           "plan": {
             "type": "string",
             "minLength": 1,
-            "maxLength": 200
+            "maxLength": 200,
+            "pattern": "^[^\\u0000]*$"
           },
           "features": {
             "type": "array",
             "items": {
               "type": "string",
               "minLength": 1,
-              "maxLength": 200
+              "maxLength": 200,
+              "pattern": "^[^\\u0000]*$"
             }
           },
           "quotas": {
@@ -3789,7 +3794,8 @@
                 "feature": {
                   "type": "string",
                   "minLength": 1,
-                  "maxLength": 200
+                  "maxLength": 200,
+                  "pattern": "^[^\\u0000]*$"
                 },
                 "used": {
                   "type": "integer",
@@ -4011,7 +4017,8 @@
             "items": {
               "type": "string",
               "minLength": 1,
-              "maxLength": 200
+              "maxLength": 200,
+              "pattern": "^[^\\u0000]*$"
             }
           },
           "trackerStatus": {
@@ -4108,19 +4115,22 @@
           "title": {
             "type": "string",
             "minLength": 1,
-            "maxLength": 200
+            "maxLength": 200,
+            "pattern": "^[^\\u0000]*$"
           },
           "company": {
             "type": "string",
             "minLength": 1,
-            "maxLength": 200
+            "maxLength": 200,
+            "pattern": "^[^\\u0000]*$"
           },
           "location": {
             "anyOf": [
               {
                 "type": "string",
                 "minLength": 1,
-                "maxLength": 200
+                "maxLength": 200,
+                "pattern": "^[^\\u0000]*$"
               },
               {
                 "type": "null"
@@ -4195,7 +4205,7 @@
           "url": {
             "type": "string",
             "maxLength": 2048,
-            "pattern": "^[Hh][Tt][Tt][Pp][Ss]?:\\/\\/[^/?#@]*(?:[/?#]|$)"
+            "pattern": "^[Hh][Tt][Tt][Pp][Ss]?:\\/\\/[^/\\\\?#@\\s]+(?:[/?#]|$)"
           },
           "firstSeenAt": {
             "type": "string",
@@ -4208,14 +4218,16 @@
           "source": {
             "type": "string",
             "minLength": 1,
-            "maxLength": 200
+            "maxLength": 200,
+            "pattern": "^[^\\u0000]*$"
           },
           "externalId": {
             "anyOf": [
               {
                 "type": "string",
                 "minLength": 1,
-                "maxLength": 200
+                "maxLength": 200,
+                "pattern": "^[^\\u0000]*$"
               },
               {
                 "type": "null"
@@ -4234,7 +4246,8 @@
             "items": {
               "type": "string",
               "minLength": 1,
-              "maxLength": 200
+              "maxLength": 200,
+              "pattern": "^[^\\u0000]*$"
             }
           },
           "descriptionText": {
@@ -4286,19 +4299,22 @@
           "title": {
             "type": "string",
             "minLength": 1,
-            "maxLength": 200
+            "maxLength": 200,
+            "pattern": "^[^\\u0000]*$"
           },
           "company": {
             "type": "string",
             "minLength": 1,
-            "maxLength": 200
+            "maxLength": 200,
+            "pattern": "^[^\\u0000]*$"
           },
           "location": {
             "anyOf": [
               {
                 "type": "string",
                 "minLength": 1,
-                "maxLength": 200
+                "maxLength": 200,
+                "pattern": "^[^\\u0000]*$"
               },
               {
                 "type": "null"
@@ -4373,7 +4389,7 @@
           "url": {
             "type": "string",
             "maxLength": 2048,
-            "pattern": "^[Hh][Tt][Tt][Pp][Ss]?:\\/\\/[^/?#@]*(?:[/?#]|$)"
+            "pattern": "^[Hh][Tt][Tt][Pp][Ss]?:\\/\\/[^/\\\\?#@\\s]+(?:[/?#]|$)"
           },
           "firstSeenAt": {
             "type": "string",
@@ -4429,7 +4445,8 @@
             "items": {
               "type": "string",
               "minLength": 1,
-              "maxLength": 200
+              "maxLength": 200,
+              "pattern": "^[^\\u0000]*$"
             }
           },
           "keywordsInclude": {
@@ -4438,7 +4455,8 @@
             "items": {
               "type": "string",
               "minLength": 1,
-              "maxLength": 200
+              "maxLength": 200,
+              "pattern": "^[^\\u0000]*$"
             }
           },
           "keywordsExclude": {
@@ -4447,7 +4465,8 @@
             "items": {
               "type": "string",
               "minLength": 1,
-              "maxLength": 200
+              "maxLength": 200,
+              "pattern": "^[^\\u0000]*$"
             }
           },
           "locations": {
@@ -4456,7 +4475,8 @@
             "items": {
               "type": "string",
               "minLength": 1,
-              "maxLength": 200
+              "maxLength": 200,
+              "pattern": "^[^\\u0000]*$"
             }
           },
           "remotePolicies": {
@@ -4515,7 +4535,8 @@
               {
                 "type": "string",
                 "minLength": 1,
-                "maxLength": 1000
+                "maxLength": 1000,
+                "pattern": "^[^\\u0000]*$"
               },
               {
                 "type": "null"
@@ -4545,8 +4566,7 @@
           },
           "purchaseToken": {
             "type": "string",
-            "minLength": 1,
-            "maxLength": 4096
+            "pattern": "^[^\\s\\u0000]{1,4096}$"
           }
         },
         "required": [
