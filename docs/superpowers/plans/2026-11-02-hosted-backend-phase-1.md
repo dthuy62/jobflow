@@ -224,13 +224,13 @@ git commit -m "docs: align repo rules and the review skill with the hosted desig
 - Produces: `@jobflow/safety` exports `isBlockedAddress`, `htmlToText`,
   `fetchPostingText`, `checkRedirect`, `PostingResult`, `PostingFailureReason`,
   `FetchPostingOptions`, the `POSTING_*` constants, `redactSensitiveText`,
-  `RedactionOptions`, `redactLogText`, `LOG_TEXT_MAX_CHARS`. `tests-prove-change.mjs --package <dir>` (default
+  `RedactionOptions`. `tests-prove-change.mjs --package <dir>` (default
   `career-ops-wrapper`).
 
 - [ ] **Step 1: Record the wrapper's baseline**
 
 Run: `cd career-ops-wrapper && npm ci && npm test && npm ls typescript fastify zod vitest --depth=0`
-Expected: PASS. Note the test count and versions for step 6.
+Expected: PASS. Note the test count and versions for step 4.
 
 - [ ] **Step 2: Create the root workspace**
 
@@ -251,42 +251,21 @@ public registry when a folder is installed outside the workspace.
 Wrapper `pretest`, `prebuild` and `predev` scripts build `@jobflow/safety`,
 so the wrapper's documented commands keep working.
 
-- [ ] **Step 4: Write failing tests for `redactLogText`**
-
-A separate function, because `redactSensitiveText` also runs on report Markdown, which
-these patterns would corrupt.
-
-```ts
-expect(redactLogText("Authorization: Bearer abc.def.ghi")).toBe("Authorization: Bearer [REDACTED]");
-expect(redactLogText("postgres://app:s3cret@db:5432/jobflow failed"))
-  .toBe("postgres://app:[REDACTED]@db:5432/jobflow failed");
-expect(redactSensitiveText("[db](postgres://app:s3cret@db/x)")).toBe("[db](postgres://app:s3cret@db/x)");
-```
-
-- [ ] **Step 5: Add `redactLogText` and run the package tests**
-
-It also covers plainly written secrets in other shapes: any `Authorization` value, URLs
-of any scheme, `password=` style keys in `=`, `:` and JSON form, and a bare `Bearer`
-token. It over-redacts on purpose and caps its input.
-
-Run: `npm test -w @jobflow/safety`
-Expected: PASS.
-
-- [ ] **Step 6: Run the wrapper gate from a clean install**
+- [ ] **Step 4: Run the wrapper gate from a clean install**
 
 Run: `rm -rf node_modules career-ops-wrapper/node_modules && npm ci && npm test -w career-ops-wrapper && npm run build -w career-ops-wrapper && npm ls typescript fastify zod vitest`
 Expected: PASS. Same versions as step 1. The wrapper's test count falls by exactly
 the moved tests, and those pass in the package.
 
-- [ ] **Step 7: Update the vulnerable dependencies**
+- [ ] **Step 5: Update the vulnerable dependencies**
 
 Run: `npm audit fix --omit=dev`, then `npm ci` (the fix removes dev dependencies from
-`node_modules`), then repeat the step 6 test and build commands, then
+`node_modules`), then repeat the step 4 test and build commands, then
 `npm audit --omit=dev --audit-level=high`.
 Expected: PASS and no high or critical finding. The PR lists each version change. If a
 fix needs a major version, or a wrapper test fails because of it, stop and ask the owner.
 
-- [ ] **Step 8: Update CI and the review skill**
+- [ ] **Step 6: Update CI and the review skill**
 
 - `wrapper.yml`: runs from the root, `cache-dependency-path: package-lock.json`,
   paths add `packages/safety/**`, `package.json`, `package-lock.json`,
@@ -308,7 +287,7 @@ fix needs a major version, or a wrapper test fails because of it, stop and ask t
 Run: `node --test '.claude/skills/review-change/scripts/*.test.mjs'`
 Expected: PASS.
 
-- [ ] **Step 9: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
 git commit -m "refactor: extract shared safety modules into an npm workspace package"
@@ -448,7 +427,7 @@ git commit -m "feat(contract): draft the hosted API contract with a mock server"
   `backend/test/support/{database,server}.ts`
 
 **Interfaces:**
-- Consumes: `@jobflow/contract`, `redactLogText` from `@jobflow/safety`.
+- Consumes: `@jobflow/contract`.
 - Produces:
 
 ```ts
@@ -528,7 +507,16 @@ Fastify `bodyLimit` 1 MiB, `requestTimeout` 30 s. The error handler maps `ApiErr
 Zod errors, then Fastify client errors by their `statusCode`, then falls back to the
 fixed 500. `setNotFoundHandler` returns the envelope. Logging: pino through Fastify
 with request and response serializers that keep only id, method, route, status and
-duration, and an error serializer that runs `redactLogText`.
+duration.
+
+The error serializer is an allowlist first: it keeps the error's name and code. Only its
+message and stack need scrubbing, by `redactLogText` in `logging.ts`, and only for what
+real errors carry: URL passwords and `Authorization` values. Do not grow it into a general
+secret finder. Review of an earlier, wider version found these traps, so test them: a
+quoted value must be redacted to its closing quote; a length cap must not cut a secret
+before its pattern sees it, or discard the rest of a long message; every pattern must stay
+linear, including any cleanup at the cut; and the text must not be report text, which
+this would corrupt.
 
 - [ ] **Step 5: Implement `db/pool`, `db/migrate`, the migration and `routes/health`**
 
