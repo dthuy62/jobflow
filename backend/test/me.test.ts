@@ -71,6 +71,32 @@ describe("GET /api/v1/me, with real PostgreSQL and the app role", () => {
     expect(await count("leaving")).toBe(1);
   });
 
+  it("a deleted user's request writes nothing", async () => {
+    await me("gone-quiet");
+    await pool.query("update users set deleted_at = now() where auth_subject = 'test-gone-quiet'");
+    const version = async () => (await pool.query("select xmin::text from users where auth_subject = 'test-gone-quiet'")).rows[0].xmin;
+    const before = await version();
+    await me("gone-quiet");
+    expect(await version()).toBe(before);
+  });
+
+  it("a deleted user is not revived when a read misses and the insert meets the row", async () => {
+    await pool.query("insert into users (auth_subject, deleted_at) values ('gone-race', now())");
+    const before = (await pool.query("select deleted_at from users where auth_subject = 'gone-race'")).rows[0].deleted_at;
+    let first = true;
+    const racing = {
+      query: (async (sql: string, args: unknown[]) => {
+        if (first && sql.startsWith("SELECT")) {
+          first = false;
+          return { rows: [] };
+        }
+        return pool.query(sql, args as never[]);
+      }) as never
+    };
+    await expect(createPgUserRepository(racing).resolve("gone-race")).resolves.toMatchObject({ deleted: true });
+    expect((await pool.query("select deleted_at from users where auth_subject = 'gone-race'")).rows[0].deleted_at).toEqual(before);
+  });
+
   it("two parallel first calls create one row and both succeed", async () => {
     for (let round = 0; round < 10; round += 1) {
       const responses = await Promise.all([me(`race-${round}`), me(`race-${round}`), me(`race-${round}`)]);

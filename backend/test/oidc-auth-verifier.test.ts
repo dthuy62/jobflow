@@ -48,6 +48,28 @@ describe("the OIDC verifier", () => {
   it("allows a few seconds of clock difference", async () => {
     const now = Math.floor(Date.now() / 1000);
     await expect(verifier().verify(await token({}, { iat: now + 2 }))).resolves.toMatchObject({ subject: "subject-1" });
+    await expect(verifier().verify(await token({}, { iat: now - 60, exp: now - 3 }))).resolves.toMatchObject({ subject: "subject-1" });
+  });
+
+  it("allows no more than that", async () => {
+    const now = Math.floor(Date.now() / 1000);
+    await expect(verifier().verify(await token({}, { iat: now - 60, exp: now - 30 }))).rejects.toBeInstanceOf(InvalidTokenError);
+    await expect(verifier().verify(await token({}, { iat: now + 30, exp: now + 60 }))).rejects.toBeInstanceOf(InvalidTokenError);
+  });
+
+  it("accepts only RS256, even when the published key names no algorithm", async () => {
+    const pair = await generateKeyPair("RS384", { extractable: true });
+    const open = createLocalJWKSet({ keys: [{ ...(await exportJWK(pair.publicKey)), kid: "key-3" }] });
+    const signed = await new SignJWT({})
+      .setProtectedHeader({ alg: "RS384", kid: "key-3" })
+      .setIssuer(ISSUER)
+      .setAudience(AUDIENCE)
+      .setSubject("subject-1")
+      .setIssuedAt()
+      .setExpirationTime("1h")
+      .sign(pair.privateKey);
+    const lax = createOidcAuthVerifier({ issuer: ISSUER, audience: AUDIENCE, keys: open, isAnonymous: () => false });
+    await expect(lax.verify(signed)).rejects.toBeInstanceOf(InvalidTokenError);
   });
 
   const invalid: readonly (readonly [string, () => Promise<string>])[] = [
@@ -89,6 +111,13 @@ describe("the OIDC verifier", () => {
     ],
     ["unknown kid", () => token({}, { kid: "key-2" })],
     ["bad signature", () => token({}, { key: otherKey })],
+    [
+      "an unknown critical header, which must not look like an outage",
+      async () => {
+        const encode = (value: unknown) => Buffer.from(JSON.stringify(value)).toString("base64url");
+        return `${encode({ alg: "RS256", kid: "key-1", crit: ["x"], x: 1 })}.${encode({ sub: "subject-1" })}.AAAA`;
+      }
+    ],
     ["not a JWT", async () => "not-a-jwt"],
     ["empty", async () => ""]
   ];
@@ -201,6 +230,35 @@ describe("the Firebase verifier", () => {
       .setExpirationTime("1h")
       .sign(privateKey);
     await expect(createFirebaseAuthVerifier(PROJECT).verify(token)).rejects.toBeInstanceOf(InvalidTokenError);
+  });
+
+  it("keeps verifying a known key 30 minutes into an outage, and reports an outage after the hour", async () => {
+    const signed = await firebaseToken("google.com");
+    const verifier = createFirebaseAuthVerifier(PROJECT);
+    await verifier.verify(signed);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        throw new TypeError("fetch failed");
+      })
+    );
+    try {
+      vi.useFakeTimers({ toFake: ["Date"], now: Date.now() + 30 * 60_000 });
+      await expect(verifier.verify(signed)).resolves.toBeDefined();
+      vi.setSystemTime(Date.now() + 31 * 60_000);
+      // Its own expiry is an hour too, so this is checked with a token that outlives the cache.
+      const longLived = await new SignJWT({ firebase: { sign_in_provider: "google.com" } })
+        .setProtectedHeader({ alg: "RS256", kid: "key-1" })
+        .setIssuer(`https://securetoken.google.com/${PROJECT}`)
+        .setAudience(PROJECT)
+        .setSubject("firebase-uid")
+        .setIssuedAt()
+        .setExpirationTime("2h")
+        .sign(privateKey);
+      await expect(verifier.verify(longLived)).rejects.toBeInstanceOf(AuthUnavailableError);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("does not sign users out when the key endpoint answers with an empty set", async () => {

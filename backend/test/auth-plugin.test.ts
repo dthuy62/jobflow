@@ -68,6 +68,44 @@ describe("default deny", () => {
     }
   );
 
+  // The stub accepts these tokens, so only the header parser can refuse them.
+  it.each(["Basic test-user-a", "Token test-user-a", "Bearer test-user-a extra", "x Bearer test-user-a"])(
+    "Authorization %j gets 401 though its token is good",
+    async (authorization) => {
+      const { server } = await createTestServer();
+      expect((await server.inject({ url: "/api/v1/me", headers: { authorization } })).statusCode).toBe(401);
+      await server.close();
+    }
+  );
+
+  it("a route marked public: false is protected", async () => {
+    const { server } = await createTestServer({
+      registerTestRoutes: (scope) => scope.get("/test/not-public", { config: { public: false } }, async () => ({ ok: true }))
+    });
+    expect((await server.inject({ url: "/api/v1/test/not-public" })).statusCode).toBe(401);
+    await server.close();
+  });
+
+  it("a route's own onRequest hook still runs alongside auth", async () => {
+    let ran = false;
+    const { server } = await createTestServer({
+      registerTestRoutes: (scope) =>
+        scope.get(
+          "/test/own-hook",
+          {
+            onRequest: async () => {
+              ran = true;
+            }
+          },
+          async () => ({ ok: true })
+        )
+    });
+    expect((await server.inject({ url: "/api/v1/test/own-hook" })).statusCode).toBe(401);
+    expect((await server.inject({ url: "/api/v1/test/own-hook", headers: asUser() })).statusCode).toBe(200);
+    expect(ran).toBe(true);
+    await server.close();
+  });
+
   it("accepts the scheme in any case, as HTTP allows", async () => {
     const { server } = await createTestServer();
     const response = await server.inject({ url: "/api/v1/me", headers: { authorization: "bearer test-user-a" } });

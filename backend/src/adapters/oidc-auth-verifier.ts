@@ -6,7 +6,12 @@ const CLOCK_TOLERANCE_SECONDS = 5;
 const SUBJECT_MAX_CHARS = 255;
 
 const FIREBASE_KEYS_URL = "https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com";
-/** A cached key keeps working through an outage of the key endpoint. An unknown key id still refetches. */
+/**
+ * A cached key keeps working through an outage of the key endpoint. An unknown key id refetches,
+ * at most every 30 seconds. So a token signed with a key published inside that window gets 401
+ * until the next fetch; Google publishes keys ahead of use, and treating it as an outage would
+ * let anyone with a forged key id write error logs.
+ */
 const KEY_CACHE_MS = 60 * 60 * 1000;
 
 /** Errors that mean the token is bad. Anything else, such as a network failure, says nothing about the token. */

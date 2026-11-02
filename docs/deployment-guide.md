@@ -46,8 +46,13 @@ docker compose down
   owner's URL.
 - `JOBFLOW_ENV=production` refuses a database URL that holds a development password, in both
   steps.
-- Set `TRUST_PROXY` to the real number of proxies in front of the API, or leave it at `0`. A
-  higher number lets clients forge their address and dodge rate limits.
+- Set `TRUST_PROXY` to the exact number of proxies in front of the API, and to `0` only when
+  clients connect directly. Too high lets clients forge their address and dodge rate limits.
+  Too low, as on most cloud hosts if left unset, puts every user under one IP limit, including
+  the platform's health check.
+- Limit malformed requests at the host or proxy, because the API refuses them before its own
+  rate limits run.
+- Set `FIREBASE_PROJECT_ID` to the real project. Production refuses a `demo-` project.
 
 ## Wrapper, Local Development
 
