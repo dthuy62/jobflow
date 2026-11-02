@@ -1,8 +1,9 @@
+import { connect } from "node:net";
 import { ErrorResponseDtoSchema } from "@jobflow/contract";
 import type { FastifyInstance } from "fastify";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { z } from "zod";
-import { ApiError } from "../src/http/errors.js";
+import { ApiError, parseRequest } from "../src/http/errors.js";
 import { createTestServer, type TestServer } from "./support/server.js";
 
 const SECRET_INPUT = "s3cret-input-value";
@@ -11,7 +12,14 @@ function registerTestRoutes(scope: FastifyInstance): void {
   scope.get("/test/api-error", async () => {
     throw new ApiError(409, "CONFLICT", "That conflicts.", { fields: ["a"] });
   });
-  scope.get("/test/zod", async () => z.strictObject({ name: z.string().min(100) }).parse({ name: SECRET_INPUT }));
+  scope.get("/test/bad-request", async () => parseRequest(z.strictObject({ name: z.string().min(100) }), { name: SECRET_INPUT }));
+  scope.get("/test/bad-stored-data", async () => z.strictObject({ internalColumn: z.string() }).parse({}));
+  scope.get("/test/vendor-401", async () => {
+    throw Object.assign(new Error("Upstream said no"), { statusCode: 401 });
+  });
+  scope.get("/test/throw-null", async () => {
+    throw null;
+  });
   scope.get("/test/unknown", async () => {
     throw new Error(`Exploded at /srv/app/x.js with ${SECRET_INPUT}`);
   });
@@ -39,8 +47,8 @@ describe("the error envelope", () => {
     expect(response.json()).toEqual({ error: { code: "CONFLICT", message: "That conflicts.", details: { fields: ["a"] } } });
   });
 
-  it("a Zod error maps to 400 VALIDATION_ERROR with field paths, no input values", async () => {
-    const response = await test.server.inject({ url: "/api/v1/test/zod" });
+  it("request parsing that fails maps to 400 VALIDATION_ERROR with field paths, no input values", async () => {
+    const response = await test.server.inject({ url: "/api/v1/test/bad-request" });
     expect(response.statusCode).toBe(400);
     expectEnvelope(response.body, "VALIDATION_ERROR");
     expect(response.json().error.details).toEqual({ fields: ["name"] });
@@ -51,6 +59,53 @@ describe("the error envelope", () => {
     const response = await test.server.inject({ url: "/api/v1/test/unknown" });
     expect(response.statusCode).toBe(500);
     expect(response.json()).toEqual({ error: { code: "UNEXPECTED_ERROR", message: "Something went wrong." } });
+  });
+
+  it("stored data that fails a schema is a logged 500, with no field names, not the client's fault", async () => {
+    const response = await test.server.inject({ url: "/api/v1/test/bad-stored-data" });
+    expect(response.statusCode).toBe(500);
+    expect(response.json()).toEqual({ error: { code: "UNEXPECTED_ERROR", message: "Something went wrong." } });
+    expect(test.logLines().some((line) => line.msg === "unexpected error")).toBe(true);
+  });
+
+  it("an upstream error with a 4xx statusCode is a logged 500, not the client's fault", async () => {
+    const response = await test.server.inject({ url: "/api/v1/test/vendor-401" });
+    expect(response.statusCode).toBe(500);
+    expectEnvelope(response.body, "UNEXPECTED_ERROR");
+    expect(test.logLines().some((line) => line.msg === "unexpected error")).toBe(true);
+  });
+
+  it("a thrown null is still the envelope, with no internal text", async () => {
+    const response = await test.server.inject({ url: "/api/v1/test/throw-null" });
+    expect(response.statusCode).toBe(500);
+    expectEnvelope(response.body, "UNEXPECTED_ERROR");
+    expect(response.body).not.toContain("destructure");
+    expect(test.logLines().some((line) => line.msg === "unexpected error")).toBe(true);
+  });
+
+  it("a malformed HTTP request gets the envelope on the socket", async () => {
+    const address = await test.server.listen({ host: "127.0.0.1", port: 0 });
+    const { port } = new URL(address);
+    const raw = await new Promise<string>((resolve, reject) => {
+      const socket = connect(Number(port), "127.0.0.1", () => socket.write("GET / BAD\r\n\r\n"));
+      let received = "";
+      socket.on("data", (chunk) => {
+        received += String(chunk);
+      });
+      socket.on("end", () => resolve(received));
+      socket.on("error", reject);
+    });
+    expect(raw).toMatch(/^HTTP\/1\.1 400 /);
+    expectEnvelope(raw.slice(raw.indexOf("\r\n\r\n") + 4), "VALIDATION_ERROR");
+  });
+
+  it("a request refused before routing still leaves a log line, with no path", async () => {
+    await test.server.inject({ url: `/api/v1/test/items/${"x".repeat(300)}` });
+    await test.server.inject({ url: "/api/v1/test/items/%zz-s3cret" });
+    const lines = test.logLines().filter((line) => line.route === "unmatched" && line.status === 400);
+    expect(lines).toHaveLength(2);
+    expect(test.logs()).not.toContain("s3cret");
+    expect(test.logs()).not.toContain("xxxxx");
   });
 
   it("an oversized body maps to 413 PAYLOAD_TOO_LARGE", async () => {

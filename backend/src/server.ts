@@ -1,8 +1,8 @@
 import type { Writable } from "node:stream";
-import Fastify, { type FastifyInstance } from "fastify";
+import Fastify, { LogController, type FastifyInstance } from "fastify";
 import type { Pool } from "pg";
 import type { Config } from "./config.js";
-import { frameworkErrorHandler, registerErrorHandlers } from "./http/error-handler.js";
+import { clientErrorHandler, frameworkErrorHandler, registerErrorHandlers } from "./http/error-handler.js";
 import { registerHealthRoutes } from "./http/routes/health.js";
 import { serializeError } from "./logging.js";
 
@@ -23,15 +23,21 @@ export async function createServer(deps: ServerDeps): Promise<FastifyInstance> {
     logger: {
       level: config.env === "test" && !logStream ? "silent" : "info",
       base: null,
-      serializers: { err: serializeError },
+      // Allowlists, in case code logs a request or reply object.
+      serializers: {
+        err: serializeError,
+        req: ({ method }: { method: string }) => ({ method }),
+        res: ({ statusCode }: { statusCode: number }) => ({ statusCode })
+      },
       ...(logStream ? { stream: logStream } : {})
     },
     // The onResponse hook below logs an allowlist instead: Fastify's own request logs hold the URL.
-    disableRequestLogging: true,
+    logController: new LogController({ disableRequestLogging: true }),
     bodyLimit: BODY_LIMIT_BYTES,
     requestTimeout: REQUEST_TIMEOUT_MS,
     trustProxy: config.trustProxyHops > 0 ? (_address, hop) => hop < config.trustProxyHops : false,
     frameworkErrors: frameworkErrorHandler,
+    clientErrorHandler,
     routerOptions: { ignoreTrailingSlash: true }
   });
 

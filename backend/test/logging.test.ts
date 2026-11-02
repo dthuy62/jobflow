@@ -30,6 +30,21 @@ describe("request logs", () => {
     await server.close();
   });
 
+  it("logging a request object by accident keeps to the allowlist", async () => {
+    const { server, logs } = await createTestServer({
+      registerTestRoutes: (scope) =>
+        scope.get("/test/careless", async (request, reply) => {
+          request.log.info({ req: request, res: reply }, "careless");
+          return { ok: true };
+        })
+    });
+    await server.inject({ url: "/api/v1/test/careless?token=s3cret-query", headers: { authorization: "Bearer s3cret-token" } });
+    expect(logs()).toContain("careless");
+    expect(logs()).not.toContain("s3cret");
+    expect(logs()).not.toContain("remoteAddress");
+    await server.close();
+  });
+
   it("an unmatched path logs no path, which could hold anything", async () => {
     const { server, logs, logLines } = await createTestServer();
     await server.inject({ url: "/s3cret-path" });
@@ -69,18 +84,23 @@ describe("redactLogText", () => {
     ["redis://:s3cret@cache:6379/0", "redis://:[REDACTED]@cache:6379/0"],
     ["postgres://app:ab+c/d==@db/x", "postgres://app:[REDACTED]@db/x"],
     ["https://user:s3cret@example.com/a", "https://user:[REDACTED]@example.com/a"],
-    ["Authorization: Bearer abc.def.ghi", "Authorization: Bearer [REDACTED]"],
-    ["authorization: Basic dXNlcjpwYXNz", "authorization: Basic [REDACTED]"],
+    ["Authorization: Bearer abc.def.ghi", "Authorization: [REDACTED]"],
+    ["authorization: Basic dXNlcjpwYXNz", "authorization: [REDACTED]"],
     ["Authorization: ApiKey s3cret value", "Authorization: [REDACTED]"],
     ['Authorization: Digest username="u", response="abc"', "Authorization: [REDACTED]"],
-    ['{"authorization":"Bearer abc def"}', '{"authorization":"Bearer [REDACTED]"}'],
-    ['["authorization","Bearer abc"]', '["authorization","Bearer [REDACTED]"]'],
-    ["authorization: [ 'Bearer abc' ]", "authorization: [ 'Bearer [REDACTED]' ]"]
+    ['{"authorization":"Bearer abc def"}', '{"authorization": [REDACTED]'],
+    ['{"authorization":"Digest username=\\"u\\", response=\\"abc\\""}', '{"authorization": [REDACTED]'],
+    ['["authorization","Bearer abc"]', '["authorization", [REDACTED]'],
+    ["authorization: [ 'Bearer abc' ]", "authorization: [REDACTED]"],
+    ["authorization: [abc]", "authorization: [REDACTED]"],
+    ["authorization:\n  Basic dXNlcjpwYXNz", "authorization: [REDACTED]"],
+    ["HTTP_AUTHORIZATION: Basic dXNlcjpwYXNz", "HTTP_AUTHORIZATION: [REDACTED]"],
+    ["Authorization: Bearer abc\nnext line stays", "Authorization: [REDACTED]\nnext line stays"]
   ])("redacts %s", (input, expected) => {
     expect(redactLogText(input)).toBe(expected);
   });
 
-  it.each(["connect ECONNREFUSED 127.0.0.1:5432", "https://example.com:8443/jobs", "authorization failed", "the bearer of this role"])(
+  it.each(["connect ECONNREFUSED 127.0.0.1:5432", "https://example.com:8443/jobs", "authorization failed", "authorization, retrying", "the bearer of this role"])(
     "leaves %s alone",
     (text) => {
       expect(redactLogText(text)).toBe(text);
@@ -92,6 +112,23 @@ describe("redactLogText", () => {
     for (let offset = 0; offset <= secret.length; offset += 1) {
       const output = redactLogText(`${" ".repeat(LOG_TEXT_MAX_CHARS - offset)}${secret} tail`);
       expect(output, `offset ${offset}`).not.toContain("s3cret");
+    }
+  });
+
+  it("does not log part of a secret when no space comes before the cap", () => {
+    const secret = "postgres://app:s3cretpassword@db/x?opts=";
+    for (const start of [LOG_TEXT_MAX_CHARS - 2_100, LOG_TEXT_MAX_CHARS - 2_048, LOG_TEXT_MAX_CHARS - 20]) {
+      const output = redactLogText(`${"a".repeat(start - 1)} ${secret}${"z".repeat(LOG_TEXT_MAX_CHARS)}`);
+      expect(output, `start ${start}`).not.toContain("s3cret");
+    }
+  });
+
+  it("does not log part of a secret cut at the working slice when earlier redaction shrinks the text", () => {
+    const lead = `Authorization: Bearer ${"t".repeat(5_000)}\n`;
+    const secret = "postgres://app:s3cretpassword@db/x";
+    for (let padding = 13_000; padding < 16_000; padding += 7) {
+      const output = redactLogText(`${lead}${" ".repeat(padding)}${secret} tail ${"y".repeat(5_000)}`);
+      expect(output, `padding ${padding}`).not.toContain("s3cret");
     }
   });
 

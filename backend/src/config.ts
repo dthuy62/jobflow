@@ -10,7 +10,16 @@ export interface Config {
   readonly trustProxyHops: number;
 }
 
-const DEV_PASSWORD_MARKER = "dev-only";
+const DEV_PASSWORD_PREFIX = "dev-only-";
+
+/** Looks only at the password, so a host name may hold the same words. */
+function hasDevelopmentPassword(url: string): boolean {
+  try {
+    return new URL(url).password.startsWith(DEV_PASSWORD_PREFIX);
+  } catch {
+    return false;
+  }
+}
 
 const EnvSchema = z.object({
   JOBFLOW_ENV: z.enum(["development", "test", "production"]),
@@ -28,7 +37,7 @@ export function loadConfig(env: NodeJS.ProcessEnv | Record<string, string | unde
     throw new Error(`Invalid configuration: ${[...new Set(parsed.error.issues.map((issue) => issue.path.join(".")))].join(", ")}`);
   }
   const { JOBFLOW_ENV, HOST, PORT, DATABASE_URL, FIREBASE_PROJECT_ID, TRUST_PROXY } = parsed.data;
-  if (JOBFLOW_ENV === "production" && DATABASE_URL.includes(DEV_PASSWORD_MARKER)) {
+  if (JOBFLOW_ENV === "production" && hasDevelopmentPassword(DATABASE_URL)) {
     throw new Error("Invalid configuration: DATABASE_URL holds a development password");
   }
   return {
@@ -45,5 +54,8 @@ export function loadConfig(env: NodeJS.ProcessEnv | Record<string, string | unde
 export function loadMigrationUrl(env: NodeJS.ProcessEnv | Record<string, string | undefined>): string {
   const url = env.DATABASE_MIGRATION_URL;
   if (!url) throw new Error("Invalid configuration: DATABASE_MIGRATION_URL");
+  if (env.JOBFLOW_ENV === "production" && hasDevelopmentPassword(url)) {
+    throw new Error("Invalid configuration: DATABASE_MIGRATION_URL holds a development password");
+  }
   return url;
 }

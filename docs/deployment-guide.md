@@ -19,7 +19,17 @@ docker compose up -d postgres
 npm test -w @jobflow/backend
 ```
 
-Each test file creates its own database. Stop Docker when done, because it uses a lot of memory:
+Each test file creates its own database.
+
+To run the API outside Docker, with PostgreSQL still in Compose:
+
+```bash
+cp backend/.env.example backend/.env
+npm run migrate -w @jobflow/backend
+npm run dev -w @jobflow/backend
+```
+
+Stop Docker when done, because it uses a lot of memory:
 
 ```bash
 docker compose down
@@ -30,9 +40,11 @@ docker compose down
 - Two roles: an owner that runs migrations, and an app role with no right to change the schema.
 - The owner role must own the database. Since PostgreSQL 15, only the database owner can create
   objects in `public`.
-- Migrations are a separate step (`node backend/dist/db/migrate.js`, with
-  `DATABASE_MIGRATION_URL`), never run at API start. The API never holds the owner's URL.
-- `JOBFLOW_ENV=production` refuses a `DATABASE_URL` that holds a development password.
+- Migrations are a separate step (`node backend/dist/db/migrate-cli.js`, with
+  `DATABASE_MIGRATION_URL` and `JOBFLOW_ENV`), never run at API start. The API never holds the
+  owner's URL.
+- `JOBFLOW_ENV=production` refuses a database URL that holds a development password, in both
+  steps.
 - Set `TRUST_PROXY` to the real number of proxies in front of the API, or leave it at `0`. A
   higher number lets clients forge their address and dodge rate limits.
 

@@ -12,5 +12,5 @@ paths = [
 ]
 regexes = [
   # Compose and test passwords, public by design. config.ts refuses them in production.
-  '''dev-only-[a-z]+''',
+  '''^dev-only-(?:superuser|owner|app)$''',
 ]

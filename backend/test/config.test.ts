@@ -60,6 +60,12 @@ describe("loadConfig", () => {
     expect(message).not.toContain("dev-only-app");
   });
 
+  it("looks only at the password, so a host name holding the marker is fine", () => {
+    expect(() =>
+      loadConfig({ ...valid, JOBFLOW_ENV: "production", DATABASE_URL: "postgres://app:real-password@dev-only-replica.internal/x" })
+    ).not.toThrow();
+  });
+
   it("accepts the development passwords outside production", () => {
     expect(() => loadConfig({ ...valid, DATABASE_URL: "postgres://jobflow_app:dev-only-app@db/jobflow" })).not.toThrow();
   });
@@ -68,6 +74,14 @@ describe("loadConfig", () => {
 describe("loadMigrationUrl", () => {
   it("reads DATABASE_MIGRATION_URL", () => {
     expect(loadMigrationUrl({ DATABASE_MIGRATION_URL: "postgres://o:p@db/x" })).toBe("postgres://o:p@db/x");
+  });
+
+  it("refuses the owner's development password in production, without printing it", () => {
+    const message = messageOf(() =>
+      loadMigrationUrl({ JOBFLOW_ENV: "production", DATABASE_MIGRATION_URL: "postgres://jobflow_owner:dev-only-owner@db/x" })
+    );
+    expect(message).toContain("DATABASE_MIGRATION_URL");
+    expect(message).not.toContain("dev-only-owner");
   });
 
   it("names it when missing", () => {

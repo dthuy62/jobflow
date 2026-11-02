@@ -9,12 +9,12 @@
   },
   "scripts": {
     "predev": "npm run build -w @jobflow/contract",
-    "dev": "tsx watch src/main.ts",
+    "dev": "tsx watch --env-file-if-exists=.env src/main.ts",
     "prebuild": "npm run build -w @jobflow/contract",
     "build": "tsc -p tsconfig.json",
     "pretest": "npm run build -w @jobflow/contract",
     "test": "vitest run",
-    "migrate": "tsx src/db/migrate.ts"
+    "migrate": "tsx --env-file-if-exists=.env src/db/migrate-cli.ts"
   },
   "dependencies": {
     "@jobflow/contract": "file:../packages/contract",

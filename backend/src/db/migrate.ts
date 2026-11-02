@@ -1,7 +1,5 @@
 import { fileURLToPath } from "node:url";
 import { runner } from "node-pg-migrate";
-import { loadMigrationUrl } from "../config.js";
-import { redactLogText } from "../logging.js";
 
 const MIGRATIONS_DIR = fileURLToPath(new URL("../../migrations", import.meta.url));
 
@@ -16,12 +14,5 @@ export async function migrateUp(databaseUrl: string): Promise<void> {
     singleTransaction: true,
     checkOrder: true,
     log: () => undefined
-  });
-}
-
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  migrateUp(loadMigrationUrl(process.env)).catch((error: unknown) => {
-    console.error(`Migration failed: ${redactLogText(error instanceof Error ? error.message : String(error))}`);
-    process.exitCode = 1;
   });
 }

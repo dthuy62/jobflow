@@ -1,6 +1,6 @@
 import { ERROR_STATUS, type ErrorCode, type ErrorResponseDto } from "@jobflow/contract";
+import type { Socket } from "node:net";
 import type { FastifyError, FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
-import { ZodError } from "zod";
 import { ApiError } from "./errors.js";
 
 const FIXED_MESSAGES = {
@@ -31,13 +31,10 @@ export function registerErrorHandlers(server: FastifyInstance): void {
       };
       return reply.status(error.status).send(body);
     }
-    if (error instanceof ZodError) {
-      const fields = [...new Set(error.issues.map((issue) => issue.path.join(".")))].filter(Boolean);
-      const body = fixedBody("VALIDATION_ERROR");
-      return reply.status(ERROR_STATUS.VALIDATION_ERROR).send({ error: { ...body.error, ...(fields.length > 0 ? { details: { fields } } : {}) } });
-    }
-    const { statusCode } = error as FastifyError;
-    if (typeof statusCode === "number" && statusCode >= 400 && statusCode < 500) {
+    // Only Fastify's own errors are about the request. The same status on another error,
+    // such as from a vendor's SDK, is a server-side failure.
+    const { code: errorCode, statusCode } = (error ?? {}) as Partial<FastifyError>;
+    if (errorCode?.startsWith("FST_") && statusCode !== undefined && statusCode >= 400 && statusCode < 500) {
       const code = codeForClientError(statusCode);
       return reply.status(ERROR_STATUS[code]).send(fixedBody(code));
     }
@@ -53,6 +50,17 @@ export function registerErrorHandlers(server: FastifyInstance): void {
  * otherwise get its own body that echoes the path. No data is reachable this early, so
  * answering before authentication reveals nothing.
  */
-export function frameworkErrorHandler(_error: FastifyError, _request: FastifyRequest, reply: FastifyReply): void {
+export function frameworkErrorHandler(_error: FastifyError, request: FastifyRequest, reply: FastifyReply): void {
+  // The onResponse hook does not run for these, so this request logs here.
+  request.log.info({ method: request.method, route: "unmatched", status: ERROR_STATUS.VALIDATION_ERROR }, "request");
   reply.status(ERROR_STATUS.VALIDATION_ERROR).send(fixedBody("VALIDATION_ERROR"));
+}
+
+/** For a request too malformed to parse. Fastify's default body is not the contract's envelope. */
+export function clientErrorHandler(error: NodeJS.ErrnoException, socket: Socket): void {
+  if (error.code === "ECONNRESET" || socket.destroyed) return;
+  const body = JSON.stringify(fixedBody("VALIDATION_ERROR"));
+  socket.end(
+    `HTTP/1.1 ${ERROR_STATUS.VALIDATION_ERROR} Bad Request\r\nContent-Type: application/json\r\nContent-Length: ${Buffer.byteLength(body)}\r\nConnection: close\r\n\r\n${body}`
+  );
 }

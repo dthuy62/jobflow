@@ -506,10 +506,12 @@ Expected: FAIL.
 
 - [ ] **Step 4: Implement `config`, `http/errors`, `http/error-handler`, `logging`, `server`**
 
-Fastify `bodyLimit` 1 MiB, `requestTimeout` 30 s, and `frameworkErrors` so a malformed or
-overlong path gets the envelope instead of Fastify's own body, which echoes the path. Fastify's
+Fastify `bodyLimit` 1 MiB, `requestTimeout` 30 s, `frameworkErrors` so a malformed or
+overlong path gets the envelope instead of Fastify's own body, which echoes the path, and
+`clientErrorHandler` for a request too malformed to parse. Routes parse client input with
+`parseRequest`; any other `ZodError` is a logged 500. Fastify's
 types take no number for `trustProxy`, so use a function of the hop. The error handler maps `ApiError` and
-Zod errors, then Fastify client errors by their `statusCode`, then falls back to the
+then Fastify's own (`FST_`) client errors by their `statusCode`, then falls back to the
 fixed 500. `setNotFoundHandler` returns the envelope. Logging: pino through Fastify
 with request and response serializers that keep only id, method, route, status and
 duration.
@@ -526,7 +528,7 @@ this would corrupt.
 - [ ] **Step 5: Implement `db/pool`, `db/migrate`, the migration and `routes/health`**
 
 `migrate` uses `node-pg-migrate` with `DATABASE_MIGRATION_URL`. It is a separate
-command, never run at API start. `0001_users.sql` also grants `jobflow_app` what it
+command with its own entry file, `db/migrate-cli.ts`, never run at API start. `0001_users.sql` also grants `jobflow_app` what it
 needs. Grants belong in migrations because default privileges are per database, so
 an init script would not reach test or deployed databases.
 
