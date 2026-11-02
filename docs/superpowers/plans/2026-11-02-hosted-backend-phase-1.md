@@ -25,8 +25,8 @@ Executors read it first.
   `<type>/<kebab-case>`, Conventional Commits, **no co-author trailers or tool
   attribution**. Merge commit, only after the owner says OK in chat.
 - Test first. Run `review-change` at the tier its impact map prints.
-- The wrapper is frozen: only import paths and packaging change. Its test suite
-  stays green and is the gate for the extraction.
+- The wrapper is frozen: only import paths, packaging and security updates of its
+  dependencies change. Its test suite stays green and is the gate for the extraction.
 - No "career-ops" in backend names, env vars, API text or images. The wrapper
   and `vendor/career-ops/` keep theirs.
 - Only synthetic CVs and tokens in tests, examples and development.
@@ -48,6 +48,7 @@ user yet is a guess.
 | All eight ports | Only `AuthVerifier`, plus the boundary test | Each port ships with its first adapter (phase 2 or 3) |
 | MinIO in Compose | Left out | Phase 2, with `BlobStore` |
 | All wrapper modules move | Only `address-guard`, `html-text`, `posting-fetcher`, `redaction` | `report-markdown` and the evaluation modules move in phase 3; `evaluation-prompt` needs a rewrite first because it reads the workspace |
+| Scan diagnostics categories | Not moved | Phase 2 rewrites them for scan workers, because `scan-diagnostics.ts` depends on the wrapper's parser and engine types |
 | Full schema | `users` table only | Each table ships with its feature |
 | Metrics | Left out | Before release, with the alerts of the Monitoring row |
 
@@ -61,6 +62,11 @@ Builder's calls worth a look:
   own examples.
 - **Separate database roles now:** the app role cannot change the schema. The
   baseline requires this at release, and adding it later is harder.
+- **Wrapper dependency updates:** on 2026-11-02, `npm audit --omit=dev` reports 6
+  high-severity issues in the wrapper's dependencies (`fastify`, `zod`, `js-yaml`,
+  `find-my-way`, `fast-uri`, `nanoid`). The workspace has one lockfile and the
+  backend must pass the audit, so task 2 updates them even though the wrapper is
+  frozen.
 
 ## Review Focus
 
@@ -70,8 +76,8 @@ Each line has its test in the owning task.
    401, so the app does not sign them out. (Task 5)
 2. A new user's first two requests arrive together: one `users` row, both
    succeed. (Task 5)
-3. A client sends a fake `X-Forwarded-For` to dodge the IP rate limit: it is
-   ignored unless `TRUST_PROXY` is set. (Task 5)
+3. A client sends a fake `X-Forwarded-For` to dodge the IP rate limit: only the
+   entries added by the configured number of trusted proxies count. (Task 5)
 4. A malformed `Authorization` header (no scheme, empty token, wrong scheme,
    non-JWT): 401 envelope, never 500. (Task 5)
 5. The database is down and the driver's error contains the connection string:
@@ -89,7 +95,7 @@ Each line has its test in the owning task.
 | 4 | Backend skeleton, database, Compose, CI | L | 3 |
 | 5 | Authentication, authorization, rate limits | L | 4 |
 | 6 | Queue and worker | L | 4 |
-| 7 | Vendor Career Ops | L | 2 |
+| 7 | Vendor Career Ops | L | 4 |
 
 Android has its own issue, written after task 3 (see
 [Android](#android-not-in-these-tasks)).
@@ -103,15 +109,13 @@ wrapper paths, so a backend PR would get the wrong risk areas and gates.
 - Modify: `AGENTS.md`, `docs/system-architecture.md`, `docs/project-roadmap.md`,
   `docs/code-standards.md`, `docs/codebase-summary.md`, `README.md`,
   `docs/workflow/backend-delivery.md`, `.github/pull_request_template.md`
-- Modify: `.claude/skills/review-change/scripts/impact-map.mjs`,
-  `scripts/tests-prove-change.mjs`, `SKILL.md`
-- Test: `.claude/skills/review-change/scripts/impact-map.test.mjs`,
-  `tests-prove-change.test.mjs`
+- Modify: `.claude/skills/review-change/scripts/impact-map.mjs`, `SKILL.md`,
+  `references/reviewer-security.md`, `references/reviewer-impact.md`
+- Test: `.claude/skills/review-change/scripts/impact-map.test.mjs`
 
 **Interfaces:**
 - Produces: impact-map components `backend`, `packages`, `hosted-contract`,
-  `vendor`; `tests-prove-change.mjs --package <dir>` (default
-  `career-ops-wrapper`).
+  `vendor`.
 
 - [ ] **Step 1: Write failing impact-map tests**
 
@@ -129,6 +133,7 @@ Follow the fixture repo pattern in `impact-map.test.mjs`. One test per row:
 | `packages/contract/src/x.ts` | `contracts` | L | contract |
 | `contracts/examples/x.json` | `contracts` | L | contract |
 | `vendor/career-ops/x.mjs` | `vendor` | L | none |
+| `vendor/career-ops/modes/oferta.md` (a prompt, not documentation) | `vendor` | L | none |
 | `career-ops-wrapper/contracts/x.json` | `contracts` | L | wrapper and Android (unchanged) |
 
 Also assert: a `.md` under root `contracts/` is not docs-only, and symbol
@@ -137,15 +142,26 @@ references for a backend change list hits in `backend/` and `packages/`.
 - [ ] **Step 2: Run them to verify they fail**
 
 Run: `node --test '.claude/skills/review-change/scripts/*.test.mjs'`
-Expected: the new tests FAIL.
+Expected: the new tests FAIL, except two regression tests that already pass: the
+`.md` under root `contracts/`, and the `career-ops-wrapper/contracts/x.json` row.
 
-- [ ] **Step 3: Extend `PATH_RISKS`, components, gates and grep paths in `impact-map.mjs`**
+- [ ] **Step 3: Extend `PATH_RISKS`, `RISK_CHECKS`, components, gates and grep paths in `impact-map.mjs`**
 
 Gates: backend `npm test -w @jobflow/backend && npm run build -w @jobflow/backend`;
 contract `npm test -w @jobflow/contract`; packages run both the backend and the
 wrapper gates. Add `database` and `vendor` to `MANDATORY_REVIEWER` with `security`.
+Exclude `vendor/` from `isDocumentation`.
 
-- [ ] **Step 4: Add `--package <dir>` to `tests-prove-change.mjs`, with a test**
+`RISK_CHECKS` gets questions for the hosted backend, so its PRs stop asking about
+the pairing token: is each new route behind default deny, can one user reach
+another's data, can a token check be bypassed, is a migration safe to run twice,
+does vendored code run or change a prompt.
+
+- [ ] **Step 4: Scope the review role files**
+
+`reviewer-security.md` and `reviewer-impact.md` cover `backend/` and `packages/`:
+internet attackers, tokens, cross-user access, the database. The wrapper's LAN and
+workspace threats stay, scoped to the wrapper.
 
 - [ ] **Step 5: Run the skill tests**
 
@@ -188,15 +204,18 @@ git commit -m "docs: align repo rules and the review skill with the hosted desig
 - Modify: `career-ops-wrapper/package.json`, importers (`src/server.ts`,
   `src/security/report-markdown.ts`, `src/evaluation/evaluation-diagnostics.ts`,
   `src/services/evaluation-service.ts`, `test/evaluation-route.test.ts`)
-- Modify: `.github/workflows/wrapper.yml`, `review-skill.yml`,
-  `.claude/skills/review-change/scripts/impact-map.mjs`, `SKILL.md`,
-  `career-ops-wrapper/README.md`
+- Modify: `.gitignore` (add `node_modules/`, `dist/`),
+  `.github/workflows/wrapper.yml`, `review-skill.yml`,
+  `.claude/skills/review-change/scripts/{impact-map,tests-prove-change}.mjs`,
+  `tests-prove-change.test.mjs`, `SKILL.md`, `references/verifier.md`,
+  `references/finding-format.md`, `career-ops-wrapper/README.md`
 
 **Interfaces:**
 - Produces: `@jobflow/safety` exports `isBlockedAddress`, `htmlToText`,
   `fetchPostingText`, `checkRedirect`, `PostingResult`, `PostingFailureReason`,
   `FetchPostingOptions`, the `POSTING_*` constants, `redactSensitiveText`,
-  `RedactionOptions`.
+  `RedactionOptions`. `tests-prove-change.mjs --package <dir>` (default
+  `career-ops-wrapper`).
 
 - [ ] **Step 1: Record the wrapper's baseline**
 
@@ -210,6 +229,9 @@ Root `package.json`: `private: true`, `engines.node: ">=22.12"` (pg-boss's floor
 `test` that run `--workspaces --if-present`, packages first. `tsconfig.base.json`
 holds the wrapper's strict compiler options. The wrapper's own `tsconfig.json`
 does not change.
+
+Seed the lockfile so versions do not jump: copy the wrapper's `package-lock.json` to
+the root, then run `npm install`.
 
 - [ ] **Step 3: Move the four modules and their tests with `git mv`**
 
@@ -236,18 +258,31 @@ Run: `rm -rf node_modules career-ops-wrapper/node_modules && npm ci && npm test 
 Expected: PASS. Same versions as step 1. The wrapper's test count falls by exactly
 the moved tests, and those pass in the package.
 
-- [ ] **Step 7: Update CI and the review skill**
+- [ ] **Step 7: Update the vulnerable dependencies**
+
+Run: `npm audit fix --omit=dev`, then repeat the step 6 test and build commands, then
+`npm audit --omit=dev --audit-level=high`.
+Expected: PASS and no high or critical finding. The PR lists each version change. If a
+fix needs a major version, or a wrapper test fails because of it, stop and ask the owner.
+
+- [ ] **Step 8: Update CI and the review skill**
 
 - `wrapper.yml`: runs from the root, `cache-dependency-path: package-lock.json`,
   paths add `packages/safety/**`, `package.json`, `package-lock.json`.
 - `review-skill.yml`: same lockfile path; `npm ci` at the root.
 - `impact-map.mjs` `typescript()`: `createRequire` from the root `package.json`;
   the message says run `npm ci` at the root. `SKILL.md`: same.
+- `tests-prove-change.mjs`: add `--package <dir>`, replacing the hard-coded `WRAPPER`
+  paths. In its worktree it symlinks the root `node_modules` and builds workspace
+  packages before running tests, because hoisting leaves no package-level
+  `node_modules`. Add a test with a workspace fixture.
+- `references/verifier.md`, `references/finding-format.md`: symlink the root
+  `node_modules`, and build workspace packages.
 
 Run: `node --test '.claude/skills/review-change/scripts/*.test.mjs'`
 Expected: PASS.
 
-- [ ] **Step 8: Commit**
+- [ ] **Step 9: Commit**
 
 ```bash
 git commit -m "refactor: extract shared safety modules into an npm workspace package"
@@ -259,9 +294,11 @@ Android can start from here. The draft covers the first release; later phases
 may refine shapes through their own contract PRs.
 
 **Files:**
-- Create: `packages/contract/{package.json,tsconfig.json,vitest.config.ts}`,
+- Create: `packages/contract/{package.json,tsconfig.json,vitest.config.ts}` (builds to
+  `dist`, like `@jobflow/safety`),
   `packages/contract/src/{errors,identity,preferences,cv,jobs,feed,tracker,evaluations,billing,devices,index}.ts`,
-  `packages/contract/src/operations.ts`, `packages/contract/scripts/gen-openapi.ts`
+  `packages/contract/src/operations.ts`,
+  `packages/contract/scripts/{gen-openapi,mock-smoke}.ts`
 - Create: `contracts/examples/**`, `contracts/error-codes.json`,
   `contracts/openapi.json` (generated), `contracts/README.md`
 - Create: `compose.yaml` (service `mock` only for now), `.github/workflows/contract.yml`
@@ -282,7 +319,7 @@ may refine shapes through their own contract PRs.
 | `GET /me` | `{ userId, isAnonymous, createdAt }`; creates the user on first call | 1 |
 | `DELETE /me` | Delete the account, 202 | 3 |
 | `GET`, `PUT /me/preferences` | Roles, keywords in and out, locations, remote policy, countries, minimum salary, seniority, optional `aim` text | 2 |
-| `POST /me/cv/import` | Multipart, 5 MiB; returns `{ importId, markdown }` for review | 2 |
+| `POST /me/cv/import` | Multipart, 5 MiB, with `X-Integrity-Token`; returns `{ importId, markdown }` for review. `restructure=true` uses AI, so it also needs Google sign-in and an entitlement or the trial (documented statuses: `SIGN_IN_REQUIRED`, `INTEGRITY_FAILED`, `ENTITLEMENT_REQUIRED`) | 2; AI part 3 |
 | `GET`, `PUT /me/cv` | Reviewed Markdown; `PUT` takes `{ importId?, markdown }` | 2 |
 | `GET /feed` | Newest and best first: job summary, `reasons[]`, `trackerStatus?` | 2 |
 | `GET /jobs/{jobId}` | Job fields from the spec's job index, plus `closed` | 2 |
@@ -297,7 +334,8 @@ may refine shapes through their own contract PRs.
 
 Error codes: `VALIDATION_ERROR` 400, `UNAUTHORIZED` 401, `SIGN_IN_REQUIRED` 403,
 `ENTITLEMENT_REQUIRED` 403, `INTEGRITY_FAILED` 403, `NOT_FOUND` 404, `CONFLICT`
-409, `PAYLOAD_TOO_LARGE` 413, `CV_UNREADABLE` 422, `RATE_LIMITED` 429,
+409, `PAYLOAD_TOO_LARGE` 413, `UNSUPPORTED_MEDIA_TYPE` 415, `CV_UNREADABLE` 422,
+`RATE_LIMITED` 429,
 `QUOTA_EXCEEDED` 429, `UNEXPECTED_ERROR` 500, `AUTH_UNAVAILABLE` 503,
 `UNAVAILABLE` 503.
 
@@ -344,8 +382,17 @@ curl -s -H 'Authorization: Bearer x' localhost:4010/api/v1/feed
 curl -s -o /dev/null -w '%{http_code}\n' -H 'Authorization: Bearer x' -H 'Prefer: code=404' localhost:4010/api/v1/jobs/x
 ```
 
-Expected: `401`; the feed example; `404`. Record the commands in
-`contracts/README.md`, including that the emulator reaches it at
+Expected: `401`; the feed example; `404`.
+
+`mock-smoke.ts` (`npm run mock:smoke -w @jobflow/contract`) walks `operations` and
+requests every documented status and example with `Prefer: code=` and
+`Prefer: example=`, sending each operation's request example.
+
+Run: `npm run mock:smoke -w @jobflow/contract`
+Expected: every operation answers its documented status. If Prism cannot serve an
+operation, such as the multipart import, record it in `contracts/README.md`.
+
+Record the commands there too, including that the emulator reaches the mock at
 `http://10.0.2.2:4010`.
 
 - [ ] **Step 7: Add `contract.yml`**
@@ -386,21 +433,39 @@ withTestDatabase(): Promise<{ appUrl: string; ownerUrl: string; drop(): Promise<
 
 Env: `JOBFLOW_ENV` (`development|test|production`), `PORT`, `DATABASE_URL` (app
 role), `DATABASE_MIGRATION_URL` (owner role, migrate step only), `FIREBASE_PROJECT_ID`,
-`TRUST_PROXY` (default `false`).
+`TRUST_PROXY` (number of trusted proxy hops, an integer, default `0`; never `true`,
+which would trust a client's own `X-Forwarded-For`). Tests also read
+`TEST_DATABASE_ADMIN_URL`, which `withTestDatabase` uses to create databases.
+
+`@jobflow/backend` has `pretest`, `prebuild` and `predev` scripts that build
+`@jobflow/safety` and `@jobflow/contract`.
 
 `users`: `id uuid primary key default gen_random_uuid()`, `auth_subject text not null
 unique`, `created_at timestamptz not null default now()`, `deleted_at timestamptz`.
 
-- [ ] **Step 1: Write the failing tests**
+- [ ] **Step 1: Add the `postgres` service and the role script**
+
+`compose.yaml`: `postgres` (`pgvector/pgvector:pg17`, pinned by digest),
+`127.0.0.1:5432`. `docker/postgres-init.sql` only creates the roles `jobflow_owner`
+(with `CREATEDB`, for test databases) and `jobflow_app`, with dev-only passwords.
+
+Run: `docker compose up -d postgres && docker compose exec postgres pg_isready`
+Expected: accepting connections.
+
+- [ ] **Step 2: Write the failing tests**
 
 ```ts
 // config
 it("names a missing variable in the error"); it("never includes a value in the error");
+it.each(["true", "yes", "-1"])("rejects TRUST_PROXY=%s");
 // errors
 it("ApiError maps to its status and envelope");
 it("a Zod error maps to 400 VALIDATION_ERROR with field paths, no input values");
 it("an unknown error maps to 500 UNEXPECTED_ERROR with a fixed message and no stack");
 it("an oversized body maps to 413 PAYLOAD_TOO_LARGE");  // via registerTestRoutes
+it("a malformed JSON body maps to 400 VALIDATION_ERROR");
+it("an unsupported content type maps to 415 UNSUPPORTED_MEDIA_TYPE");
+it("an unknown path returns the 404 NOT_FOUND envelope");
 // health
 it("returns 200 ok when the database answers");
 it("returns 503 degraded when the database fails, within 2 s");
@@ -419,35 +484,37 @@ it("backend/src/core imports nothing but core/, zod and node: modules");
 it("backend/src/http imports no file from backend/src/adapters");
 ```
 
-- [ ] **Step 2: Run them to verify they fail**
+- [ ] **Step 3: Run them to verify they fail**
 
-Run: `docker compose up -d postgres && npm test -w @jobflow/backend`
+Run: `npm test -w @jobflow/backend`
 Expected: FAIL.
 
-- [ ] **Step 3: Implement `config`, `http/errors`, `http/error-handler`, `logging`, `server`**
+- [ ] **Step 4: Implement `config`, `http/errors`, `http/error-handler`, `logging`, `server`**
 
-Fastify `bodyLimit` 1 MiB, `requestTimeout` 30 s. Logging: pino through Fastify
+Fastify `bodyLimit` 1 MiB, `requestTimeout` 30 s. The error handler maps `ApiError` and
+Zod errors, then Fastify client errors by their `statusCode`, then falls back to the
+fixed 500. `setNotFoundHandler` returns the envelope. Logging: pino through Fastify
 with request and response serializers that keep only id, method, route, status and
 duration, and an error serializer that runs `redactSensitiveText`.
 
-- [ ] **Step 4: Implement `db/pool`, `db/migrate`, the migration and `routes/health`**
+- [ ] **Step 5: Implement `db/pool`, `db/migrate`, the migration and `routes/health`**
 
 `migrate` uses `node-pg-migrate` with `DATABASE_MIGRATION_URL`. It is a separate
-command, never run at API start. `docker/postgres-init.sql` creates `jobflow_owner`
-(with `CREATEDB`, for test databases) and `jobflow_app`, with dev-only passwords
-and default privileges.
+command, never run at API start. `0001_users.sql` also grants `jobflow_app` what it
+needs. Grants belong in migrations because default privileges are per database, so
+an init script would not reach test or deployed databases.
 
-- [ ] **Step 5: Run the tests**
+- [ ] **Step 6: Run the tests**
 
 Run: `npm test -w @jobflow/backend && npm run build -w @jobflow/backend`
 Expected: PASS.
 
-- [ ] **Step 6: Add the Dockerfile and Compose services**
+- [ ] **Step 7: Add the Dockerfile and Compose services**
 
 - Multi-stage, from the repo root; `node:22-slim` pinned by digest; `npm ci` with
   the three workspaces; `npm prune --omit=dev`; `USER node`; `CMD node backend/dist/main.js`.
-- `compose.yaml`: `postgres` (`pgvector/pgvector:pg17`, pinned), `migrate` (one-shot),
-  `api`. All published ports bind to `127.0.0.1`. The worker joins in task 6.
+- `compose.yaml`: add `migrate` (one-shot) and `api`. All published ports bind to
+  `127.0.0.1`. The worker joins in task 6.
 
 ```bash
 docker compose up -d --build api
@@ -457,19 +524,28 @@ docker compose run --rm --entrypoint id api -u
 
 Expected: `{"status":"ok","checks":{"database":"ok"}}`; a non-zero uid.
 
-- [ ] **Step 7: Add `backend.yml`**
+- [ ] **Step 8: Add `backend.yml`**
 
-Paths: `backend/**`, `packages/**`, `contracts/**`, `compose.yaml`, root `package.json`
-and lockfile. Jobs: a PostgreSQL service container with the init script; `npm ci`;
-backend tests and build; `npm audit --omit=dev --audit-level=high`; Docker build;
-image scan with a tool pinned by commit SHA or digest. A HIGH or CRITICAL fixable
-finding fails the job.
+Paths: `backend/**`, `packages/**`, `contracts/**`, `vendor/**`, `scripts/**`,
+`docker/**`, `.dockerignore`, `compose.yaml`, root `package.json` and lockfile, and
+the workflow file. Jobs: a PostgreSQL service container; after checkout, a step that
+runs `docker/postgres-init.sql` with `psql`, because service containers start before
+checkout and cannot mount it; `npm ci`; backend tests and build;
+`npm audit --omit=dev --audit-level=high`; Docker build; image scan with Trivy pinned
+by commit SHA or digest. A HIGH or CRITICAL fixable finding fails the job.
 
-`secret-scan.yml` runs on every PR and push to `main`, with no path filter, so a
-secret in any file is caught. Its tool is pinned the same way, and a finding fails
-the job.
+- [ ] **Step 9: Add `secret-scan.yml`**
 
-- [ ] **Step 8: Commit**
+Gitleaks, pinned the same way, on every PR and push to `main` with no path filter, so
+a secret in any file is caught. A finding fails the job. It scans each PR's commits.
+Scan the full history once when adding it, and report the result in the PR.
+
+`.gitleaks.toml` allowlists only by exact path or value: synthetic test values, the
+dev-only Compose passwords and `android/debug.keystore.base64`. A new entry needs a
+reason in its PR. Anything that looks like a real secret goes to the owner, not the
+allowlist.
+
+- [ ] **Step 10: Commit**
 
 ```bash
 git commit -m "feat(backend): add the API skeleton, database, Compose and CI"
@@ -509,6 +585,9 @@ Firebase values: issuer `https://securetoken.google.com/<projectId>`, audience
 `https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com`,
 algorithm RS256 only. `isAnonymous` is `firebase.sign_in_provider === "anonymous"`.
 
+Order: IP limit, then auth, both at `onRequest`, so no body is parsed for a caller
+without a valid token; then the user limit at `preHandler`.
+
 Limits: 300 requests a minute per IP, before auth; 120 a minute per user, after
 auth. Both in memory for now, so several instances multiply them; a shared store
 comes when a second instance does.
@@ -533,6 +612,7 @@ it("throws AuthUnavailableError when the key endpoint fails");
 // default deny: collects routes through onRoute
 it("the only public route is GET /api/v1/health");
 it("every other route answers 401 without a token");  // includes a registerTestRoutes route with no auth option
+it("a POST with no token and a malformed body answers 401, not a parse error");
 // Review Focus 4
 it.each(["", "Bearer", "Bearer ", "Basic abc", "abc", "Bearer not-a-jwt"])("Authorization %j gets the 401 envelope");
 // Review Focus 1
@@ -545,8 +625,8 @@ it("a deleted user gets 401, and the row is not revived");
 // Review Focus 2, real PostgreSQL
 it("two parallel first calls create one row and both succeed");
 // Review Focus 3
-it("ignores X-Forwarded-For when TRUST_PROXY is false");
-it("uses it when TRUST_PROXY is set");
+it("ignores X-Forwarded-For when TRUST_PROXY is 0");
+it("with TRUST_PROXY=1 and X-Forwarded-For '6.6.6.6, 9.9.9.9', the client IP is 9.9.9.9");
 it("over the IP limit returns 429 RATE_LIMITED in the envelope, even with no token");
 it("over the user limit returns 429 for that user, not for another user on the same IP");
 ```
@@ -562,14 +642,14 @@ Expected: FAIL.
 - [ ] **Step 4: Implement the verifier, repository, plugin, limits and `/me`**
 
 - The plugin adds `onRoute` so a route without `config.public` gets the auth
-  `preHandler`. Any other failure from the repository maps to 503 `UNAVAILABLE`.
+  `onRequest` hook. Any other failure from the repository maps to 503 `UNAVAILABLE`.
 - `resolve` is one statement: `INSERT … ON CONFLICT (auth_subject) DO UPDATE SET
   auth_subject = EXCLUDED.auth_subject RETURNING id, created_at, deleted_at`.
 - `req.auth.userId` is the only source of a user id; no route reads one from the
   path, query or body for authorization.
 - Limits: `@fastify/rate-limit` registered twice with separate name spaces: IP at
   `onRequest`, user at `preHandler`, with `errorResponseBuilder` returning the
-  envelope. `trustProxy` comes from config.
+  envelope. Fastify's `trustProxy` is the hop count from config, or `false` at `0`.
 
 - [ ] **Step 5: Run the tests**
 
@@ -631,8 +711,8 @@ Expected: FAIL.
 
 Check pg-boss 12's docs for current names (`createQueue`, `work`, the `migrate`
 option). pg-boss installs its own schema and creates queues, so **run both in the
-migrate step with the owner role**, and start the API and worker with the app role
-and migration off. If pg-boss 12 needs DDL at run time, give it a role that owns only
+migrate step with the owner role**, grant `jobflow_app` what it needs on that schema
+there, and start the API and worker with the app role and migration off. If pg-boss 12 needs DDL at run time, give it a role that owns only
 its schema, keep "app role cannot create a table" true for the `public` schema, and
 say so in the PR. `worker.ts` registers one `system.heartbeat` job on a schedule and
 stops on SIGTERM.
@@ -715,7 +795,9 @@ Expected: PASS; `vendor/career-ops/` holds only allowlisted files and their help
 
 The README gives the source, license, commit, the fact that each provider needs a
 terms check before it ships (spec, Legal and policy notes), and that edits go through
-the script. Add the script's test and a dry check of `UPSTREAM.json` to `backend.yml`.
+the script. Add to `backend.yml` the script's test and a check that vendored files
+match `UPSTREAM.json`'s pinned commit. It fails on a local edit, not on upstream drift,
+because updates are deliberate.
 
 Run: `git grep -n 'vendor/career-ops' -- backend packages`
 Expected: no match.
