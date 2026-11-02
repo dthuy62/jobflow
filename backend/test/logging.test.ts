@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { LOG_TEXT_MAX_CHARS, describeFailure, redactLogText, serializeError } from "../src/logging.js";
-import { createTestServer } from "./support/server.js";
+import { asUser, createTestServer } from "./support/server.js";
 
 describe("request logs", () => {
   it("a request's Authorization header, query and body are not logged", async () => {
@@ -10,7 +10,7 @@ describe("request logs", () => {
     await server.inject({
       method: "POST",
       url: "/api/v1/test/echo?token=s3cret-query",
-      headers: { authorization: "Bearer s3cret-token", "content-type": "application/json" },
+      headers: { authorization: "Bearer test-s3cret-token", "content-type": "application/json" },
       payload: JSON.stringify({ cv: "s3cret-cv-text" })
     });
     expect(logs()).not.toContain("s3cret");
@@ -38,7 +38,7 @@ describe("request logs", () => {
           return { ok: true };
         })
     });
-    await server.inject({ url: "/api/v1/test/careless?token=s3cret-query", headers: { authorization: "Bearer s3cret-token" } });
+    await server.inject({ url: "/api/v1/test/careless?token=s3cret-query", headers: { authorization: "Bearer test-s3cret-token" } });
     expect(logs()).toContain("careless");
     expect(logs()).not.toContain("s3cret");
     expect(logs()).not.toContain("remoteAddress");
@@ -65,8 +65,8 @@ describe("request logs", () => {
         scope.post("/test/echo", async (request) => request.body);
       }
     });
-    await server.inject({ url: "/api/v1/test/boom" });
-    await server.inject({ method: "POST", url: "/api/v1/test/echo", headers: { "content-type": "application/json" }, payload: "{bad" });
+    await server.inject({ url: "/api/v1/test/boom", headers: asUser() });
+    await server.inject({ method: "POST", url: "/api/v1/test/echo", headers: { ...asUser(), "content-type": "application/json" }, payload: "{bad" });
 
     const errors = logLines().filter((line) => typeof line.err === "object");
     expect(errors).toHaveLength(1);

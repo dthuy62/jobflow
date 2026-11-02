@@ -618,7 +618,8 @@ Firebase values: issuer `https://securetoken.google.com/<projectId>`, audience
 algorithm RS256 only. `isAnonymous` is `firebase.sign_in_provider === "anonymous"`.
 
 Order: IP limit, then auth, both at `onRequest`, so no body is parsed for a caller
-without a valid token; then the user limit at `preHandler`.
+without a valid token; then the user limit at `preParsing`, so bad bodies count too.
+The IP limit keeps the plugin's default key, which groups IPv6 by /64.
 
 Limits: 300 requests a minute per IP, before auth; 120 a minute per user, after
 auth. Both in memory for now, so several instances multiply them; a shared store
@@ -679,13 +680,16 @@ Expected: FAIL.
 
 - The plugin adds `onRoute` so a route without `config.public` gets the auth
   `onRequest` hook. Any other failure from the repository maps to 503 `UNAVAILABLE`.
-- `resolve` is one statement: `INSERT … ON CONFLICT (auth_subject) DO UPDATE SET
+- `resolve` reads first, because it runs on every request and a known user must write
+  nothing. On a miss: `INSERT … ON CONFLICT (auth_subject) DO UPDATE SET
   auth_subject = EXCLUDED.auth_subject RETURNING id, created_at, deleted_at`.
 - `req.auth.userId` is the only source of a user id; no route reads one from the
   path, query or body for authorization.
 - Limits: `@fastify/rate-limit` registered twice with separate name spaces: IP at
   `onRequest`, user at `preHandler`, with `errorResponseBuilder` returning the
-  envelope. Fastify's `trustProxy` is the hop count from config, or `false` at `0`.
+  envelope. Fastify's `trustProxy` is the hop count from config, or `false` at `0`. An
+  instance-level `onRequest` hook limits requests that match no route. A malformed path is
+  refused before routing, so no limit sees it; a limit at the host or proxy must cover it.
 
 - [ ] **Step 5: Run the tests**
 

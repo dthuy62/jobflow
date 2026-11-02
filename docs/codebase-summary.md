@@ -9,7 +9,7 @@ do not exist until its tasks land.
 ```text
 jobflow/
 ├── android/
-├── backend/             # hosted API skeleton: health, database, migrations
+├── backend/             # hosted API: auth, rate limits, /me, health, database
 ├── packages/safety/     # SSRF-guarded fetch, HTML to text, redaction
 ├── packages/contract/   # hosted API schemas and the OpenAPI generator
 ├── contracts/           # hosted API examples, generated OpenAPI, mock guide
