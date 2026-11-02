@@ -233,6 +233,47 @@ output.
 - **Account deletion** in the app and through a web link, as Google Play
   requires.
 
+## Security baseline
+
+The target is the normal level for a consumer app that stores personal data
+(owner, 2026-11-02), not an enterprise level. Each item ships in the phase
+shown. "Release" means before the first public release.
+
+| Area | Requirement | Phase |
+| --- | --- | --- |
+| Authentication | Every route requires a verified token by default; a public route (such as health) is an explicit exception | 1 |
+| Authorization | Every query for user data is scoped to the authenticated user; never trust a user id from the request. Each endpoint with user data has a test that user A cannot read or change user B's data | 1, then each endpoint |
+| Input | Every route validates with a schema, and has size limits and timeouts. Errors never expose stack traces or internal details | 1 |
+| Resource limits | Rate limits per user and per IP, on top of the AI quota | 1 |
+| Secrets | Never in code, images or logs; injected at runtime. Secret scanning runs in CI | 1 |
+| Supply chain | Lockfile with `npm ci`; dependency and image scans in CI; a pinned base image; the container does not run as root. Every new dependency is reviewed | 1 |
+| CV parsing | The extractor handles files from strangers, so it runs in a separate process or container with no secrets, no network, and memory and time limits | 2 |
+| Stored files | Buckets are private; the app never gets a public file URL | 2 |
+| User-supplied URLs | Careers pages added by users go through the SSRF-guarded fetch and a per-user cap | 2 |
+| AI cost | A spending cap at each AI provider and an alert on a cost spike, in addition to the quota, in case a bug bypasses the quota | 3 |
+| AI input and output | Job postings are untrusted: prompts stay fenced and output is schema-validated. A posting cannot trigger tools or actions | 3 |
+| Purchase notifications | Real-time developer notifications use a Pub/Sub pull subscription, or a push endpoint that verifies Google's signed token | 3 |
+| Network | HTTPS only; the firewall opens only what is needed; the database, queue and storage admin are not reachable from the internet; SSH by key only, if used at all | Release |
+| Access | MFA on GitHub, Firebase/GCP and Play Console, kept by the owner. Each service has its own least-privilege account. The app's database role cannot change the schema | Release |
+| AI agents and production | AI development agents get no production secrets and no direct access to production data. Deploys run from CI or by the owner, with the owner's approval | Release |
+| Backups | Automatic and encrypted, with a tested restore. A restore re-applies account deletions made since the backup. The privacy policy states how long deleted data stays in backups | Release |
+| Monitoring | Alerts on 5xx rate, auth failure spikes, queue backlog and cost | Release |
+| Incident runbook | How to rotate each secret, revoke access, and decide who must be told about a personal-data breach | Release |
+| Security check | A pass through the OWASP API Security Top 10, with results recorded in `docs/` | Release |
+
+Environments:
+
+- Development runs on Docker Compose on the developer's machine. No cloud host
+  is needed for this.
+- A cloud host is added when testers outside the owner's network need the
+  backend, or at the latest for a rehearsal before release. Local runs cannot
+  check production settings such as HTTPS, firewall rules and secret injection.
+- Anything that is not production uses synthetic CVs only.
+
+Not needed at this level: scheduled pentests, SOC 2 or ISO certification, an
+enterprise WAF, mutual TLS between internal services, a dedicated HSM, and
+multi-region deployment. Revisit them if the risk or a customer requires it.
+
 ## Notifications and background work on Android
 
 - **New jobs:** the server decides and sends FCM. The app does not poll.
@@ -316,7 +357,9 @@ server.
    compare jobs, stage-2 CV-vector ranking.
 
 Each phase ships through the existing workflow (issue, spec or plan, review
-at the printed tier, PR, owner merge).
+at the printed tier, PR, owner merge). It also ships its items from the
+[Security baseline](#security-baseline). The first public release requires
+the items marked "Release".
 
 ## Legal and policy notes
 
@@ -341,6 +384,10 @@ Owner decisions (2026-11-01 and 2026-11-02):
 - Firebase Auth with Google (and Apple later).
 - Store CVs on the server, encrypted.
 - Keep JobFlow as the repo; vendor the needed Career Ops parts.
+- Security at the normal level for a consumer app, as in the
+  [Security baseline](#security-baseline). Its individual items are the
+  builder's calls.
+- A cloud staging host is optional. Development runs locally.
 
 Builder's calls, which the owner can overrule:
 
@@ -399,7 +446,9 @@ questions were settled as follows.
 2. **Accounts and environments:**
    - The owner owns the Firebase/GCP project and the Play Console listing.
    - The app ID stays `me.dthuy.jobflow`.
-   - A small staging host (about 5–10 USD a month) is approved from phase 2.
+   - A small staging host (about 5–10 USD a month) is an approved budget from
+     phase 2, not a requirement. See the environments in the
+     [Security baseline](#security-baseline).
    - No data-region constraint yet; the region is chosen with the cloud.
 
 The design is approved by the owner as of 2026-11-02.
