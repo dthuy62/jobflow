@@ -1,5 +1,5 @@
 import { loadMigrationUrl } from "../config.js";
-import { redactLogText } from "../logging.js";
+import { describeFailure } from "../logging.js";
 import { migrateUp } from "./migrate.js";
 
 // Its own file with no "am I the entry point" check, which is false through a symlinked path
@@ -7,6 +7,6 @@ import { migrateUp } from "./migrate.js";
 try {
   await migrateUp(loadMigrationUrl(process.env));
 } catch (error) {
-  console.error(`Migration failed: ${redactLogText(error instanceof Error ? error.message : String(error))}`);
+  console.error(`Migration failed: ${describeFailure(error)}`);
   process.exitCode = 1;
 }

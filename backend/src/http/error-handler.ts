@@ -33,10 +33,15 @@ export function registerErrorHandlers(server: FastifyInstance): void {
     }
     // Only Fastify's own errors are about the request. The same status on another error,
     // such as from a vendor's SDK, is a server-side failure.
-    const { code: errorCode, statusCode } = (error ?? {}) as Partial<FastifyError>;
-    if (errorCode?.startsWith("FST_") && statusCode !== undefined && statusCode >= 400 && statusCode < 500) {
+    const { code: errorCode, statusCode } = (error ?? {}) as { code?: unknown; statusCode?: unknown };
+    if (typeof errorCode === "string" && errorCode.startsWith("FST_") && typeof statusCode === "number" && statusCode >= 400 && statusCode < 500) {
       const code = codeForClientError(statusCode);
       return reply.status(ERROR_STATUS[code]).send(fixedBody(code));
+    }
+    // A phone losing signal mid-upload is normal, and no one is left to read a reply.
+    if (errorCode === "ECONNRESET" || request.raw.aborted) {
+      request.log.info("client disconnected");
+      return reply.status(ERROR_STATUS.VALIDATION_ERROR).send(fixedBody("VALIDATION_ERROR"));
     }
     request.log.error({ err: error }, "unexpected error");
     return reply.status(ERROR_STATUS.UNEXPECTED_ERROR).send(fixedBody("UNEXPECTED_ERROR"));
@@ -59,8 +64,9 @@ export function frameworkErrorHandler(_error: FastifyError, request: FastifyRequ
 /** For a request too malformed to parse. Fastify's default body is not the contract's envelope. */
 export function clientErrorHandler(error: NodeJS.ErrnoException, socket: Socket): void {
   if (error.code === "ECONNRESET" || socket.destroyed) return;
-  const body = JSON.stringify(fixedBody("VALIDATION_ERROR"));
-  socket.end(
-    `HTTP/1.1 ${ERROR_STATUS.VALIDATION_ERROR} Bad Request\r\nContent-Type: application/json\r\nContent-Length: ${Buffer.byteLength(body)}\r\nConnection: close\r\n\r\n${body}`
-  );
+  // A slow phone's request timed out, and was not wrong: 503 is the contract's retryable answer.
+  const timedOut = error.code === "ERR_HTTP_REQUEST_TIMEOUT";
+  const body = JSON.stringify(timedOut ? { error: { code: "UNAVAILABLE", message: "The request took too long. Try again." } } : fixedBody("VALIDATION_ERROR"));
+  const statusLine = timedOut ? `${ERROR_STATUS.UNAVAILABLE} Service Unavailable` : `${ERROR_STATUS.VALIDATION_ERROR} Bad Request`;
+  socket.end(`HTTP/1.1 ${statusLine}\r\nContent-Type: application/json\r\nContent-Length: ${Buffer.byteLength(body)}\r\nConnection: close\r\n\r\n${body}`);
 }

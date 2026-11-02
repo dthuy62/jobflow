@@ -22,6 +22,7 @@ services:
       dockerfile: backend/Dockerfile
     command: ["node", "backend/dist/db/migrate-cli.js"]
     environment:
+      JOBFLOW_ENV: development
       DATABASE_MIGRATION_URL: postgres://jobflow_owner:dev-only-owner@postgres:5432/jobflow
     depends_on:
       postgres:

@@ -60,6 +60,17 @@ describe("loadConfig", () => {
     expect(message).not.toContain("dev-only-app");
   });
 
+  it.each(["postgres://jobflow_app@db/jobflow?password=dev-only-app", "postgres://jobflow_app:dev%2Donly-app@db/jobflow"])(
+    "reads the password the way the driver does: %s",
+    (DATABASE_URL) => {
+      expect(messageOf(() => loadConfig({ ...valid, JOBFLOW_ENV: "production", DATABASE_URL }))).toContain("DATABASE_URL");
+    }
+  );
+
+  it.each(["garbage", "http://db/jobflow", "postgres:"])("rejects DATABASE_URL=%s, which would only fail later with a confusing error", (DATABASE_URL) => {
+    expect(messageOf(() => loadConfig({ ...valid, DATABASE_URL }))).toContain("DATABASE_URL");
+  });
+
   it("looks only at the password, so a host name holding the marker is fine", () => {
     expect(() =>
       loadConfig({ ...valid, JOBFLOW_ENV: "production", DATABASE_URL: "postgres://app:real-password@dev-only-replica.internal/x" })
@@ -73,7 +84,7 @@ describe("loadConfig", () => {
 
 describe("loadMigrationUrl", () => {
   it("reads DATABASE_MIGRATION_URL", () => {
-    expect(loadMigrationUrl({ DATABASE_MIGRATION_URL: "postgres://o:p@db/x" })).toBe("postgres://o:p@db/x");
+    expect(loadMigrationUrl({ JOBFLOW_ENV: "development", DATABASE_MIGRATION_URL: "postgres://o:p@db/x" })).toBe("postgres://o:p@db/x");
   });
 
   it("refuses the owner's development password in production, without printing it", () => {
@@ -85,6 +96,16 @@ describe("loadMigrationUrl", () => {
   });
 
   it("names it when missing", () => {
-    expect(messageOf(() => loadMigrationUrl({}))).toContain("DATABASE_MIGRATION_URL");
+    expect(messageOf(() => loadMigrationUrl({ JOBFLOW_ENV: "development" }))).toContain("DATABASE_MIGRATION_URL");
+  });
+
+  it.each([undefined, "Production", "prod"])("requires a valid JOBFLOW_ENV, so the production check cannot silently turn off: %s", (JOBFLOW_ENV) => {
+    expect(messageOf(() => loadMigrationUrl({ JOBFLOW_ENV, DATABASE_MIGRATION_URL: "postgres://o:dev-only-owner@db/x" }))).toContain("JOBFLOW_ENV");
+  });
+
+  it("rejects a value that is not a PostgreSQL URL, without printing it", () => {
+    const message = messageOf(() => loadMigrationUrl({ JOBFLOW_ENV: "development", DATABASE_MIGRATION_URL: "garbage-s3cret" }));
+    expect(message).toContain("DATABASE_MIGRATION_URL");
+    expect(message).not.toContain("s3cret");
   });
 });

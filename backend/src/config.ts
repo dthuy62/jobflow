@@ -1,3 +1,4 @@
+import { parse } from "pg-connection-string";
 import { z } from "zod";
 
 export interface Config {
@@ -12,20 +13,19 @@ export interface Config {
 
 const DEV_PASSWORD_PREFIX = "dev-only-";
 
-/** Looks only at the password, so a host name may hold the same words. */
+const JobflowEnvSchema = z.enum(["development", "test", "production"]);
+const PostgresUrlSchema = z.string().regex(/^postgres(?:ql)?:\/\/./);
+
+/** Reads the password as the driver does, including percent-encoding and the query string. */
 function hasDevelopmentPassword(url: string): boolean {
-  try {
-    return new URL(url).password.startsWith(DEV_PASSWORD_PREFIX);
-  } catch {
-    return false;
-  }
+  return parse(url).password?.startsWith(DEV_PASSWORD_PREFIX) ?? false;
 }
 
 const EnvSchema = z.object({
-  JOBFLOW_ENV: z.enum(["development", "test", "production"]),
+  JOBFLOW_ENV: JobflowEnvSchema,
   HOST: z.string().min(1).default("127.0.0.1"),
   PORT: z.string().regex(/^[1-9]\d{0,4}$/).transform(Number).pipe(z.number().max(65535)).default(8080),
-  DATABASE_URL: z.string().min(1),
+  DATABASE_URL: PostgresUrlSchema,
   FIREBASE_PROJECT_ID: z.string().min(1),
   TRUST_PROXY: z.string().regex(/^\d{1,2}$/).transform(Number).default(0)
 });
@@ -52,10 +52,13 @@ export function loadConfig(env: NodeJS.ProcessEnv | Record<string, string | unde
 
 /** The owner role's URL. Only the migrate step reads it; the API never holds it. */
 export function loadMigrationUrl(env: NodeJS.ProcessEnv | Record<string, string | undefined>): string {
-  const url = env.DATABASE_MIGRATION_URL;
-  if (!url) throw new Error("Invalid configuration: DATABASE_MIGRATION_URL");
-  if (env.JOBFLOW_ENV === "production" && hasDevelopmentPassword(url)) {
+  // Validated here too, or a misspelled value would silently turn off the production check.
+  const jobflowEnv = JobflowEnvSchema.safeParse(env.JOBFLOW_ENV);
+  if (!jobflowEnv.success) throw new Error("Invalid configuration: JOBFLOW_ENV");
+  const url = PostgresUrlSchema.safeParse(env.DATABASE_MIGRATION_URL);
+  if (!url.success) throw new Error("Invalid configuration: DATABASE_MIGRATION_URL");
+  if (jobflowEnv.data === "production" && hasDevelopmentPassword(url.data)) {
     throw new Error("Invalid configuration: DATABASE_MIGRATION_URL holds a development password");
   }
-  return url;
+  return url.data;
 }

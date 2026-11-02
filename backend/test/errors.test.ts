@@ -1,8 +1,9 @@
-import { connect } from "node:net";
+import { connect, type Socket } from "node:net";
 import { ErrorResponseDtoSchema } from "@jobflow/contract";
 import type { FastifyInstance } from "fastify";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { z } from "zod";
+import { clientErrorHandler } from "../src/http/error-handler.js";
 import { ApiError, parseRequest } from "../src/http/errors.js";
 import { createTestServer, type TestServer } from "./support/server.js";
 
@@ -20,6 +21,17 @@ function registerTestRoutes(scope: FastifyInstance): void {
   scope.get("/test/throw-null", async () => {
     throw null;
   });
+  scope.get("/test/numeric-code", async () => {
+    throw Object.assign(new Error("grpc UNAVAILABLE"), { code: 14 });
+  });
+  scope.get("/test/odd-message", async () => {
+    throw Object.assign(new Error("x"), { message: { reason: "odd" }, stack: 42 });
+  });
+  scope.get("/test/client-gone", async () => {
+    throw Object.assign(new Error("aborted"), { code: "ECONNRESET" });
+  });
+  scope.get("/test/many-fields", async () => parseRequest(z.array(z.string()), Array.from({ length: 60 }, () => 1)));
+  scope.get("/test/long-key", async () => parseRequest(z.record(z.string(), z.string()), { ["k".repeat(300)]: 1 }));
   scope.get("/test/unknown", async () => {
     throw new Error(`Exploded at /srv/app/x.js with ${SECRET_INPUT}`);
   });
@@ -81,6 +93,24 @@ describe("the error envelope", () => {
     expectEnvelope(response.body, "UNEXPECTED_ERROR");
     expect(response.body).not.toContain("destructure");
     expect(test.logLines().some((line) => line.msg === "unexpected error")).toBe(true);
+  });
+
+  it.each(["/test/numeric-code", "/test/odd-message"])("%s still gets the envelope and a log line", async (url) => {
+    const response = await test.server.inject({ url: `/api/v1${url}` });
+    expect(response.statusCode).toBe(500);
+    expectEnvelope(response.body, "UNEXPECTED_ERROR");
+    expect(test.logLines().some((line) => line.msg === "unexpected error")).toBe(true);
+  });
+
+  it("a client that hung up is not logged as a server error", async () => {
+    await test.server.inject({ url: "/api/v1/test/client-gone" });
+    expect(test.logLines().filter((line) => (line.level as number) >= 50)).toEqual([]);
+  });
+
+  it.each(["/test/many-fields", "/test/long-key"])("%s stays within the contract's limits on details", async (url) => {
+    const response = await test.server.inject({ url: `/api/v1${url}` });
+    expect(response.statusCode).toBe(400);
+    expectEnvelope(response.body, "VALIDATION_ERROR");
   });
 
   it("a malformed HTTP request gets the envelope on the socket", async () => {
@@ -168,5 +198,35 @@ describe("the error envelope", () => {
     expect(response.statusCode).toBe(400);
     expectEnvelope(response.body, "VALIDATION_ERROR");
     expect(response.body).not.toContain("s3cret");
+  });
+});
+
+describe("clientErrorHandler", () => {
+  function run(code: string, socketState: Partial<Socket> = {}): string {
+    let written = "";
+    const socket = {
+      destroyed: false,
+      end: (text: string) => {
+        written = text;
+      },
+      ...socketState
+    } as unknown as Socket;
+    clientErrorHandler(Object.assign(new Error(code), { code }), socket);
+    return written;
+  }
+
+  it("tells a slow client to retry, because its request was not wrong", () => {
+    const written = run("ERR_HTTP_REQUEST_TIMEOUT");
+    expect(written).toMatch(/^HTTP\/1\.1 503 /);
+    expect(ErrorResponseDtoSchema.parse(JSON.parse(written.slice(written.indexOf("\r\n\r\n") + 4))).error.code).toBe("UNAVAILABLE");
+  });
+
+  it("calls a malformed request invalid", () => {
+    expect(run("HPE_INVALID_METHOD")).toMatch(/^HTTP\/1\.1 400 /);
+  });
+
+  it("writes nothing to a socket that is gone", () => {
+    expect(run("ECONNRESET")).toBe("");
+    expect(run("HPE_INVALID_METHOD", { destroyed: true })).toBe("");
   });
 });

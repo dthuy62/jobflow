@@ -45,8 +45,14 @@ export function serializeError(error: unknown): { type: string; message: string;
   const { code } = error as { code?: unknown };
   return {
     type: error.name,
-    message: redactLogText(error.message),
-    stack: redactLogText(error.stack ?? ""),
+    message: redactLogText(String(error.message)),
+    stack: typeof error.stack === "string" ? redactLogText(error.stack) : "",
     ...(typeof code === "string" ? { code } : {})
   };
+}
+
+/** One line for a command that failed before logging exists. A failure on several addresses has an empty message. */
+export function describeFailure(error: unknown): string {
+  const { message, code } = serializeError(error);
+  return message || code || "unknown error";
 }

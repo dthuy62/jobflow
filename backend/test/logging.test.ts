@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { LOG_TEXT_MAX_CHARS, redactLogText } from "../src/logging.js";
+import { LOG_TEXT_MAX_CHARS, describeFailure, redactLogText, serializeError } from "../src/logging.js";
 import { createTestServer } from "./support/server.js";
 
 describe("request logs", () => {
@@ -150,5 +150,32 @@ describe("redactLogText", () => {
     const started = performance.now();
     redactLogText(text);
     expect(performance.now() - started).toBeLessThan(100);
+  });
+});
+
+describe("serializeError", () => {
+  it("survives an error with an odd message and stack", () => {
+    const error = Object.assign(new Error("x"), { message: { reason: "odd" }, stack: 42 });
+    expect(serializeError(error)).toMatchObject({ type: "Error", stack: "" });
+  });
+
+  it("drops a driver's other fields", () => {
+    const error = Object.assign(new Error("failed"), { code: "23505", detail: "s3cret row", table: "users" });
+    expect(JSON.stringify(serializeError(error))).not.toContain("s3cret");
+    expect(serializeError(error).code).toBe("23505");
+  });
+});
+
+describe("describeFailure", () => {
+  it("scrubs the message", () => {
+    expect(describeFailure(new Error("failed for postgres://a:s3cret@db/x"))).toBe("failed for postgres://a:[REDACTED]@db/x");
+  });
+
+  it("falls back to the code when several addresses failed and the message is empty", () => {
+    expect(describeFailure(Object.assign(new AggregateError([]), { code: "ECONNREFUSED" }))).toBe("ECONNREFUSED");
+  });
+
+  it("always says something", () => {
+    expect(describeFailure(null)).toBe("unknown error");
   });
 });

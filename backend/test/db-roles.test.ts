@@ -6,6 +6,16 @@ import { createServer } from "../src/server.js";
 import { withTestDatabase, type TestDatabase } from "./support/database.js";
 import { testConfig } from "./support/server.js";
 
+describe("createPool", () => {
+  it("gives up on a silent connection, because a server-side timeout cannot fire when packets stop", async () => {
+    const pool = createPool("postgres://a:b@127.0.0.1:1/x", () => undefined);
+    const { options } = pool as unknown as { options: Record<string, unknown> };
+    expect(options.query_timeout).toBeGreaterThan(options.statement_timeout as number);
+    expect(options.keepAlive).toBe(true);
+    await pool.end();
+  });
+});
+
 describe("database roles", () => {
   let database: TestDatabase;
   let app: pg.Pool;

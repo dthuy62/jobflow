@@ -495,7 +495,7 @@ it("the app role can read and write users");
 it("the app role cannot create a table");
 // architecture
 it("the import check flags a sample source that imports pg"); // so the checks below cannot pass by finding nothing
-it("backend/src/core imports nothing but core/, zod and node: modules");
+it("backend/src/core imports nothing but core/, zod and node: modules"); // task 5 also asserts core has files, so this cannot pass by finding none
 it("backend/src/http imports no file from backend/src/adapters");
 ```
 

@@ -1,6 +1,6 @@
 import { loadConfig } from "./config.js";
 import { createPool } from "./db/pool.js";
-import { redactLogText } from "./logging.js";
+import { describeFailure } from "./logging.js";
 import { createServer } from "./server.js";
 
 async function main(): Promise<void> {
@@ -22,6 +22,6 @@ async function main(): Promise<void> {
 }
 
 main().catch((error: unknown) => {
-  console.error(`Startup failed: ${redactLogText(error instanceof Error ? error.message : String(error))}`);
+  console.error(`Startup failed: ${describeFailure(error)}`);
   process.exitCode = 1;
 });
