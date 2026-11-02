@@ -158,8 +158,8 @@ Expected: the new tests FAIL, except two regression tests that already pass: the
 Gates: backend `npm test -w @jobflow/backend && npm run build -w @jobflow/backend`;
 contract `npm test -w @jobflow/contract` and the backend gate; `packages/<name>` runs
 `npm test -w @jobflow/<name>`, the backend gate and the wrapper gate. A gate prints only
-when its package exists. Add `database`, `vendor` and `ci` to `MANDATORY_REVIEWER` with
-`security`.
+when its package exists, and the map refuses a package directory name that is unsafe
+in a shell. Add `database`, `vendor` and `ci` to `MANDATORY_REVIEWER` with `security`.
 Exclude `vendor/` from `isDocumentation`.
 
 `RISK_CHECKS` gets questions for the hosted backend, so its PRs stop asking about

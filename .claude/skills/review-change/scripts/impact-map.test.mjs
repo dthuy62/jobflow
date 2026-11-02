@@ -334,6 +334,7 @@ const ANDROID_GATE = "cd android && ./gradlew testDevDebugUnitTest lintDevDebug 
 /** An unchanged file, so the backend package exists in the head tree without being in the diff. */
 const BACKEND_EXISTS = { "backend/package.json": { before: "{}\n", after: "{}\n" } };
 const SAFETY_EXISTS = { "packages/safety/package.json": { before: "{}\n", after: "{}\n" } };
+const CONTRACT_EXISTS = { "packages/contract/package.json": { before: "{}\n", after: "{}\n" } };
 const SYNC_TEST_EXISTS = { "scripts/sync-career-ops.test.mjs": { before: "// test\n", after: "// test\n" } };
 
 test("classifies hosted backend paths by risk area, tier and gates", () => {
@@ -374,7 +375,7 @@ test("classifies hosted backend paths by risk area, tier and gates", () => {
     ["vendor/career-ops/modes/oferta.md", text, "vendor", []]
   ];
   for (const [file, change, area, gates] of cases) {
-    const report = mapAfterCommit({ ...BACKEND_EXISTS, ...SAFETY_EXISTS, ...SYNC_TEST_EXISTS, [file]: change });
+    const report = mapAfterCommit({ ...BACKEND_EXISTS, ...SAFETY_EXISTS, ...CONTRACT_EXISTS, ...SYNC_TEST_EXISTS, [file]: change });
     assert.equal(report.mode, "full", file);
     assert.equal(report.tier, "L", file);
     assert.ok(report.risks[area]?.includes(file), `${file} flags ${area}`);
@@ -556,4 +557,34 @@ test("refuses a package directory name that is not safe to print in a gate", () 
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
+});
+
+test("prints the contract gate only while the contract package exists", () => {
+  const absent = mapAfterCommit({ "contracts/examples/x.json": { before: "{}\n", after: "{\"a\":1}\n" } });
+  assert.deepEqual(absent.gates, []);
+  const removed = mapAfterMutation(
+    { "packages/contract/package.json": "{}\n", "packages/contract/src/x.ts": "export const a = 1;\n" },
+    (root) => git(root, "rm", "-rq", "packages/contract")
+  );
+  assert.deepEqual(removed.gates, []);
+});
+
+test("lists a contract example renamed into contracts or to a new name, with the users of either name", () => {
+  const into = mapAfterMutation({ "old/me.valid.json": "{\"a\":1}\n", "packages/contract/test/c.test.ts": "// me.valid.json\n" }, (root) => {
+    mkdirSync(path.join(root, "contracts/examples"), { recursive: true });
+    git(root, "mv", "old/me.valid.json", "contracts/examples/me.valid.json");
+  });
+  assert.equal(into.contractExamples.length, 1);
+  assert.ok(into.contractExamples[0].references.some((ref) => ref.startsWith("packages/contract/test/c.test.ts:")));
+
+  const renamed = mapAfterMutation({ "contracts/examples/me.valid.json": "{\"a\":1}\n", "packages/contract/test/c.test.ts": "// me.valid.json\n" }, (root) => {
+    git(root, "mv", "contracts/examples/me.valid.json", "contracts/examples/profile.valid.json");
+    write(root, "packages/contract/test/c.test.ts", "// profile.valid.json\n");
+  });
+  assert.ok(renamed.contractExamples[0].references.some((ref) => ref.startsWith("packages/contract/test/c.test.ts:")));
+});
+
+test("still maps a change that removes a package with an unsupported directory name", () => {
+  const report = mapAfterMutation({ "README.md": "a\n", "packages/Foo/x.txt": "a\n" }, (root) => git(root, "rm", "-rq", "packages/Foo"));
+  assert.deepEqual(report.gates, [WRAPPER_GATE]);
 });

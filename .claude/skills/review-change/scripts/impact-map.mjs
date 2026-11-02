@@ -177,7 +177,6 @@ function buildReport(fileReports) {
   if (components.has("android") || components.has("contracts")) {
     gates.push("cd android && ./gradlew testDevDebugUnitTest lintDevDebug detekt ktlintCheck");
   }
-  if (components.has("hosted-contract")) gates.push("npm test -w @jobflow/contract");
   const codePaths = changedPaths.filter((path) => !isDocumentation(path));
   if (codePaths.some((path) => path.startsWith("scripts/sync-career-ops")) && show(head, "scripts/sync-career-ops.test.mjs") !== null) {
     gates.push("node --test scripts/sync-career-ops.test.mjs");
@@ -188,14 +187,16 @@ function buildReport(fileReports) {
   const packageExists = (dir) =>
     show(head, `${dir}/package.json`) !== null ||
     (show(args.base, `${dir}/package.json`) !== null && git(["ls-tree", "-r", "--name-only", head, `${dir}/`]).trim() !== "");
+  if (components.has("hosted-contract") && packageExists("packages/contract")) gates.push("npm test -w @jobflow/contract");
   const packages = new Set(codePaths.map((path) => path.match(/^packages\/([^/]+)\//)?.[1]).filter((name) => name && name !== "contract"));
   for (const name of [...packages].sort()) {
+    if (!packageExists(`packages/${name}`)) continue;
     if (!/^[a-z0-9][a-z0-9._-]*$/.test(name)) {
       // The gates are run in a shell, so a directory name must not reach them unchecked.
       console.error(`impact-map: unsupported package directory name: ${JSON.stringify(name)}`);
       process.exit(2);
     }
-    if (packageExists(`packages/${name}`)) gates.push(`npm test -w @jobflow/${name}`);
+    gates.push(`npm test -w @jobflow/${name}`);
   }
   if ((components.has("backend") || components.has("hosted-contract") || sharedChange) && packageExists("backend")) {
     gates.push("npm test -w @jobflow/backend && npm run build -w @jobflow/backend");
@@ -225,10 +226,11 @@ function buildReport(fileReports) {
     });
 
   const examples = fileReports
-    .filter(({ path, oldPath }) => /^(career-ops-wrapper\/)?contracts\//.test(oldPath ?? path))
+    .filter(({ path, oldPath }) => [path, oldPath].some((name) => name && /^(career-ops-wrapper\/)?contracts\//.test(name)))
     .map(({ path, oldPath, status }) => {
-      const base = (oldPath ?? path).split("/").pop();
-      return { path, status, references: grep(["-F", base], ["android/", "career-ops-wrapper/test/", "career-ops-wrapper/src/", "packages/contract/", "backend/test/"]) };
+      const names = new Set([path, oldPath].filter(Boolean).map((name) => name.split("/").pop()));
+      const users = ["android/", "career-ops-wrapper/test/", "career-ops-wrapper/src/", "packages/contract/", "backend/test/"];
+      return { path, status, references: [...new Set([...names].flatMap((name) => grep(["-F", name], users)))] };
     });
 
   const workspacePaths = [...new Set(fileReports.filter((file) => !file.isTest).flatMap((file) => file.workspacePaths))].sort()
