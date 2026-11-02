@@ -60,6 +60,7 @@ export function describeFailure(error: unknown): string {
   return message || code || "unknown error";
 }
 
+const STACK_FRAME_MAX_CHARS = 2048;
 const STACK_FRAME = /^\s+at (?:.*\((?:.*:\d+:\d+|<anonymous>|native)\)|\S*:\d+:\d+)$/;
 
 /**
@@ -70,12 +71,15 @@ export function describeJobFailure(error: unknown): { type: string; code?: strin
   if (!(error instanceof Error)) return { type: "NonError", frames: "" };
   const { code } = error as { code?: unknown };
   const stack = typeof error.stack === "string" ? error.stack : "";
-  // The stack starts with the message, which can hold lines shaped like frames.
-  const header = `${error.name}: ${String(error.message)}`;
-  const body = stack.startsWith(header) ? stack.slice(header.length) : stack;
+  // The stack holds the message, which can have lines shaped like frames. Cut at the message
+  // itself: the header before it varies, as in Node's `AssertionError [ERR_ASSERTION]: `.
+  const message = String(error.message);
+  const messageAt = message ? stack.indexOf(message) : -1;
+  const body = messageAt >= 0 ? stack.slice(messageAt + message.length) : stack;
   const frames = body
     .split("\n")
-    .filter((line) => STACK_FRAME.test(line))
+    // The cap first: the pattern is slow on a very long line, and a real frame is short.
+    .filter((line) => line.length <= STACK_FRAME_MAX_CHARS && STACK_FRAME.test(line))
     .join("\n");
   return { type: error.name, ...(typeof code === "string" ? { code } : {}), frames };
 }

@@ -205,6 +205,20 @@ describe("describeJobFailure", () => {
     expect(frames).toContain("logging.test.ts");
   });
 
+  it("drops such text when the stack's header differs from the error's name, as Node's coded errors do", () => {
+    const error = new Error("bad token:\n  at Hanoi (s3cret:1:1)\n  at 0912345678:1:1");
+    error.stack = `AssertionError [ERR_ASSERTION]: ${error.message}\n    at real (file.ts:1:1)`;
+    expect(describeJobFailure(error).frames).toBe("    at real (file.ts:1:1)");
+  });
+
+  it("stays fast on a hostile line, which cannot freeze the worker", () => {
+    const error = new Error("x");
+    error.stack = `   at ${"(:1".repeat(100_000)}`;
+    const started = performance.now();
+    describeJobFailure(error);
+    expect(performance.now() - started).toBeLessThan(100);
+  });
+
   it("logs a non-string code as nothing, because it could hold input", () => {
     expect(describeJobFailure(Object.assign(new Error("x"), { code: { text: "s3cret" } }))).not.toHaveProperty("code");
   });

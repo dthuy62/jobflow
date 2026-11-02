@@ -12,6 +12,11 @@ const POLLING_INTERVAL_SECONDS = 1;
 /** How long the migrate step waits for pg-boss's background index builds. */
 const BACKGROUND_BUILD_TIMEOUT_MS = 30 * 60 * 1000;
 const BACKGROUND_BUILD_POLL_MS = 500;
+/**
+ * A real NUL or lone surrogate, as JSON writes them; a valid surrogate pair is written raw. The
+ * lookbehind and the pairs of backslashes skip text that only spells out an escape.
+ */
+const UNSTORABLE_JSON_ESCAPE = /(?<!\\)(?:\\\\)*\\u(?:0000|d[89a-f])/i;
 
 /** Its `err` serializer must keep this adapter's errors safe to log. */
 export interface QueueLogger {
@@ -77,8 +82,8 @@ export async function createPgBossQueue(connectionString: string, { logger, role
     async enqueue(job, payload, options) {
       // As it will be stored, so a payload JSON cannot hold fails here, not when the job runs.
       const data = job.schema.parse(JSON.parse(JSON.stringify(payload))) as object;
-      // PostgreSQL refuses NUL, with a driver error that quotes the payload.
-      if (JSON.stringify(data).includes("\\u0000")) throw new Error("A job payload cannot hold a NUL character.");
+      // PostgreSQL refuses these in JSON, with a driver error that quotes the payload.
+      if (UNSTORABLE_JSON_ESCAPE.test(JSON.stringify(data))) throw new Error("A job payload cannot hold a NUL or a lone surrogate.");
       await boss.send(job.name, data, {
         ...jobOptions(job),
         ...(options?.idempotencyKey === undefined ? {} : { id: jobIdFor(job.name, options.idempotencyKey) })
@@ -150,8 +155,8 @@ export async function installJobs(ownerUrl: string, jobs: readonly JobDefinition
   boss.on("error", (error) => {
     failure = error;
   });
-  await boss.start();
   try {
+    await boss.start();
     for (const { name } of jobs) {
       if ((await boss.getQueue(name)) === null) await boss.createQueue(name);
     }

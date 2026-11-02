@@ -183,6 +183,20 @@ describe("the queue, with real PostgreSQL and the app role", () => {
     expect(JSON.stringify(error)).not.toContain("s3cret");
   });
 
+  it("a payload with a lone surrogate is refused the same way", async () => {
+    const error = await queue.enqueue(stored, { value: "s3cret-cv-text \ud83d" }).catch((caught: Error) => caught);
+    expect(error).toBeInstanceOf(Error);
+    expect(JSON.stringify(error)).not.toContain("s3cret");
+    expect((error as Error).message).toContain("cannot hold");
+  });
+
+  it.each([
+    ["the literal text of an escape", "C:\\u0000\\path"],
+    ["a whole emoji", "good 😀 text"]
+  ])("a payload with %s is accepted", async (_name, value) => {
+    await expect(queue.enqueue(stored, { value })).resolves.toBeUndefined();
+  });
+
   it("a handler that overruns its expiry leaves a warning in the log, with no payload", async () => {
     await queue.register(overrun, async () => {
       await new Promise((resolve) => setTimeout(resolve, 4_000));
