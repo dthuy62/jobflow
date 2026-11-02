@@ -56,7 +56,7 @@ and unfinished Android items continue under the hosted phases.
 
 ### Phase 1: Documentation And Agent Alignment
 
-Status: in progress.
+Status: superseded.
 
 - Establish root `docs/` as product source of truth.
 - Keep Android `AGENTS.md` specific to Android implementation rules.
@@ -65,7 +65,7 @@ Status: in progress.
 
 ### Phase 2: Android Health Integration
 
-Status: in progress.
+Status: superseded.
 
 - Finalize Android health DTO and domain mapping.
 - Verify Retrofit base URL and pairing token behavior.
@@ -74,7 +74,7 @@ Status: in progress.
 
 ### Phase 3: Career Inputs
 
-Status: planned.
+Status: superseded.
 
 - Add Android screens for CV Markdown, profile config, and portal config.
 - Keep Android edits bounded to wrapper DTOs.
@@ -83,7 +83,7 @@ Status: planned.
 
 ### Phase 4: Scan Lifecycle
 
-Status: backend done; Android planned.
+Status: superseded (backend done; Android not started).
 
 - [x] Add typed wrapper scan run start/status endpoints.
 - [x] Reject concurrent scans.
@@ -92,7 +92,7 @@ Status: backend done; Android planned.
 
 ### Phase 5: Offers, Reports, Artifacts
 
-Status: backend done; Android planned.
+Status: superseded (backend done; Android not started).
 
 - [x] Parse and project offers from Career Ops workspace outputs.
 - [x] Use opaque backend IDs, not file paths.
@@ -101,7 +101,7 @@ Status: backend done; Android planned.
 
 ### Phase 5b: AI Offer Evaluation
 
-Status: phase A backend done; Android planned. Issue #3,
+Status: superseded (phase A backend done; Android not started). Issue #3,
 `docs/superpowers/specs/2026-10-31-ai-offer-evaluation-design.md`.
 
 - [x] Phase A: `POST /api/v1/evaluations` runs the desktop's logged-in
@@ -115,7 +115,7 @@ Status: phase A backend done; Android planned. Issue #3,
 
 ### Phase 6: Release Hardening
 
-Status: planned.
+Status: superseded.
 
 - [ ] Decide real prod endpoint strategy.
 - [ ] Audit cleartext/network security.

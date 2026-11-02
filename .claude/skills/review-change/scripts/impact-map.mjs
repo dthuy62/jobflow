@@ -27,13 +27,13 @@ const PATH_RISKS = [
   { area: "routes", pattern: /^career-ops-wrapper\/src\/api\// },
   { area: "untrusted-input", pattern: /^career-ops-wrapper\/src\/(parsers|services|workspace)\// },
   { area: "config", pattern: /^career-ops-wrapper\/src\/config\// },
-  { area: "security", pattern: /^backend\/src\/(http\/auth|adapters\/[^/]*auth)|^packages\/safety\/src\/|^\.gitleaks\.toml$/ },
+  { area: "security", pattern: /^backend\/src\/(http\/auth|adapters\/|logging\.ts$|worker\.ts$)|^packages\/safety\/src\/|^\.gitleaks\.toml$/ },
   { area: "contracts", pattern: /^(contracts|packages\/contract)\// },
-  { area: "routes", pattern: /^backend\/src\/http\/routes\// },
-  { area: "database", pattern: /^backend\/(migrations|src\/db)\/|^docker\// },
+  { area: "routes", pattern: /^backend\/src\/(http\/|server\.ts$|main\.ts$)/ },
+  { area: "database", pattern: /^backend\/(migrations|src\/db|src\/adapters\/pg-)|^docker\// },
   { area: "config", pattern: /^backend\/src\/config\.ts$|^backend\/Dockerfile$/ },
   { area: "config", pattern: /^(compose\.yaml|package\.json|package-lock\.json|\.dockerignore|tsconfig\.base\.json)$/ },
-  { area: "vendor", pattern: /^vendor\// },
+  { area: "vendor", pattern: /^vendor\/|^scripts\/sync-career-ops/ },
   { area: "android-remote", pattern: /^android\/app\/src\/main\/kotlin\/.*\/data\/remote\// },
   { area: "ci", pattern: /^\.github\// }
 ];
@@ -63,7 +63,8 @@ const MANDATORY_REVIEWER = {
   redaction: "security",
   config: "security",
   database: "security",
-  vendor: "security"
+  vendor: "security",
+  ci: "security"
 };
 
 /** Risk areas a tier M change may touch; any other risk area makes it tier L. */
@@ -79,7 +80,7 @@ const RISK_CHECKS = {
   "process-spawn": "Is argv allowlisted, no shell, env stripped, output bounded and redacted, timeout and kill enforced?",
   "workspace-io": "Can any read or write escape the workspace (symlink, .., swap between check and open) or read unbounded data?",
   "workspace-write": "Is the write atomic, backed up, contained in the workspace and limited to the files the feature owns?",
-  routes: "Wrapper: is each new route behind the pairing-token guard? Backend: is it denied by default, scoped to the authenticated user, and covered by a cross-user test? Both: is it validated by Zod and free of path or stack leakage in errors?",
+  routes: "Wrapper: is each new route behind the pairing-token guard? Backend: is it denied by default, scoped to the authenticated user, and covered by a cross-user test, and do auth wiring, rate limits and error output still hold? Both: is it validated by Zod and free of path or stack leakage in errors?",
   "untrusted-input": "Can a malformed or hand-edited workspace value make an endpoint throw (500) instead of degrading with a warning? Trace parsed values to the response schema.",
   "schema-parse": "Can the value passed to Schema.parse fail at runtime on real data, and what does the client get then?",
   config: "Do new options have safe defaults, validation, and no secret leakage in logs?",
@@ -117,7 +118,8 @@ function analyzeFile(file) {
   const touched = [...lines.added, ...lines.removed];
   const headContent = file.status === "D" ? null : show(head, file.path);
   const risks = new Set();
-  for (const rule of PATH_RISKS) if (rule.pattern.test(file.path)) risks.add(rule.area);
+  // A rename out of a risk path needs the same review as deleting the file there.
+  for (const rule of PATH_RISKS) if (rule.pattern.test(file.path) || (file.oldPath && rule.pattern.test(file.oldPath))) risks.add(rule.area);
   const isTest = /\.test\.|\/test\/|\/src\/test\//.test(file.path);
   const isCode = /\.(ts|mts|mjs|js|kt)$/.test(file.path);
   if (isCode && !isTest) {
@@ -159,19 +161,8 @@ function analyzeFile(file) {
 }
 
 function buildReport(fileReports) {
-  const components = new Set();
-  for (const { path } of fileReports) {
-    if (isDocumentation(path)) components.add("docs");
-    else if (path.startsWith("career-ops-wrapper/contracts/")) components.add("contracts");
-    else if (path.startsWith("career-ops-wrapper/")) components.add("wrapper");
-    else if (path.startsWith("android/")) components.add("android");
-    else if (path.startsWith("vendor/")) components.add("vendor");
-    else if (/^(contracts|packages\/contract)\//.test(path)) components.add("hosted-contract");
-    else if (path.startsWith("packages/")) components.add("packages");
-    else if (WORKSPACE_FILES.test(path)) components.add("workspace");
-    else if (/^(backend|docker)\//.test(path)) components.add("backend");
-    else components.add("other");
-  }
+  const changedPaths = fileReports.flatMap(({ path, oldPath }) => (oldPath ? [path, oldPath] : [path]));
+  const components = new Set(changedPaths.map(componentOf));
 
   const docsOnly = fileReports.length > 0 && fileReports.every(({ path, oldPath }) => isDocumentation(path) && (!oldPath || isDocumentation(oldPath)));
 
@@ -185,8 +176,15 @@ function buildReport(fileReports) {
     gates.push("cd android && ./gradlew testDevDebugUnitTest lintDevDebug detekt ktlintCheck");
   }
   if (components.has("hosted-contract")) gates.push("npm test -w @jobflow/contract");
-  // Shared files change before the backend package exists; its gate would fail for no reason.
-  if ((components.has("backend") || sharedChange) && show(head, "backend/package.json") !== null) {
+  if (changedPaths.some((path) => path.startsWith("scripts/sync-career-ops"))) gates.push("node --test scripts/sync-career-ops.test.mjs");
+  // A package's tests run under no other gate. Shared files can change before a package
+  // exists, when its gate would fail for no reason; a deleted manifest keeps its gate.
+  const packageExists = (dir) => show(args.base, `${dir}/package.json`) !== null || show(head, `${dir}/package.json`) !== null;
+  const packages = new Set(changedPaths.map((path) => path.match(/^packages\/([^/]+)\//)?.[1]).filter((name) => name && name !== "contract"));
+  for (const name of [...packages].sort()) {
+    if (packageExists(`packages/${name}`)) gates.push(`npm test -w @jobflow/${name}`);
+  }
+  if ((components.has("backend") || components.has("hosted-contract") || sharedChange) && packageExists("backend")) {
     gates.push("npm test -w @jobflow/backend && npm run build -w @jobflow/backend");
   }
 
@@ -375,6 +373,19 @@ function diffLines(path) {
     }
   }
   return { added, removed, addedLineNumbers };
+}
+
+function componentOf(path) {
+  if (isDocumentation(path)) return "docs";
+  if (path.startsWith("career-ops-wrapper/contracts/")) return "contracts";
+  if (path.startsWith("career-ops-wrapper/")) return "wrapper";
+  if (path.startsWith("android/")) return "android";
+  if (/^(vendor\/|scripts\/sync-career-ops)/.test(path)) return "vendor";
+  if (/^(contracts|packages\/contract)\//.test(path)) return "hosted-contract";
+  if (path.startsWith("packages/")) return "packages";
+  if (WORKSPACE_FILES.test(path)) return "workspace";
+  if (/^(backend|docker)\//.test(path)) return "backend";
+  return "other";
 }
 
 /**

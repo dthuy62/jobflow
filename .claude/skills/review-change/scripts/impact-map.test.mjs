@@ -328,9 +328,12 @@ test("uses tier L with the full panel for high-risk areas, contracts, Android, C
 const BACKEND_GATE = "npm test -w @jobflow/backend && npm run build -w @jobflow/backend";
 const WRAPPER_GATE = "cd career-ops-wrapper && npm test && npm run build";
 const CONTRACT_GATE = "npm test -w @jobflow/contract";
+const SAFETY_GATE = "npm test -w @jobflow/safety";
+const SYNC_GATE = "node --test scripts/sync-career-ops.test.mjs";
 const ANDROID_GATE = "cd android && ./gradlew testDevDebugUnitTest lintDevDebug detekt ktlintCheck";
 /** An unchanged file, so the backend package exists in the head tree without being in the diff. */
 const BACKEND_EXISTS = { "backend/package.json": { before: "{}\n", after: "{}\n" } };
+const SAFETY_EXISTS = { "packages/safety/package.json": { before: "{}\n", after: "{}\n" } };
 
 test("classifies hosted backend paths by risk area, tier and gates", () => {
   const code = { before: "export const a = 1;\n", after: "export const a = 2;\n" };
@@ -338,6 +341,14 @@ test("classifies hosted backend paths by risk area, tier and gates", () => {
   const cases = [
     ["backend/src/http/routes/x.ts", code, "routes", [BACKEND_GATE]],
     ["backend/src/http/auth-plugin.ts", code, "security", [BACKEND_GATE]],
+    ["backend/src/server.ts", code, "routes", [BACKEND_GATE]],
+    ["backend/src/main.ts", code, "routes", [BACKEND_GATE]],
+    ["backend/src/http/rate-limits.ts", code, "routes", [BACKEND_GATE]],
+    ["backend/src/http/error-handler.ts", code, "routes", [BACKEND_GATE]],
+    ["backend/src/logging.ts", code, "security", [BACKEND_GATE]],
+    ["backend/src/worker.ts", code, "security", [BACKEND_GATE]],
+    ["backend/src/adapters/s3-blob-store.ts", code, "security", [BACKEND_GATE]],
+    ["backend/src/adapters/pg-user-repository.ts", code, "database", [BACKEND_GATE]],
     ["backend/src/adapters/oidc-auth-verifier.ts", code, "security", [BACKEND_GATE]],
     ["backend/migrations/0002_x.sql", text, "database", [BACKEND_GATE]],
     ["backend/src/db/migrate.ts", code, "database", [BACKEND_GATE]],
@@ -350,14 +361,15 @@ test("classifies hosted backend paths by risk area, tier and gates", () => {
     [".dockerignore", text, "config", [WRAPPER_GATE, BACKEND_GATE]],
     ["tsconfig.base.json", text, "config", [WRAPPER_GATE, BACKEND_GATE]],
     [".gitleaks.toml", text, "security", []],
-    ["packages/safety/src/x.ts", code, "security", [WRAPPER_GATE, BACKEND_GATE]],
-    ["packages/contract/src/x.ts", code, "contracts", [CONTRACT_GATE]],
-    ["contracts/examples/x.json", text, "contracts", [CONTRACT_GATE]],
+    ["packages/safety/src/x.ts", code, "security", [WRAPPER_GATE, SAFETY_GATE, BACKEND_GATE]],
+    ["packages/contract/src/x.ts", code, "contracts", [CONTRACT_GATE, BACKEND_GATE]],
+    ["contracts/examples/x.json", text, "contracts", [CONTRACT_GATE, BACKEND_GATE]],
+    ["scripts/sync-career-ops.mjs", code, "vendor", [SYNC_GATE]],
     ["vendor/career-ops/x.mjs", code, "vendor", []],
     ["vendor/career-ops/modes/oferta.md", text, "vendor", []]
   ];
   for (const [file, change, area, gates] of cases) {
-    const report = mapAfterCommit({ ...BACKEND_EXISTS, [file]: change });
+    const report = mapAfterCommit({ ...BACKEND_EXISTS, ...SAFETY_EXISTS, [file]: change });
     assert.equal(report.mode, "full", file);
     assert.equal(report.tier, "L", file);
     assert.ok(report.risks[area]?.includes(file), `${file} flags ${area}`);
@@ -418,4 +430,62 @@ test("uses tier L when a change spans the backend and Android", () => {
   });
   assert.equal(report.tier, "L");
   assert.ok(report.tierReasons.includes("spans backend and Android"));
+});
+
+/** Commits the files, applies a mutation that mapAfterCommit cannot express, and maps the result. */
+function mapAfterMutation(files, mutate) {
+  const root = mkdtempSync(path.join(tmpdir(), "impact-map-"));
+  try {
+    git(root, "init", "-q");
+    for (const [file, content] of Object.entries(files)) write(root, file, content);
+    git(root, "add", "-A");
+    git(root, "commit", "-qm", "base");
+    mutate(root);
+    git(root, "add", "-A");
+    git(root, "commit", "-qm", "head");
+    return JSON.parse(execFileSync("node", [script, "--base", "HEAD~1", "--json"], { cwd: root, encoding: "utf8" }));
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+}
+
+test("keeps the risk area and gate when a file is renamed out of a risk path", () => {
+  const cases = [
+    [".gitleaks.toml", "gitleaks.toml.off", "security"],
+    ["backend/migrations/0002_x.sql", "backend-old/0002_x.sql", "database"],
+    ["vendor/career-ops/modes/oferta.md", "docs/oferta.md", "vendor"]
+  ];
+  for (const [from, to, area] of cases) {
+    const report = mapAfterMutation({ "backend/package.json": "{}\n", [from]: "line one\nline two\nline three\n" }, (root) => {
+      mkdirSync(path.dirname(path.join(root, to)), { recursive: true });
+      git(root, "mv", from, to);
+    });
+    assert.ok(report.risks[area], `${from} flags ${area}`);
+    assert.equal(report.tier, "L", from);
+    assert.ok(report.reviewers.includes("security"), from);
+  }
+
+  const leftBackend = mapAfterMutation({ "backend/package.json": "{}\n", "backend/migrations/0002_x.sql": "a\nb\nc\n" }, (root) => {
+    mkdirSync(path.join(root, "backend-old"));
+    git(root, "mv", "backend/migrations/0002_x.sql", "backend-old/0002_x.sql");
+  });
+  assert.deepEqual(leftBackend.gates, [BACKEND_GATE]);
+});
+
+test("still prints the backend gate when a change deletes the backend manifest", () => {
+  const report = mapAfterMutation({ "backend/package.json": "{}\n", "backend/src/http/routes/x.ts": "export const a = 1;\n" }, (root) => {
+    write(root, "backend/src/http/routes/x.ts", "export const a = 2;\n");
+    rmSync(path.join(root, "backend/package.json"));
+  });
+  assert.deepEqual(report.gates, [BACKEND_GATE]);
+});
+
+test("requires the security reviewer when a workflow changes or is removed", () => {
+  const workflow = "name: secret-scan\njobs: {}\n";
+  const edited = mapAfterCommit({ ".github/workflows/secret-scan.yml": { before: workflow, after: "name: off\njobs: {}\n" } });
+  assert.ok(edited.reviewers.includes("security"));
+  const removed = mapAfterMutation({ ".github/workflows/secret-scan.yml": workflow }, (root) => {
+    rmSync(path.join(root, ".github/workflows/secret-scan.yml"));
+  });
+  assert.ok(removed.reviewers.includes("security"));
 });

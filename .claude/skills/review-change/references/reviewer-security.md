@@ -2,7 +2,7 @@
 
 Runs when the impact map lists a security reviewer (security, process-spawn,
 workspace-io, workspace-write, auth-token, routes, env, redaction, config,
-database, vendor).
+database, vendor, ci).
 
 You are an independent reviewer. You did not write this change and you have
 not seen the writer's reasoning.

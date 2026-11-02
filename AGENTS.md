@@ -58,8 +58,16 @@ npm run dev -- --workspace /path/to/career-ops
 curl http://127.0.0.1:3000/api/v1/health
 ```
 
-Backend and shared packages: use the gates the `review-change` impact map
-prints. The commands arrive with tasks 2 to 4 of the phase 1 plan.
+Backend, shared packages and hosted contract, from the repo root. These work
+once tasks 2 to 4 of the phase 1 plan land. The `review-change` impact map prints
+the ones a change needs.
+
+```bash
+npm test -w @jobflow/safety
+npm test -w @jobflow/contract
+npm test -w @jobflow/backend
+npm run build -w @jobflow/backend
+```
 
 ## Hard Boundaries
 

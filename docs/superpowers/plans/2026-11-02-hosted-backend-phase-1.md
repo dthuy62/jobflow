@@ -125,16 +125,19 @@ Follow the fixture repo pattern in `impact-map.test.mjs`. One test per row:
 | --- | --- | --- | --- |
 | `backend/src/http/routes/x.ts` | `routes` | L | backend |
 | `backend/src/http/auth-plugin.ts` | `security` | L | backend |
-| `backend/src/adapters/oidc-auth-verifier.ts` | `security` | L | backend |
+| `backend/src/server.ts`, `main.ts`, `http/*` | `routes` | L | backend |
+| `backend/src/logging.ts`, `worker.ts`, `adapters/*` | `security` | L | backend |
+| `backend/src/adapters/pg-*` | `database` | L | backend |
 | `backend/migrations/0002_x.sql` | `database` | L | backend |
 | `backend/src/config.ts` | `config` | L | backend |
 | `backend/Dockerfile`, `compose.yaml`, `package-lock.json` | `config` | L | backend and wrapper |
 | `.dockerignore`, `tsconfig.base.json` | `config` | L | backend and wrapper |
 | `.gitleaks.toml` | `security` | L | none |
 | `docker/postgres-init.sql` | `database` | L | backend |
-| `packages/safety/src/x.ts` | `security` | L | backend and wrapper |
-| `packages/contract/src/x.ts` | `contracts` | L | contract |
-| `contracts/examples/x.json` | `contracts` | L | contract |
+| `packages/safety/src/x.ts` | `security` | L | safety, backend and wrapper |
+| `packages/contract/src/x.ts` | `contracts` | L | contract and backend |
+| `contracts/examples/x.json` | `contracts` | L | contract and backend |
+| `scripts/sync-career-ops.mjs` | `vendor` | L | the script's test |
 | `vendor/career-ops/x.mjs` | `vendor` | L | none |
 | `vendor/career-ops/modes/oferta.md` (a prompt, not documentation) | `vendor` | L | none |
 | `career-ops-wrapper/contracts/x.json` | `contracts` | L | wrapper and Android (unchanged) |
