@@ -12,7 +12,7 @@ Status: in progress. Plan: `docs/superpowers/plans/2026-11-02-hosted-backend-pha
 - [x] npm workspace and `@jobflow/safety`.
 - [x] Contract draft and mock server.
 - [x] Backend skeleton, database, Compose and CI.
-- [ ] Authentication, authorization and rate limits.
+- [x] Authentication, authorization and rate limits.
 - [ ] Queue and worker.
 - [ ] Vendor Career Ops.
 - [ ] Android: base URL, auth layer, Room.

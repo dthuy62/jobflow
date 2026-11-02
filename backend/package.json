@@ -17,8 +17,10 @@
     "migrate": "tsx --env-file-if-exists=.env src/db/migrate-cli.ts"
   },
   "dependencies": {
+    "@fastify/rate-limit": "^11.2.1",
     "@jobflow/contract": "file:../packages/contract",
     "fastify": "^5.12.7",
+    "jose": "^6.2.15",
     "node-pg-migrate": "^9.0.0",
     "pg": "^8.23.1",
     "pg-connection-string": "^2.9.1",

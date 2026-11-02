@@ -17,7 +17,7 @@ async function checkDatabase(pool: Pick<Pool, "query">): Promise<void> {
 }
 
 export function registerHealthRoutes(scope: FastifyInstance, pool: Pick<Pool, "query">): void {
-  scope.get("/health", async (request, reply) => {
+  scope.get("/health", { config: { public: true } }, async (request, reply) => {
     let body: HealthDto = { status: "ok", checks: { database: "ok" } };
     try {
       await checkDatabase(pool);

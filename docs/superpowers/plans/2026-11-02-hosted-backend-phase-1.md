@@ -679,13 +679,15 @@ Expected: FAIL.
 
 - The plugin adds `onRoute` so a route without `config.public` gets the auth
   `onRequest` hook. Any other failure from the repository maps to 503 `UNAVAILABLE`.
-- `resolve` is one statement: `INSERT … ON CONFLICT (auth_subject) DO UPDATE SET
+- `resolve` reads first, because it runs on every request and a known user must write
+  nothing. On a miss: `INSERT … ON CONFLICT (auth_subject) DO UPDATE SET
   auth_subject = EXCLUDED.auth_subject RETURNING id, created_at, deleted_at`.
 - `req.auth.userId` is the only source of a user id; no route reads one from the
   path, query or body for authorization.
 - Limits: `@fastify/rate-limit` registered twice with separate name spaces: IP at
   `onRequest`, user at `preHandler`, with `errorResponseBuilder` returning the
-  envelope. Fastify's `trustProxy` is the hop count from config, or `false` at `0`.
+  envelope. Fastify's `trustProxy` is the hop count from config, or `false` at `0`. The
+  not-found handler is limited too.
 
 - [ ] **Step 5: Run the tests**
 

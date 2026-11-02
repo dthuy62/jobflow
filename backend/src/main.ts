@@ -1,3 +1,5 @@
+import { createFirebaseAuthVerifier } from "./adapters/oidc-auth-verifier.js";
+import { createPgUserRepository } from "./adapters/pg-user-repository.js";
 import { loadConfig } from "./config.js";
 import { createPool } from "./db/pool.js";
 import { describeFailure } from "./logging.js";
@@ -6,7 +8,12 @@ import { createServer } from "./server.js";
 async function main(): Promise<void> {
   const config = loadConfig(process.env);
   const pool = createPool(config.databaseUrl, (error) => server.log.error({ err: error }, "idle database client failed"));
-  const server = await createServer({ config, pool });
+  const server = await createServer({
+    config,
+    pool,
+    authVerifier: createFirebaseAuthVerifier(config.firebaseProjectId),
+    users: createPgUserRepository(pool)
+  });
 
   for (const signal of ["SIGINT", "SIGTERM"] as const) {
     process.once(signal, () => {

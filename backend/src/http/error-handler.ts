@@ -48,7 +48,10 @@ export function registerErrorHandlers(server: FastifyInstance): void {
     return reply.status(ERROR_STATUS.UNEXPECTED_ERROR).send(fixedBody("UNEXPECTED_ERROR"));
   });
 
-  server.setNotFoundHandler((_request, reply) => reply.status(ERROR_STATUS.NOT_FOUND).send(fixedBody("NOT_FOUND")));
+  // Rate limited too, or unknown paths would be free to flood. So this runs after the limit is registered.
+  server.setNotFoundHandler({ preHandler: server.rateLimit() }, (_request, reply) =>
+    reply.status(ERROR_STATUS.NOT_FOUND).send(fixedBody("NOT_FOUND"))
+  );
 }
 
 /**

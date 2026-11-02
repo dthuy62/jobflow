@@ -50,7 +50,9 @@ describe("the import check", () => {
 describe("the architecture", () => {
   it("backend/src/core imports nothing but core/, zod and node: modules", () => {
     const core = path.join(srcDir, "core") + path.sep;
-    for (const file of sourceFiles(core)) {
+    const files = sourceFiles(core);
+    expect(files.length).toBeGreaterThan(0);
+    for (const file of files) {
       expect(forbiddenImports(file, readFileSync(file, "utf8"), core, ["zod"]), file).toEqual([]);
     }
   });

@@ -31,9 +31,11 @@
 - Core code (`backend/src/core/`) depends only on port interfaces; every external
   system sits behind an adapter. A test enforces this.
 - Every route is denied by default. A public route is an explicit exception.
-- A route takes the user id only from the verified token, never from the request.
+- A route takes the user id only from `request.auth`, never from the request. A public
+  route says `config: { public: true }`.
 - Each endpoint with user data has a test that user A cannot read or change user
-  B's data.
+  B's data: `expectCrossUserDenied` in `backend/test/support/cross-user.ts`.
+- Do not log token errors in a form that quotes the token.
 - Routes validate input with Zod schemas from `@jobflow/contract`.
 - HTTP handlers answer fast; scans and AI calls are queue jobs.
 - Workers validate job source and AI data against the contract before writing it, so a

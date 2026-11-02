@@ -1,11 +1,11 @@
 import { connect, type Socket } from "node:net";
 import { ErrorResponseDtoSchema } from "@jobflow/contract";
-import type { FastifyInstance } from "fastify";
+import type { FastifyInstance, InjectOptions } from "fastify";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import { clientErrorHandler } from "../src/http/error-handler.js";
 import { ApiError, parseRequest } from "../src/http/errors.js";
-import { createTestServer, type TestServer } from "./support/server.js";
+import { asUser, createTestServer, type TestServer } from "./support/server.js";
 
 const SECRET_INPUT = "s3cret-input-value";
 
@@ -49,18 +49,20 @@ describe("the error envelope", () => {
     await test.server.close();
   });
 
+  const call = (options: InjectOptions) => test.server.inject({ ...options, headers: { ...asUser(), ...options.headers } });
+
   const expectEnvelope = (body: string, code: string) => {
     expect(ErrorResponseDtoSchema.parse(JSON.parse(body)).error.code).toBe(code);
   };
 
   it("ApiError maps to its status and envelope", async () => {
-    const response = await test.server.inject({ url: "/api/v1/test/api-error" });
+    const response = await call({ url: "/api/v1/test/api-error" });
     expect(response.statusCode).toBe(409);
     expect(response.json()).toEqual({ error: { code: "CONFLICT", message: "That conflicts.", details: { fields: ["a"] } } });
   });
 
   it("request parsing that fails maps to 400 VALIDATION_ERROR with field paths, no input values", async () => {
-    const response = await test.server.inject({ url: "/api/v1/test/bad-request" });
+    const response = await call({ url: "/api/v1/test/bad-request" });
     expect(response.statusCode).toBe(400);
     expectEnvelope(response.body, "VALIDATION_ERROR");
     expect(response.json().error.details).toEqual({ fields: ["name"] });
@@ -68,27 +70,27 @@ describe("the error envelope", () => {
   });
 
   it("an unknown error maps to 500 UNEXPECTED_ERROR with a fixed message and no stack", async () => {
-    const response = await test.server.inject({ url: "/api/v1/test/unknown" });
+    const response = await call({ url: "/api/v1/test/unknown" });
     expect(response.statusCode).toBe(500);
     expect(response.json()).toEqual({ error: { code: "UNEXPECTED_ERROR", message: "Something went wrong." } });
   });
 
   it("stored data that fails a schema is a logged 500, with no field names, not the client's fault", async () => {
-    const response = await test.server.inject({ url: "/api/v1/test/bad-stored-data" });
+    const response = await call({ url: "/api/v1/test/bad-stored-data" });
     expect(response.statusCode).toBe(500);
     expect(response.json()).toEqual({ error: { code: "UNEXPECTED_ERROR", message: "Something went wrong." } });
     expect(test.logLines().some((line) => line.msg === "unexpected error")).toBe(true);
   });
 
   it("an upstream error with a 4xx statusCode is a logged 500, not the client's fault", async () => {
-    const response = await test.server.inject({ url: "/api/v1/test/vendor-401" });
+    const response = await call({ url: "/api/v1/test/vendor-401" });
     expect(response.statusCode).toBe(500);
     expectEnvelope(response.body, "UNEXPECTED_ERROR");
     expect(test.logLines().some((line) => line.msg === "unexpected error")).toBe(true);
   });
 
   it("a thrown null is still the envelope, with no internal text", async () => {
-    const response = await test.server.inject({ url: "/api/v1/test/throw-null" });
+    const response = await call({ url: "/api/v1/test/throw-null" });
     expect(response.statusCode).toBe(500);
     expectEnvelope(response.body, "UNEXPECTED_ERROR");
     expect(response.body).not.toContain("destructure");
@@ -96,7 +98,7 @@ describe("the error envelope", () => {
   });
 
   it.each(["/test/numeric-code", "/test/odd-message"])("%s still gets the envelope and a log line", async (url) => {
-    const response = await test.server.inject({ url: `/api/v1${url}` });
+    const response = await call({ url: `/api/v1${url}` });
     expect(response.statusCode).toBe(500);
     expectEnvelope(response.body, "UNEXPECTED_ERROR");
     expect(test.logLines().some((line) => line.msg === "unexpected error")).toBe(true);
@@ -106,7 +108,7 @@ describe("the error envelope", () => {
     const address = await test.server.listen({ host: "127.0.0.1", port: 0 });
     const socket = connect(Number(new URL(address).port), "127.0.0.1");
     await new Promise((resolve) => socket.once("connect", resolve));
-    socket.write("POST /api/v1/test/echo HTTP/1.1\r\nHost: x\r\nContent-Type: application/json\r\nContent-Length: 1000\r\n\r\n{\"a\":");
+    socket.write("POST /api/v1/test/echo HTTP/1.1\r\nHost: x\r\nAuthorization: Bearer test-user-a\r\nContent-Type: application/json\r\nContent-Length: 1000\r\n\r\n{\"a\":");
     await new Promise((resolve) => setTimeout(resolve, 100));
     socket.destroy();
     await vi.waitFor(() => expect(test.logLines().some((line) => line.msg === "client disconnected")).toBe(true));
@@ -114,14 +116,14 @@ describe("the error envelope", () => {
   });
 
   it("a connection reset on the server's own call is a logged 500, because the client is still there", async () => {
-    const response = await test.server.inject({ url: "/api/v1/test/upstream-reset" });
+    const response = await call({ url: "/api/v1/test/upstream-reset" });
     expect(response.statusCode).toBe(500);
     expectEnvelope(response.body, "UNEXPECTED_ERROR");
     expect(test.logLines().some((line) => line.msg === "unexpected error")).toBe(true);
   });
 
   it.each(["/test/many-fields", "/test/long-key"])("%s stays within the contract's limits on details", async (url) => {
-    const response = await test.server.inject({ url: `/api/v1${url}` });
+    const response = await call({ url: `/api/v1${url}` });
     expect(response.statusCode).toBe(400);
     expectEnvelope(response.body, "VALIDATION_ERROR");
   });
@@ -143,8 +145,8 @@ describe("the error envelope", () => {
   });
 
   it("a request refused before routing still leaves a log line, with no path", async () => {
-    await test.server.inject({ url: `/api/v1/test/items/${"x".repeat(300)}` });
-    await test.server.inject({ url: "/api/v1/test/items/%zz-s3cret" });
+    await call({ url: `/api/v1/test/items/${"x".repeat(300)}` });
+    await call({ url: "/api/v1/test/items/%zz-s3cret" });
     const lines = test.logLines().filter((line) => line.route === "unmatched" && line.status === 400);
     expect(lines).toHaveLength(2);
     expect(test.logs()).not.toContain("s3cret");
@@ -152,7 +154,7 @@ describe("the error envelope", () => {
   });
 
   it("an oversized body maps to 413 PAYLOAD_TOO_LARGE", async () => {
-    const response = await test.server.inject({
+    const response = await call({
       method: "POST",
       url: "/api/v1/test/echo",
       headers: { "content-type": "application/json" },
@@ -163,7 +165,7 @@ describe("the error envelope", () => {
   });
 
   it("a malformed JSON body maps to 400 VALIDATION_ERROR without echoing it", async () => {
-    const response = await test.server.inject({
+    const response = await call({
       method: "POST",
       url: "/api/v1/test/echo",
       headers: { "content-type": "application/json" },
@@ -175,7 +177,7 @@ describe("the error envelope", () => {
   });
 
   it("an unsupported content type maps to 415 UNSUPPORTED_MEDIA_TYPE", async () => {
-    const response = await test.server.inject({
+    const response = await call({
       method: "POST",
       url: "/api/v1/test/echo",
       headers: { "content-type": "text/xml" },
@@ -186,28 +188,28 @@ describe("the error envelope", () => {
   });
 
   it.each(["/nope", "/api/v1/nope", "/api/v2/health"])("an unknown path %s returns the 404 NOT_FOUND envelope", async (url) => {
-    const response = await test.server.inject({ url });
+    const response = await call({ url });
     expect(response.statusCode).toBe(404);
     expectEnvelope(response.body, "NOT_FOUND");
     expect(response.body).not.toContain("nope");
   });
 
   it("an unsupported method returns the 404 envelope too", async () => {
-    const response = await test.server.inject({ method: "DELETE", url: "/api/v1/health" });
+    const response = await call({ method: "DELETE", url: "/api/v1/health" });
     expect(response.statusCode).toBe(404);
     expectEnvelope(response.body, "NOT_FOUND");
   });
 
   it("an overlong path parameter gets the envelope, not Fastify's own 414 that echoes the path", async () => {
     const id = "x".repeat(300);
-    const response = await test.server.inject({ url: `/api/v1/test/items/${id}` });
+    const response = await call({ url: `/api/v1/test/items/${id}` });
     expect(response.statusCode).toBe(400);
     expectEnvelope(response.body, "VALIDATION_ERROR");
     expect(response.body).not.toContain(id);
   });
 
   it("a malformed percent-encoded path gets the envelope, without echoing it", async () => {
-    const response = await test.server.inject({ url: "/api/v1/test/items/%zz-s3cret" });
+    const response = await call({ url: "/api/v1/test/items/%zz-s3cret" });
     expect(response.statusCode).toBe(400);
     expectEnvelope(response.body, "VALIDATION_ERROR");
     expect(response.body).not.toContain("s3cret");

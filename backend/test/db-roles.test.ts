@@ -4,7 +4,7 @@ import { createPool } from "../src/db/pool.js";
 import { migrateUp } from "../src/db/migrate.js";
 import { createServer } from "../src/server.js";
 import { withTestDatabase, type TestDatabase } from "./support/database.js";
-import { testConfig } from "./support/server.js";
+import { createMemoryUsers, stubAuthVerifier, testConfig } from "./support/server.js";
 
 describe("createPool", () => {
   it("gives up on a silent connection, because a server-side timeout cannot fire when packets stop", async () => {
@@ -65,7 +65,7 @@ describe("database roles", () => {
 
   it("health answers ok against the real database with the app role", async () => {
     const pool = createPool(database.appUrl, () => undefined);
-    const server = await createServer({ config: testConfig, pool });
+    const server = await createServer({ config: testConfig, pool, authVerifier: stubAuthVerifier, users: createMemoryUsers() });
     const response = await server.inject({ url: "/api/v1/health" });
     expect(response.json()).toEqual({ status: "ok", checks: { database: "ok" } });
     await server.close();
