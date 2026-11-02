@@ -179,8 +179,9 @@ Android app ──HTTPS + Firebase ID token + Play Integrity──► API servic
 | Job index | PostgreSQL | public data |
 
 Deleting the account deletes all of the user's rows, the object-storage
-files and the user's data key. Logs never contain CV text, prompts or AI
-output.
+files and the user's data key. Only a uid-only deletion record may remain, if
+the backup restore needs it (see [Security baseline](#security-baseline)). Logs
+never contain CV text, prompts or AI output.
 
 ## CV handling
 
@@ -249,17 +250,19 @@ shown. "Release" means before the first public release.
 | Supply chain | Lockfile with `npm ci`; dependency and image scans in CI; a pinned base image; the container does not run as root. Every new dependency is reviewed | 1 |
 | CV parsing | The extractor handles files from strangers, so it runs in a separate process or container with no secrets, no network, and memory and time limits | 2 |
 | Stored files | Buckets are private; the app never gets a public file URL | 2 |
-| User-supplied URLs | Careers pages added by users go through the SSRF-guarded fetch and a per-user cap | 2 |
+| User-supplied URLs | Any URL from a user (careers pages, later shared job links) goes through the SSRF-guarded fetch and a per-user cap | 2, then each new path |
 | AI cost | A spending cap at each AI provider and an alert on a cost spike, in addition to the quota, in case a bug bypasses the quota | 3 |
 | AI input and output | Job postings are untrusted: prompts stay fenced and output is schema-validated. A posting cannot trigger tools or actions | 3 |
 | Purchase notifications | Real-time developer notifications use a Pub/Sub pull subscription, or a push endpoint that verifies Google's signed token | 3 |
 | Network | HTTPS only; the firewall opens only what is needed; the database, queue and storage admin are not reachable from the internet; SSH by key only, if used at all | Release |
-| Access | MFA on GitHub, Firebase/GCP and Play Console, kept by the owner. Each service has its own least-privilege account. The app's database role cannot change the schema | Release |
+| Access | MFA on every account that can reach production, kept by the owner: GitHub, Firebase/GCP, Play Console, hosting and storage, DNS, and AI provider consoles. Each service has its own least-privilege account. The app's database role cannot change the schema | Release |
 | AI agents and production | AI development agents get no production secrets and no direct access to production data. Deploys run from CI or by the owner, with the owner's approval | Release |
-| Backups | Automatic and encrypted, with a tested restore. A restore re-applies account deletions made since the backup. The privacy policy states how long deleted data stays in backups | Release |
+| Backups | PostgreSQL and object storage are backed up automatically and encrypted, with a tested restore. The KMS key has deletion protection or its own recovery path. After a restore, accounts deleted since the backup are deleted again, using the identity provider or a uid-only deletion log kept outside the backed-up database. The privacy policy states how long deleted data stays in backups | Release |
 | Monitoring | Alerts on 5xx rate, auth failure spikes, queue backlog and cost | Release |
 | Incident runbook | How to rotate each secret, revoke access, and decide who must be told about a personal-data breach | Release |
 | Security check | A pass through the OWASP API Security Top 10, with results recorded in `docs/` | Release |
+| Privacy | The privacy policy and Play Data safety form are done; personal data is removed before AI; AI providers' terms exclude training; logs carry no CV text; account deletion works. Details are in [CV handling](#cv-handling), [AI providers](#ai-providers) and [Legal and policy notes](#legal-and-policy-notes) | Release |
+| Cloud rehearsal | A full run on a cloud host, which may be the production host before launch | Release |
 
 Environments:
 
@@ -268,7 +271,10 @@ Environments:
 - A cloud host is added when testers outside the owner's network need the
   backend, or at the latest for a rehearsal before release. Local runs cannot
   check production settings such as HTTPS, firewall rules and secret injection.
-- Anything that is not production uses synthetic CVs only.
+- The Network and Access rows apply from the first time any cloud host is up,
+  not only at Release.
+- Anything that is not production uses synthetic CVs only. A host where testers
+  use real CVs counts as production for the whole baseline.
 
 Not needed at this level: scheduled pentests, SOC 2 or ISO certification, an
 enterprise WAF, mutual TLS between internal services, a dedicated HSM, and
@@ -385,9 +391,10 @@ Owner decisions (2026-11-01 and 2026-11-02):
 - Store CVs on the server, encrypted.
 - Keep JobFlow as the repo; vendor the needed Career Ops parts.
 - Security at the normal level for a consumer app, as in the
-  [Security baseline](#security-baseline). Its individual items are the
-  builder's calls.
-- A cloud staging host is optional. Development runs locally.
+  [Security baseline](#security-baseline). The builder may add or refine
+  items. Removing or weakening an item needs the owner.
+- A cloud host is optional until the release rehearsal. Development runs
+  locally.
 
 Builder's calls, which the owner can overrule:
 
