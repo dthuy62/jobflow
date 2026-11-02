@@ -1,3 +1,6 @@
+import type { Writable } from "node:stream";
+import pino, { type Logger } from "pino";
+
 export const LOG_TEXT_MAX_CHARS = 16 * 1024;
 /** Room past the cap, and how far a cut may walk back. Must exceed `URL_PASSWORD_MAX_CHARS`. */
 const CUT_BACK_CHARS = 2048;
@@ -55,4 +58,19 @@ export function serializeError(error: unknown): { type: string; message: string;
 export function describeFailure(error: unknown): string {
   const { message, code } = serializeError(error);
   return message || code || "unknown error";
+}
+
+/**
+ * For a job that failed: what finds the fault, and no text from the error. Jobs handle CVs and
+ * postings, and a parser's or driver's message can quote its input.
+ */
+export function describeJobFailure(error: unknown): { type: string; code?: string; frames: string } {
+  if (!(error instanceof Error)) return { type: "NonError", frames: "" };
+  const { code } = error as { code?: unknown };
+  const frames = typeof error.stack === "string" ? error.stack.split("\n").filter((line) => /^\s+at /.test(line)).join("\n") : "";
+  return { type: error.name, ...(typeof code === "string" ? { code } : {}), frames };
+}
+
+export function createWorkerLogger(stream?: Writable): Logger {
+  return pino({ base: null, serializers: { err: serializeError } }, stream);
 }

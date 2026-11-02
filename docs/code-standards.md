@@ -40,6 +40,9 @@
 - HTTP handlers answer fast; scans and AI calls are queue jobs. Add a job to `ALL_JOBS` in
   `backend/src/core/jobs.ts`, so the migrate step creates its queue.
 - Job payloads hold ids, not CV text: they sit in the database unencrypted.
+- A failed job logs its error's type, code and stack frames, never its text. In a request, an
+  unexpected error's text is logged, so code that handles CVs or postings must not put them in
+  an error's message.
 - Workers validate job source and AI data against the contract before writing it, so a
   stored row can never fail a response.
 - Schema changes are migrations, run as a separate step. The app's database role

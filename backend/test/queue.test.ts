@@ -1,9 +1,13 @@
+import { spawn } from "node:child_process";
+import { Writable } from "node:stream";
+import { fileURLToPath } from "node:url";
 import pg from "pg";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import { createPgBossQueue, installJobs, type PgBossQueue } from "../src/adapters/pg-boss-queue.js";
-import { ALL_JOBS, systemHeartbeat, type JobDefinition } from "../src/core/jobs.js";
+import { ALL_JOBS, JOB_EXPIRE_SECONDS, systemHeartbeat, type JobDefinition } from "../src/core/jobs.js";
 import { migrateUp } from "../src/db/migrate.js";
+import { createWorkerLogger } from "../src/logging.js";
 import { withTestDatabase, type TestDatabase } from "./support/database.js";
 
 const PayloadSchema = z.strictObject({ value: z.string() });
@@ -17,16 +21,22 @@ const idempotent = job("test.idempotent");
 const slow = job("test.slow");
 const failing = job("test.failing");
 const mismatched = job("test.mismatched");
-const TEST_JOBS = [received, retried, invalid, idempotent, slow, failing, mismatched];
+const scheduled = job("test.scheduled");
+const TEST_JOBS = [received, retried, invalid, idempotent, slow, failing, mismatched, scheduled];
 
 describe("the queue, with real PostgreSQL and the app role", () => {
   let database: TestDatabase;
   let queue: PgBossQueue;
-  const logged: unknown[] = [];
-  const logger = {
-    info: (...args: unknown[]) => void logged.push(args),
-    error: (...args: unknown[]) => void logged.push(args)
-  };
+  // The worker's real logger, so a test cannot pass where production would log nothing.
+  const logged: string[] = [];
+  const logger = createWorkerLogger(
+    new Writable({
+      write(chunk, _encoding, done) {
+        logged.push(String(chunk));
+        done();
+      }
+    })
+  );
 
   beforeAll(async () => {
     database = await withTestDatabase();
@@ -105,18 +115,37 @@ describe("the queue, with real PostgreSQL and the app role", () => {
     expect(finished).toBe(true);
   });
 
-  it("job payloads do not appear in logs, even when a handler fails", async () => {
+  it("a failed job logs enough to find the fault, but no text from the error or payload", async () => {
     let attempted = false;
-    await queue.register(failing, async () => {
+    await queue.register(failing, async ({ value }) => {
       attempted = true;
-      throw new Error("handler failed");
+      throw Object.assign(new TypeError(`could not parse: ${value}`), { code: "E_PARSE", detail: value });
     });
     await queue.enqueue(failing, { value: "s3cret-cv-text" });
     await eventually(() => expect(attempted).toBe(true));
-    await eventually(() => expect(logged.length).toBeGreaterThan(0));
-    expect(JSON.stringify(logged)).not.toContain("s3cret");
-    expect(JSON.stringify(logged)).toContain("test.failing");
-    expect(JSON.stringify(logged)).toContain("handler failed");
+    await eventually(() => expect(logged.join("")).toContain("job failed"));
+    const text = logged.join("");
+    expect(text).not.toContain("s3cret");
+    const line = JSON.parse(logged.find((entry) => entry.includes("job failed")) ?? "{}");
+    expect(line).toMatchObject({ job: "test.failing", failure: { type: "TypeError", code: "E_PARSE" } });
+    expect(line.failure.frames).toContain("queue.test.ts");
+  });
+
+  it("the job's row holds no text from the error either", async () => {
+    const owner = new pg.Client({ connectionString: database.ownerUrl });
+    await owner.connect();
+    const { rows } = await owner.query("select output from pgboss.job where name = 'test.failing' and output is not null");
+    await owner.end();
+    expect(JSON.stringify(rows)).not.toContain("s3cret");
+  });
+
+  it("a scheduled job gets the same retry and expiry settings as an enqueued one", async () => {
+    await queue.schedule(scheduled, "0 0 1 1 *", { value: "x" });
+    const owner = new pg.Client({ connectionString: database.ownerUrl });
+    await owner.connect();
+    const { rows } = await owner.query("select options from pgboss.schedule where name = 'test.scheduled'");
+    await owner.end();
+    expect(rows[0].options).toMatchObject({ retryLimit: 3, retryDelay: 1, retryBackoff: false, expireInSeconds: JOB_EXPIRE_SECONDS });
   });
 
   it("a stored payload that no longer fits its schema fails the job, and the handler never sees it", async () => {
@@ -143,7 +172,7 @@ describe("the queue, with real PostgreSQL and the app role", () => {
     await client.stop();
   });
 
-  it("an unknown job name is refused at start of work, because the app role cannot create queues", async () => {
+  it("enqueueing to a queue the migrate step did not install fails, because the adapter creates none", async () => {
     await expect(queue.enqueue(job("test.never-installed"), { value: "x" })).rejects.toThrow();
   });
 });
@@ -187,4 +216,48 @@ describe("the migrate step and pg-boss", () => {
   ])("the app role cannot %s", async (_name, statement) => {
     await expect(app.query(statement)).rejects.toThrow(/permission denied|must be owner/);
   });
+});
+
+describe("the worker process", () => {
+  const workerFile = fileURLToPath(new URL("../src/worker.ts", import.meta.url));
+
+  function startWorker(databaseUrl: string) {
+    const child = spawn(process.execPath, ["--import", "tsx", workerFile], {
+      env: { PATH: process.env.PATH, JOBFLOW_ENV: "test", DATABASE_URL: databaseUrl },
+      stdio: ["ignore", "pipe", "pipe"]
+    });
+    let output = "";
+    child.stdout.on("data", (chunk) => (output += String(chunk)));
+    child.stderr.on("data", (chunk) => (output += String(chunk)));
+    const exited = new Promise<number | null>((resolve) => child.once("exit", resolve));
+    return { child, exited, output: () => output };
+  }
+
+  it("runs, and exits 0 on SIGTERM", async () => {
+    const database = await withTestDatabase();
+    try {
+      await migrateUp(database.ownerUrl);
+      const worker = startWorker(database.appUrl);
+      await vi.waitFor(() => expect(worker.output()).toContain("worker started"), { timeout: 20_000, interval: 200 });
+      worker.child.kill("SIGTERM");
+      expect(await worker.exited).toBe(0);
+    } finally {
+      await database.drop();
+    }
+  }, 40_000);
+
+  it("exits 1 when it cannot run, so an orchestrator sees the failure instead of a hung process", async () => {
+    const database = await withTestDatabase();
+    try {
+      // pg-boss is installed, but the heartbeat's queue is not, as when a release skips the migrate step.
+      await installJobs(database.ownerUrl, []);
+      const worker = startWorker(database.appUrl);
+      const timeout = setTimeout(() => worker.child.kill("SIGKILL"), 30_000);
+      expect(await worker.exited).toBe(1);
+      clearTimeout(timeout);
+      expect(worker.output()).toContain("Worker failed");
+    } finally {
+      await database.drop();
+    }
+  }, 40_000);
 });

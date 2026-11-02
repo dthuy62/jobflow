@@ -46,6 +46,8 @@ services:
   worker:
     image: jobflow-backend:dev
     command: ["node", "backend/dist/worker.js"]
+    # Longer than the worker's own 30-second wait for running jobs.
+    stop_grace_period: 35s
     environment:
       JOBFLOW_ENV: development
       DATABASE_URL: postgres://jobflow_app:dev-only-app@postgres:5432/jobflow

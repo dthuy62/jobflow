@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import pg from "pg";
 import { PgBoss } from "pg-boss";
 import { DEFAULT_RETRY, JOB_EXPIRE_SECONDS, type JobDefinition, type JobHandler, type JobQueue } from "../core/jobs.js";
-import { serializeError } from "../logging.js";
+import { describeJobFailure } from "../logging.js";
 
 const SCHEMA = "pgboss";
 const APP_ROLE = "jobflow_app";
@@ -10,9 +10,15 @@ const POOL_SIZE = 5;
 const STOP_TIMEOUT_MS = 30_000;
 const POLLING_INTERVAL_SECONDS = 1;
 
+/** Its `err` serializer must keep this adapter's errors safe to log. */
 export interface QueueLogger {
   info(details: Record<string, unknown>, message: string): void;
   error(details: Record<string, unknown>, message: string): void;
+}
+
+function jobOptions<T>(job: JobDefinition<T>) {
+  const retry = job.retry ?? DEFAULT_RETRY;
+  return { retryLimit: retry.limit, retryDelay: retry.delaySeconds, retryBackoff: retry.backoff, expireInSeconds: JOB_EXPIRE_SECONDS };
 }
 
 export interface PgBossQueue extends JobQueue {
@@ -46,7 +52,7 @@ export async function createPgBossQueue(connectionString: string, { logger, role
     supervise: isWorker
   });
   // Required: an unhandled 'error' event would crash the process.
-  boss.on("error", (error) => logger.error({ err: serializeError(error) }, "queue error"));
+  boss.on("error", (error) => logger.error({ err: error }, "queue error"));
   await boss.start();
 
   const requireWorker = () => {
@@ -56,12 +62,8 @@ export async function createPgBossQueue(connectionString: string, { logger, role
   return {
     async enqueue(job, payload, options) {
       const data = job.schema.parse(payload) as object;
-      const retry = job.retry ?? DEFAULT_RETRY;
       await boss.send(job.name, data, {
-        retryLimit: retry.limit,
-        retryDelay: retry.delaySeconds,
-        retryBackoff: retry.backoff,
-        expireInSeconds: JOB_EXPIRE_SECONDS,
+        ...jobOptions(job),
         ...(options?.idempotencyKey === undefined ? {} : { id: jobIdFor(job.name, options.idempotencyKey) })
       });
     },
@@ -79,7 +81,7 @@ export async function createPgBossQueue(connectionString: string, { logger, role
         try {
           await handler(parsed.data, entry.signal);
         } catch (error) {
-          logger.error({ ...context, err: serializeError(error) }, "job failed");
+          logger.error({ ...context, failure: describeJobFailure(error) }, "job failed");
           // pg-boss stores what is thrown in the job's row, and an error's text can quote a CV.
           throw new Error("The job failed. See the worker's log.");
         }
@@ -88,7 +90,7 @@ export async function createPgBossQueue(connectionString: string, { logger, role
 
     async schedule(job, cron, payload) {
       requireWorker();
-      await boss.schedule(job.name, cron, job.schema.parse(payload) as object);
+      await boss.schedule(job.name, cron, job.schema.parse(payload) as object, jobOptions(job));
     },
 
     async stop() {

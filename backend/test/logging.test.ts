@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { LOG_TEXT_MAX_CHARS, describeFailure, redactLogText, serializeError } from "../src/logging.js";
+import { Writable } from "node:stream";
+import { LOG_TEXT_MAX_CHARS, createWorkerLogger, describeFailure, describeJobFailure, redactLogText, serializeError } from "../src/logging.js";
 import { asUser, createTestServer } from "./support/server.js";
 
 describe("request logs", () => {
@@ -177,5 +178,47 @@ describe("describeFailure", () => {
 
   it("always says something", () => {
     expect(describeFailure(null)).toBe("unknown error");
+  });
+});
+
+describe("describeJobFailure", () => {
+  function failure() {
+    return Object.assign(new TypeError("line one s3cret\nline two s3cret"), { code: "E_PARSE", detail: "s3cret" });
+  }
+
+  it("keeps the type, code and stack frames, and no text from the error", () => {
+    const description = describeJobFailure(failure());
+    expect(description).toMatchObject({ type: "TypeError", code: "E_PARSE" });
+    expect(description.frames).toContain("logging.test.ts");
+    expect(JSON.stringify(description)).not.toContain("s3cret");
+  });
+
+  it("says something for a thrown value that is not an error", () => {
+    expect(describeJobFailure("s3cret")).toEqual({ type: "NonError", frames: "" });
+  });
+
+  it("drops a stack line that is not a frame", () => {
+    const error = new Error("x");
+    error.stack = "s3cret first line\n    at real (file.ts:1:1)\ns3cret in the middle";
+    expect(describeJobFailure(error).frames).toBe("    at real (file.ts:1:1)");
+  });
+});
+
+describe("createWorkerLogger", () => {
+  it("logs an error's type and scrubbed message, with no base fields", () => {
+    const chunks: string[] = [];
+    const logger = createWorkerLogger(
+      new Writable({
+        write(chunk, _encoding, done) {
+          chunks.push(String(chunk));
+          done();
+        }
+      })
+    );
+    logger.error({ err: new TypeError("failed on postgres://a:s3cret@db/x") }, "queue error");
+    const line = JSON.parse(chunks.join(""));
+    expect(line.err).toMatchObject({ type: "TypeError", message: "failed on postgres://a:[REDACTED]@db/x" });
+    expect(line).not.toHaveProperty("hostname");
+    expect(line).not.toHaveProperty("pid");
   });
 });

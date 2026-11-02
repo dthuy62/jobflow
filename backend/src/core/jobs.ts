@@ -19,7 +19,11 @@ export interface JobDefinition<T> {
 export type JobHandler<T> = (payload: T, signal: AbortSignal) => Promise<void>;
 
 export interface JobQueue {
-  /** Validates first, so a bad payload never reaches the queue. An `idempotencyKey` enqueues once. */
+  /**
+   * Validates first, so a bad payload never reaches the queue. An `idempotencyKey` enqueues once
+   * for as long as the job's row is kept, including after it failed. So a retry the user asks for
+   * needs a new key, such as one with an attempt number, and a key can run again after retention.
+   */
   enqueue<T>(job: JobDefinition<T>, payload: T, options?: { readonly idempotencyKey?: string }): Promise<void>;
 }
 
@@ -28,5 +32,5 @@ export const systemHeartbeat: JobDefinition<Record<string, never>> = {
   schema: z.strictObject({})
 };
 
-/** Every job the system runs. The migrate step installs these, because the app role cannot create queues. */
+/** Every job the system runs. The migrate step creates their queues; nothing creates a queue at run time. */
 export const ALL_JOBS: readonly JobDefinition<never>[] = [systemHeartbeat as JobDefinition<never>];
