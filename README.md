@@ -10,8 +10,9 @@ explains why they fit. It is becoming a hosted, install-and-use product; see
 - `packages/safety/` - Safety helpers shared with the wrapper.
 - `packages/contract/`, `contracts/` - Hosted API contract and its mock. See
   `contracts/README.md`.
-- `backend/`, `vendor/` - Hosted backend, being built
-  (`docs/superpowers/plans/2026-11-02-hosted-backend-phase-1.md`).
+- `backend/` - Hosted API, being built. See `docs/deployment-guide.md`.
+- `vendor/` - Vendored Career Ops parts, planned. The hosted backend's plan is
+  `docs/superpowers/plans/2026-11-02-hosted-backend-phase-1.md`.
 - `career-ops-wrapper/` - Local wrapper over a Career Ops workspace. Frozen as a
   development and self-host tool.
 

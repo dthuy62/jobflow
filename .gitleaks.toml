@@ -1,0 +1,16 @@
+# Allowlist only by exact path or value, and give a reason in the PR that adds an entry.
+# Anything that looks like a real secret goes to the owner, not here.
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Public development values and synthetic test data"
+paths = [
+  # The debug keystore is Android's public default, never used to sign a release.
+  '''^android/debug\.keystore\.base64$''',
+]
+regexes = [
+  # Compose and test passwords, public by design. config.ts refuses them in production.
+  '''dev-only-[a-z]+''',
+]
