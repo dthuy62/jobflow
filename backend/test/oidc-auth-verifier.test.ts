@@ -1,7 +1,7 @@
 import { createServer, type Server } from "node:http";
 import { createLocalJWKSet, createRemoteJWKSet, exportJWK, exportSPKI, generateKeyPair, SignJWT, type JWTVerifyGetKey } from "jose";
 import { errors } from "jose";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { createFirebaseAuthVerifier, createOidcAuthVerifier } from "../src/adapters/oidc-auth-verifier.js";
 import { AuthUnavailableError, InvalidTokenError } from "../src/core/identity.js";
 
@@ -41,7 +41,7 @@ describe("the OIDC verifier", () => {
     await expect(verifier().verify(await token())).resolves.toEqual({ subject: "subject-1", isAnonymous: false });
   });
 
-  it("marks an anonymous token isAnonymous", async () => {
+  it("asks the caller which tokens are anonymous", async () => {
     await expect(verifier().verify(await token({ anonymous: true }))).resolves.toEqual({ subject: "subject-1", isAnonymous: true });
   });
 
@@ -138,7 +138,73 @@ describe("the OIDC verifier", () => {
 });
 
 describe("the Firebase verifier", () => {
-  it("can be created without any network call", () => {
-    expect(createFirebaseAuthVerifier("demo-jobflow").verify).toEqual(expect.any(Function));
+  const PROJECT = "jobflow-test";
+  const KEYS_URL = "https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com";
+  let privateKey: CryptoKey;
+  let jwks: unknown;
+  const fetched: string[] = [];
+
+  beforeAll(async () => {
+    const pair = await generateKeyPair("RS256");
+    privateKey = pair.privateKey;
+    jwks = { keys: [{ ...(await exportJWK(pair.publicKey)), kid: "key-1", alg: "RS256", use: "sig" }] };
+  });
+
+  beforeEach(() => {
+    fetched.length = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: URL | string) => {
+        fetched.push(String(url));
+        return new Response(JSON.stringify(jwks), { status: 200, headers: { "content-type": "application/json" } });
+      })
+    );
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  const firebaseToken = (provider: string, project = PROJECT) =>
+    new SignJWT({ firebase: { sign_in_provider: provider } })
+      .setProtectedHeader({ alg: "RS256", kid: "key-1" })
+      .setIssuer(`https://securetoken.google.com/${project}`)
+      .setAudience(project)
+      .setSubject("firebase-uid")
+      .setIssuedAt()
+      .setExpirationTime("1h")
+      .sign(privateKey);
+
+  it("reads keys from Google's documented endpoint", async () => {
+    await createFirebaseAuthVerifier(PROJECT).verify(await firebaseToken("google.com"));
+    expect(fetched).toEqual([KEYS_URL]);
+  });
+
+  it("marks a firebase anonymous token isAnonymous", async () => {
+    await expect(createFirebaseAuthVerifier(PROJECT).verify(await firebaseToken("anonymous"))).resolves.toEqual({ subject: "firebase-uid", isAnonymous: true });
+  });
+
+  it("marks a Google sign-in as not anonymous", async () => {
+    await expect(createFirebaseAuthVerifier(PROJECT).verify(await firebaseToken("google.com"))).resolves.toEqual({ subject: "firebase-uid", isAnonymous: false });
+  });
+
+  it("rejects a token from another Firebase project", async () => {
+    await expect(createFirebaseAuthVerifier(PROJECT).verify(await firebaseToken("google.com", "another-project"))).rejects.toBeInstanceOf(InvalidTokenError);
+  });
+
+  it("rejects the other project's issuer even with this project's audience", async () => {
+    const token = await new SignJWT({})
+      .setProtectedHeader({ alg: "RS256", kid: "key-1" })
+      .setIssuer("https://securetoken.google.com/another-project")
+      .setAudience(PROJECT)
+      .setSubject("firebase-uid")
+      .setIssuedAt()
+      .setExpirationTime("1h")
+      .sign(privateKey);
+    await expect(createFirebaseAuthVerifier(PROJECT).verify(token)).rejects.toBeInstanceOf(InvalidTokenError);
+  });
+
+  it("does not sign users out when the key endpoint answers with an empty set", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ keys: [] }), { status: 200, headers: { "content-type": "application/json" } })));
+    await expect(createFirebaseAuthVerifier(PROJECT).verify(await firebaseToken("google.com"))).rejects.toBeInstanceOf(AuthUnavailableError);
   });
 });

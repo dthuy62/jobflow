@@ -71,9 +71,14 @@ describe("loadConfig", () => {
     expect(messageOf(() => loadConfig({ ...valid, DATABASE_URL }))).toContain("DATABASE_URL");
   });
 
+  it("refuses the development Firebase project in production", () => {
+    expect(messageOf(() => loadConfig({ ...valid, JOBFLOW_ENV: "production", FIREBASE_PROJECT_ID: "demo-jobflow" }))).toContain("FIREBASE_PROJECT_ID");
+    expect(loadConfig({ ...valid, JOBFLOW_ENV: "production", FIREBASE_PROJECT_ID: "jobflow-prod" }).firebaseProjectId).toBe("jobflow-prod");
+  });
+
   it("looks only at the password, so a host name holding the marker is fine", () => {
     expect(() =>
-      loadConfig({ ...valid, JOBFLOW_ENV: "production", DATABASE_URL: "postgres://app:real-password@dev-only-replica.internal/x" })
+      loadConfig({ ...valid, JOBFLOW_ENV: "production", FIREBASE_PROJECT_ID: "jobflow-prod", DATABASE_URL: "postgres://app:real-password@dev-only-replica.internal/x" })
     ).not.toThrow();
   });
 

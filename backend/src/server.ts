@@ -49,7 +49,9 @@ export async function createServer(deps: ServerDeps): Promise<FastifyInstance> {
     routerOptions: { ignoreTrailingSlash: true }
   });
 
-  // The order sets the order of the checks on each route: IP limit, auth, then user limit.
+  // The order sets the order of the checks on each route: IP limit, auth, then user limit. A
+  // malformed path is refused before routing, so no limit sees it: it costs one fixed answer and
+  // one log line, and a limit at the host or proxy must cover it.
   await registerIpLimit(server);
   registerAuth(server, { authVerifier, users, observeRoute });
   await registerUserLimit(server);

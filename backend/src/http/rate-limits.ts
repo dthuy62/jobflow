@@ -28,17 +28,20 @@ export async function registerIpLimit(server: FastifyInstance): Promise<void> {
     max: IP_LIMIT_PER_MINUTE,
     timeWindow: WINDOW_MS,
     cache: TRACKED_KEYS,
-    // Honours TRUST_PROXY, and never reads a forwarding header itself.
-    keyGenerator: (request) => request.ip,
+    // No keyGenerator: the default reads `request.ip`, which honours TRUST_PROXY, and groups
+    // IPv6 by /64, because one client commonly holds a whole /64.
     errorResponseBuilder: limitReached
   });
+  // Routes get this limit from the plugin. This covers requests that match no route, which would
+  // otherwise be parsed before anything counts them. The plugin counts a request only once.
+  server.addHook("onRequest", server.rateLimit());
 }
 
-/** Runs after auth, and skips public routes, which have no user. */
+/** Runs after auth and before the body is parsed, so bad bodies count too. Skips public routes, which have no user. */
 export async function registerUserLimit(server: FastifyInstance): Promise<void> {
   await server.register(rateLimit, {
     global: true,
-    hook: "preHandler",
+    hook: "preParsing",
     nameSpace: "user-",
     max: USER_LIMIT_PER_MINUTE,
     timeWindow: WINDOW_MS,

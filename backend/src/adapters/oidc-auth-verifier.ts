@@ -22,6 +22,12 @@ const BAD_TOKEN_ERRORS = [
   errors.JWKSMultipleMatchingKeys
 ];
 
+/** An empty set says the key endpoint is wrong, not the token, so signing the user out would be wrong too. */
+function hasNoKeys(keys: JWTVerifyGetKey): boolean {
+  const { jwks } = keys as { jwks?: () => { keys: unknown[] } | undefined };
+  return jwks?.()?.keys.length === 0;
+}
+
 export interface OidcOptions {
   readonly issuer: string;
   readonly audience: string;
@@ -42,6 +48,7 @@ export function createOidcAuthVerifier({ issuer, audience, keys, isAnonymous }: 
           requiredClaims: ["sub", "iat", "exp"]
         }));
       } catch (error) {
+        if (error instanceof errors.JWKSNoMatchingKey && hasNoKeys(keys)) throw new AuthUnavailableError(error);
         if (BAD_TOKEN_ERRORS.some((type) => error instanceof type)) throw new InvalidTokenError();
         throw new AuthUnavailableError(error);
       }
