@@ -129,6 +129,9 @@ Follow the fixture repo pattern in `impact-map.test.mjs`. One test per row:
 | `backend/migrations/0002_x.sql` | `database` | L | backend |
 | `backend/src/config.ts` | `config` | L | backend |
 | `backend/Dockerfile`, `compose.yaml`, `package-lock.json` | `config` | L | backend and wrapper |
+| `.dockerignore`, `tsconfig.base.json` | `config` | L | backend and wrapper |
+| `.gitleaks.toml` | `security` | L | none |
+| `docker/postgres-init.sql` | `database` | L | backend |
 | `packages/safety/src/x.ts` | `security` | L | backend and wrapper |
 | `packages/contract/src/x.ts` | `contracts` | L | contract |
 | `contracts/examples/x.json` | `contracts` | L | contract |
@@ -268,16 +271,21 @@ fix needs a major version, or a wrapper test fails because of it, stop and ask t
 - [ ] **Step 8: Update CI and the review skill**
 
 - `wrapper.yml`: runs from the root, `cache-dependency-path: package-lock.json`,
-  paths add `packages/safety/**`, `package.json`, `package-lock.json`.
+  paths add `packages/safety/**`, `package.json`, `package-lock.json`,
+  `tsconfig.base.json`.
 - `review-skill.yml`: same lockfile path; `npm ci` at the root.
 - `impact-map.mjs` `typescript()`: `createRequire` from the root `package.json`;
   the message says run `npm ci` at the root. `SKILL.md`: same.
 - `tests-prove-change.mjs`: add `--package <dir>`, replacing the hard-coded `WRAPPER`
-  paths. In its worktree it symlinks the root `node_modules` and builds workspace
-  packages before running tests, because hoisting leaves no package-level
-  `node_modules`. Add a test with a workspace fixture.
-- `references/verifier.md`, `references/finding-format.md`: symlink the root
-  `node_modules`, and build workspace packages.
+  paths. In its worktree it runs `npm ci --prefer-offline` and builds workspace
+  packages before running tests. It must not symlink the root `node_modules`: npm's
+  workspace links would then load `@jobflow/*` from the main checkout, not the
+  worktree. Add a test with a workspace fixture that asserts which `dist` was loaded.
+- `impact-map.mjs` prints one `tests-prove-change.mjs --package <dir>` command per
+  changed package under "Layer 0 gates". `SKILL.md` says to run the commands the map
+  prints, for every package, not only for wrapper source changes.
+- `references/verifier.md`, `references/finding-format.md`: a verifier's worktree runs
+  `npm ci --prefer-offline` and builds workspace packages, with no symlink.
 
 Run: `node --test '.claude/skills/review-change/scripts/*.test.mjs'`
 Expected: PASS.
@@ -319,7 +327,7 @@ may refine shapes through their own contract PRs.
 | `GET /me` | `{ userId, isAnonymous, createdAt }`; creates the user on first call | 1 |
 | `DELETE /me` | Delete the account, 202 | 3 |
 | `GET`, `PUT /me/preferences` | Roles, keywords in and out, locations, remote policy, countries, minimum salary, seniority, optional `aim` text | 2 |
-| `POST /me/cv/import` | Multipart, 5 MiB, with `X-Integrity-Token`; returns `{ importId, markdown }` for review. `restructure=true` uses AI, so it also needs Google sign-in and an entitlement or the trial (documented statuses: `SIGN_IN_REQUIRED`, `INTEGRITY_FAILED`, `ENTITLEMENT_REQUIRED`) | 2; AI part 3 |
+| `POST /me/cv/import` | Multipart, 5 MiB; returns `{ importId, markdown }` for review. `X-Integrity-Token` is documented as optional in this draft. Phase 3, which ships Play Integrity, makes it required through its contract PR. `restructure=true` uses AI, so it also needs Google sign-in and an entitlement or the trial (documented statuses: `SIGN_IN_REQUIRED`, `INTEGRITY_FAILED`, `ENTITLEMENT_REQUIRED`) | 2; integrity and AI 3 |
 | `GET`, `PUT /me/cv` | Reviewed Markdown; `PUT` takes `{ importId?, markdown }` | 2 |
 | `GET /feed` | Newest and best first: job summary, `reasons[]`, `trackerStatus?` | 2 |
 | `GET /jobs/{jobId}` | Job fields from the spec's job index, plus `closed` | 2 |
@@ -397,7 +405,8 @@ Record the commands there too, including that the emulator reaches the mock at
 
 - [ ] **Step 7: Add `contract.yml`**
 
-Runs on `packages/contract/**`, `contracts/**`, lockfile: `npm ci`, then the tests.
+Runs on `packages/contract/**`, `contracts/**`, root `package.json`, lockfile and
+`tsconfig.base.json`: `npm ci`, then the tests.
 
 - [ ] **Step 8: Commit**
 
@@ -414,7 +423,9 @@ git commit -m "feat(contract): draft the hosted API contract with a mock server"
   `backend/src/http/{error-handler,errors}.ts`, `backend/src/http/routes/health.ts`,
   `backend/src/db/{pool,migrate}.ts`, `backend/migrations/0001_users.sql`
 - Modify: `compose.yaml`
-- Create: `.github/workflows/backend.yml`, `.github/workflows/secret-scan.yml`
+- Create: `.github/workflows/backend.yml`, `.github/workflows/secret-scan.yml`,
+  `.gitleaks.toml`
+- Modify: `docs/deployment-guide.md`
 - Test: `backend/test/{config,errors,health,logging,db-roles,architecture}.test.ts`,
   `backend/test/support/{database,server}.ts`
 
@@ -446,8 +457,11 @@ unique`, `created_at timestamptz not null default now()`, `deleted_at timestampt
 - [ ] **Step 1: Add the `postgres` service and the role script**
 
 `compose.yaml`: `postgres` (`pgvector/pgvector:pg17`, pinned by digest),
-`127.0.0.1:5432`. `docker/postgres-init.sql` only creates the roles `jobflow_owner`
-(with `CREATEDB`, for test databases) and `jobflow_app`, with dev-only passwords.
+`127.0.0.1:5432`. `docker/postgres-init.sql` creates the roles `jobflow_owner` (with
+`CREATEDB`, for test databases) and `jobflow_app`, with dev-only passwords, and
+`CREATE DATABASE jobflow OWNER jobflow_owner`. Since PostgreSQL 15 only the database
+owner can create objects in `public`, so a deployed database needs the same owner.
+Record that in `docs/deployment-guide.md`.
 
 Run: `docker compose up -d postgres && docker compose exec postgres pg_isready`
 Expected: accepting connections.
@@ -527,8 +541,8 @@ Expected: `{"status":"ok","checks":{"database":"ok"}}`; a non-zero uid.
 - [ ] **Step 8: Add `backend.yml`**
 
 Paths: `backend/**`, `packages/**`, `contracts/**`, `vendor/**`, `scripts/**`,
-`docker/**`, `.dockerignore`, `compose.yaml`, root `package.json` and lockfile, and
-the workflow file. Jobs: a PostgreSQL service container; after checkout, a step that
+`docker/**`, `.dockerignore`, `compose.yaml`, `tsconfig.base.json`, root `package.json`
+and lockfile, and the workflow file. Jobs: a PostgreSQL service container; after checkout, a step that
 runs `docker/postgres-init.sql` with `psql`, because service containers start before
 checkout and cannot mount it; `npm ci`; backend tests and build;
 `npm audit --omit=dev --audit-level=high`; Docker build; image scan with Trivy pinned
@@ -557,7 +571,8 @@ git commit -m "feat(backend): add the API skeleton, database, Compose and CI"
 - Create: `backend/src/core/{identity,ports}.ts`,
   `backend/src/adapters/{oidc-auth-verifier,pg-user-repository}.ts`,
   `backend/src/http/{auth-plugin,rate-limits}.ts`, `backend/src/http/routes/me.ts`
-- Modify: `backend/src/{server,main}.ts`
+- Modify: `backend/src/{server,main}.ts`, `backend/test/{errors,logging}.test.ts`,
+  `backend/test/support/server.ts`
 - Test: `backend/test/{oidc-auth-verifier,auth-plugin,me,rate-limits}.test.ts`,
   `backend/test/support/cross-user.ts`
 
@@ -633,6 +648,10 @@ it("over the user limit returns 429 for that user, not for another user on the s
 
 `expectCrossUserDenied` gets its own test through a `registerTestRoutes` resource
 owned by a user. Later phases use it on every endpoint with user data.
+
+Task 4's error and logging tests use `registerTestRoutes` routes, which now require
+auth. They send a token accepted by a stub `AuthVerifier`. Test routes stay behind
+auth, because the default-deny test depends on that.
 
 - [ ] **Step 3: Run them to verify they fail**
 
@@ -751,8 +770,9 @@ many of which scrape sites whose terms are unchecked, so this is an allowlist.
 
 **Interfaces:**
 - Produces: `UPSTREAM.json`: `{ repository, commit, entries: string[], files: string[] }`.
-  `node scripts/sync-career-ops.mjs [--commit <sha>] [--write]`: without `--write` it
-  prints the diff against upstream and changes nothing.
+  `node scripts/sync-career-ops.mjs [--commit <sha>] [--write | --check]`. With no mode
+  it prints the diff against upstream and changes nothing. `--check` compares vendored
+  files with `UPSTREAM.json`'s pinned commit and exits non-zero on any difference.
 
 Allowlist entries:
 
@@ -772,6 +792,8 @@ it("dry run prints added, changed and removed files and writes nothing");
 it("--write copies only allowlisted entries and their relative imports, and updates commit and files");
 it("fails when a vendored file imports a relative path that is not vendored");
 it("refuses a path that leaves vendor/career-ops");
+it("--check exits non-zero when a vendored file was edited locally");
+it("--check exits 0 when upstream has moved past the pinned commit");
 it("runs no upstream code"); // the fixture has a script that writes a marker file when executed
 ```
 
@@ -795,9 +817,8 @@ Expected: PASS; `vendor/career-ops/` holds only allowlisted files and their help
 
 The README gives the source, license, commit, the fact that each provider needs a
 terms check before it ships (spec, Legal and policy notes), and that edits go through
-the script. Add to `backend.yml` the script's test and a check that vendored files
-match `UPSTREAM.json`'s pinned commit. It fails on a local edit, not on upstream drift,
-because updates are deliberate.
+the script. Add to `backend.yml` the script's test and `--check`. It fails on a local
+edit, not on upstream drift, because updates are deliberate.
 
 Run: `git grep -n 'vendor/career-ops' -- backend packages`
 Expected: no match.
