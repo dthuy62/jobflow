@@ -1,11 +1,16 @@
 # JobFlow
 
-JobFlow is a personal job application assistant.
+JobFlow is a mobile app that finds jobs matching your CV and preferences, and
+explains why they fit. It is becoming a hosted, install-and-use product; see
+`docs/superpowers/specs/2026-11-02-jobflow-hosted-product-design.md`.
 
 ## Projects
 
 - `android/` - Android app.
-- `career-ops-wrapper/` - Local wrapper service for Career Ops integration.
+- `backend/`, `packages/`, `contracts/`, `vendor/` - Hosted backend, being built
+  (`docs/superpowers/plans/2026-11-02-hosted-backend-phase-1.md`).
+- `career-ops-wrapper/` - Local wrapper over a Career Ops workspace. Frozen as a
+  development and self-host tool.
 
 Planned, not scaffolded yet:
 
@@ -51,7 +56,7 @@ Claude subscription quota. See `career-ops-wrapper/README.md`.
 
 - `docs/project-overview-pdr.md` - Product overview and requirements.
 - `docs/codebase-summary.md` - Current codebase map.
-- `docs/system-architecture.md` - Android-wrapper architecture and boundaries.
+- `docs/system-architecture.md` - Hosted target, and the frozen wrapper's boundaries.
 - `docs/code-standards.md` - Engineering standards for this repo.
 - `docs/design-guidelines.md` - Android UX and visual guidelines.
 - `docs/deployment-guide.md` - Local run, build, and release notes.

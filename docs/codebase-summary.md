@@ -2,11 +2,17 @@
 
 ## Repository Shape
 
-JobFlow is a two-project workspace:
+JobFlow has an Android app and a frozen local wrapper today. The hosted backend
+is being built (`docs/superpowers/plans/2026-11-02-hosted-backend-phase-1.md`); the folders marked below
+do not exist until its tasks land.
 
 ```text
 jobflow/
 ├── android/
+├── backend/             # planned: hosted API and workers
+├── packages/            # planned: shared TypeScript packages
+├── contracts/           # planned: hosted API contract
+├── vendor/career-ops/   # planned: vendored Career Ops parts
 ├── career-ops-wrapper/
 ├── docs/
 ├── README.md
@@ -51,7 +57,8 @@ Key implementation facts:
 
 ## Career Ops Wrapper
 
-The wrapper is a local TypeScript API.
+The wrapper is a local TypeScript API, frozen as a development and self-host
+tool. The hosted backend reuses its modules through shared packages.
 
 | Area | Files |
 | --- | --- |

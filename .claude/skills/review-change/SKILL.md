@@ -1,6 +1,6 @@
 ---
 name: review-change
-description: Use when a JobFlow change (career-ops-wrapper, contracts, or Android) is ready for self-review before a PR, when re-reviewing review fixes, or when asked to review a branch, commit range, or PR in this repository.
+description: Use when a JobFlow change (backend, packages, career-ops-wrapper, contracts, or Android) is ready for self-review before a PR, when re-reviewing review fixes, or when asked to review a branch, commit range, or PR in this repository.
 ---
 
 # Review a JobFlow change
@@ -26,8 +26,8 @@ The map prints `Tier: S|M|L (reasons)`:
 | Tier | When (decided by the script) | Reviewers | Rounds | Verify |
 | --- | --- | --- | --- | --- |
 | S | docs-only (below) | Spec | 1 | MEDIUM and above |
-| M | only tier-M risk areas (`openapi`, `untrusted-input`, `schema-parse`) or none, ≤ 300 changed non-test lines, not spanning wrapper and Android | Standard (`reviewer-standard.md`: spec, tests and the map's risk questions in one pass) | 1 | MEDIUM and above |
-| L | any other risk area (route wiring under `src/api/`, security, process spawn, workspace IO/writes, auth/token, env, redaction, config, contracts, Android remote, CI), routes added/removed/changed, wrapper + Android together, or > 300 changed non-test lines | Spec, Impact, Tests, plus mandatory reviewers | up to 3 | all |
+| M | only tier-M risk areas (`openapi`, `untrusted-input`, `schema-parse`) or none, ≤ 300 changed non-test lines, not spanning wrapper or backend and Android | Standard (`reviewer-standard.md`: spec, tests and the map's risk questions in one pass) | 1 | MEDIUM and above |
+| L | any other risk area (route wiring, security, process spawn, workspace IO/writes, auth/token, env, redaction, config, database, vendor, contracts, Android remote, CI), routes added/removed/changed, wrapper or backend + Android together, or > 300 changed non-test lines | Spec, Impact, Tests, plus mandatory reviewers | up to 3 | all |
 
 Rules for every tier:
 
@@ -46,8 +46,9 @@ rename) is documentation:
 - a `.md` file (a script or config file under `docs/` is not documentation);
 - but never agent instructions (`AGENTS.md`, `CLAUDE.md`, or a file under
   any `.claude/` directory), a file under any `.github/` directory
-  (workflows, PR template), or a file under any `src/`, `contracts/` or
-  `fixtures/` directory (shipped content, contract examples, test input).
+  (workflows, PR template), a file under any `src/`, `contracts/` or
+  `fixtures/` directory (shipped content, contract examples, test input), or a
+  file under `vendor/` (Markdown there is an AI prompt).
 
 One non-documentation file in the diff means tier M or L.
 
@@ -68,8 +69,9 @@ node .claude/skills/review-change/scripts/impact-map.mjs --base $BASE > $SCRATCH
 The map needs the wrapper's TypeScript compiler: run `npm ci` in
 `career-ops-wrapper/` first (exit 2 says so when it is missing).
 
-Run every command under "Layer 0 gates" in `impact.md` (wrapper:
-`npm test && npm run build`; Android when `android/**` or `contracts/**`
+Run every command under "Layer 0 gates" in `impact.md`. The map prints them per
+component (backend and shared files, hosted contract, wrapper:
+`npm test && npm run build`; Android when `android/**` or the wrapper's `contracts/**`
 change: `./gradlew testDevDebugUnitTest lintDevDebug detekt ktlintCheck`).
 A failing gate is not a review finding: fix it and start again.
 
@@ -87,7 +89,7 @@ reviewer checks Android tests by reading them.
 ## Layer 1: impact map
 
 `impact.md` from Layer 0 lists changed files, routes, symbols with every
-`git grep` reference (wrapper, tests, Android, docs), Zod schema → Android DTO
+`git grep` reference (backend, packages, wrapper, tests, Android, docs), Zod schema → Android DTO
 matches, contract examples and their users, workspace path literals, risk
 areas with the question each must answer, and **Mandatory reviewers**.
 
