@@ -27,9 +27,19 @@ const PATH_RISKS = [
   { area: "routes", pattern: /^career-ops-wrapper\/src\/api\// },
   { area: "untrusted-input", pattern: /^career-ops-wrapper\/src\/(parsers|services|workspace)\// },
   { area: "config", pattern: /^career-ops-wrapper\/src\/config\// },
+  { area: "security", pattern: /^backend\/src\/(http\/auth|adapters\/[^/]*auth)|^packages\/safety\/src\/|^\.gitleaks\.toml$/ },
+  { area: "contracts", pattern: /^(contracts|packages\/contract)\// },
+  { area: "routes", pattern: /^backend\/src\/http\/routes\// },
+  { area: "database", pattern: /^backend\/(migrations|src\/db)\/|^docker\// },
+  { area: "config", pattern: /^backend\/src\/config\.ts$|^backend\/Dockerfile$/ },
+  { area: "config", pattern: /^(compose\.yaml|package\.json|package-lock\.json|\.dockerignore|tsconfig\.base\.json)$/ },
+  { area: "vendor", pattern: /^vendor\// },
   { area: "android-remote", pattern: /^android\/app\/src\/main\/kotlin\/.*\/data\/remote\// },
   { area: "ci", pattern: /^\.github\// }
 ];
+
+/** Files that shape every workspace package, so they gate both the backend and the wrapper. */
+const WORKSPACE_FILES = /^(compose\.yaml|package\.json|package-lock\.json|\.dockerignore|tsconfig\.base\.json|backend\/Dockerfile)$/;
 
 /** Content rules on added or removed lines. */
 const CONTENT_RISKS = [
@@ -51,7 +61,9 @@ const MANDATORY_REVIEWER = {
   routes: "security",
   env: "security",
   redaction: "security",
-  config: "security"
+  config: "security",
+  database: "security",
+  vendor: "security"
 };
 
 /** Risk areas a tier M change may touch; any other risk area makes it tier L. */
@@ -61,21 +73,23 @@ const TIER_L_LINES = 300;
 
 /** Risk area → the question its reviewer must answer for this change. */
 const RISK_CHECKS = {
-  security: "Do path containment, redaction and token checks still hold for every caller?",
+  security: "Wrapper: do path containment, redaction and token checks still hold for every caller? Backend and packages: can a request skip the token check, reach another user's data, or leak a secret or personal data?",
   contracts: "Is every field change mirrored in contract examples, OpenAPI and the Android DTO, and is it backward compatible?",
   openapi: "Does the OpenAPI document match the routes, status codes and security of the code?",
   "process-spawn": "Is argv allowlisted, no shell, env stripped, output bounded and redacted, timeout and kill enforced?",
   "workspace-io": "Can any read or write escape the workspace (symlink, .., swap between check and open) or read unbounded data?",
   "workspace-write": "Is the write atomic, backed up, contained in the workspace and limited to the files the feature owns?",
-  routes: "Is each new route behind the pairing-token guard, validated by Zod, and free of path or stack leakage in errors?",
+  routes: "Wrapper: is each new route behind the pairing-token guard? Backend: is it denied by default, scoped to the authenticated user, and covered by a cross-user test? Both: is it validated by Zod and free of path or stack leakage in errors?",
   "untrusted-input": "Can a malformed or hand-edited workspace value make an endpoint throw (500) instead of degrading with a warning? Trace parsed values to the response schema.",
   "schema-parse": "Can the value passed to Schema.parse fail at runtime on real data, and what does the client get then?",
   config: "Do new options have safe defaults, validation, and no secret leakage in logs?",
   env: "Does any environment variable or secret reach a child process, log, or response?",
-  "auth-token": "Can the pairing token be bypassed, logged, compared in variable time, or leaked?",
+  "auth-token": "Wrapper: can the pairing token be bypassed, logged, compared in variable time, or leaked? Backend: does verification pin issuer, audience and algorithm, and can a bearer token reach a log?",
   redaction: "Does every outbound string still pass redaction for workspace paths, home paths and tokens?",
-  "android-remote": "Do DTOs, Retrofit paths and error mapping match the wrapper contract examples?",
-  ci: "Does the workflow change weaken a required check or expose secrets?"
+  "android-remote": "Do DTOs, Retrofit paths and error mapping match the contract examples the app targets?",
+  ci: "Does the workflow change weaken a required check or expose secrets?",
+  database: "Is the migration safe to run twice and on existing rows? Does the app role get only what it needs? Can a query for user data run without a user scope?",
+  vendor: "Does vendored code run, or change a prompt or a job source? Is the file on the allowlist, does a new source have a terms check, and does UPSTREAM.json match?"
 };
 
 const ROUTE_PATTERN = /\.(get|post|put|patch|delete)\s*(?:<[^>]*>)?\(\s*["'`]([^"'`]+)["'`]/;
@@ -151,6 +165,11 @@ function buildReport(fileReports) {
     else if (path.startsWith("career-ops-wrapper/contracts/")) components.add("contracts");
     else if (path.startsWith("career-ops-wrapper/")) components.add("wrapper");
     else if (path.startsWith("android/")) components.add("android");
+    else if (path.startsWith("vendor/")) components.add("vendor");
+    else if (/^(contracts|packages\/contract)\//.test(path)) components.add("hosted-contract");
+    else if (path.startsWith("packages/")) components.add("packages");
+    else if (WORKSPACE_FILES.test(path)) components.add("workspace");
+    else if (/^(backend|docker)\//.test(path)) components.add("backend");
     else components.add("other");
   }
 
@@ -160,9 +179,15 @@ function buildReport(fileReports) {
   if (fileReports.some(({ path }) => path.startsWith(".claude/skills/review-change/scripts/"))) {
     gates.push("node --test '.claude/skills/review-change/scripts/*.test.mjs'");
   }
-  if (components.has("wrapper") || components.has("contracts")) gates.push("cd career-ops-wrapper && npm test && npm run build");
+  const sharedChange = components.has("packages") || components.has("workspace");
+  if (components.has("wrapper") || components.has("contracts") || sharedChange) gates.push("cd career-ops-wrapper && npm test && npm run build");
   if (components.has("android") || components.has("contracts")) {
     gates.push("cd android && ./gradlew testDevDebugUnitTest lintDevDebug detekt ktlintCheck");
+  }
+  if (components.has("hosted-contract")) gates.push("npm test -w @jobflow/contract");
+  // Shared files change before the backend package exists; its gate would fail for no reason.
+  if ((components.has("backend") || sharedChange) && show(head, "backend/package.json") !== null) {
+    gates.push("npm test -w @jobflow/backend && npm run build -w @jobflow/backend");
   }
 
   const source = fileReports.filter((file) => !file.isTest && !file.path.includes("/fixtures/"));
@@ -189,10 +214,10 @@ function buildReport(fileReports) {
     });
 
   const examples = fileReports
-    .filter(({ path }) => path.startsWith("career-ops-wrapper/contracts/"))
+    .filter(({ path }) => /^(career-ops-wrapper\/)?contracts\//.test(path))
     .map(({ path, status }) => {
       const base = path.split("/").pop();
-      return { path, status, references: grep(["-F", base], ["android/", "career-ops-wrapper/test/", "career-ops-wrapper/src/"]) };
+      return { path, status, references: grep(["-F", base], ["android/", "career-ops-wrapper/test/", "career-ops-wrapper/src/", "packages/contract/", "backend/test/"]) };
     });
 
   const workspacePaths = [...new Set(fileReports.filter((file) => !file.isTest).flatMap((file) => file.workspacePaths))].sort()
@@ -218,6 +243,7 @@ function buildReport(fileReports) {
     if (highRisk.length) tierReasons.push(`high-risk areas: ${highRisk.join(", ")}`);
     if (routes.length) tierReasons.push("routes added or removed");
     if (components.has("android") && (components.has("wrapper") || components.has("contracts"))) tierReasons.push("spans wrapper and Android");
+    if (components.has("android") && (components.has("backend") || components.has("hosted-contract"))) tierReasons.push("spans backend and Android");
     if (changedLines > TIER_L_LINES) tierReasons.push(`${changedLines} changed non-test lines (> ${TIER_L_LINES})`);
     if (tierReasons.length) tier = "L";
     else tierReasons.push(risks.size ? `only tier-M risk areas: ${[...risks.keys()].join(", ")}` : "no risk areas");
@@ -355,10 +381,11 @@ function diffLines(path) {
  * Markdown that ships nothing and steers no agent or CI run:
  * agent instructions (`AGENTS.md`, `CLAUDE.md`, any `.claude/` directory),
  * workflows and templates (`.github/`) and files under any `src/`,
- * `contracts/` or `fixtures/` directory are not documentation.
+ * `contracts/` or `fixtures/` directory are not documentation. Neither is
+ * anything under `vendor/`, where Markdown files are AI prompts.
  */
 function isDocumentation(path) {
-  if (/(^|\/)\.(claude|github)\//.test(path) || /(^|\/)(src|contracts|fixtures)\//.test(path)) return false;
+  if (/(^|\/)\.(claude|github)\//.test(path) || /(^|\/)(src|contracts|fixtures)\//.test(path) || path.startsWith("vendor/")) return false;
   if (/(^|\/)(AGENTS|CLAUDE)\.md$/i.test(path)) return false;
   return /\.md$/i.test(path);
 }
@@ -503,7 +530,7 @@ function addSymbol(symbols, name, file, reason) {
 }
 
 function references(name, ownFile) {
-  return grep(["-w", "-F", name], ["career-ops-wrapper/src/", "career-ops-wrapper/test/", "android/app/src/", "docs/"])
+  return grep(["-w", "-F", name], ["career-ops-wrapper/src/", "career-ops-wrapper/test/", "backend/", "packages/", "android/app/src/", "docs/"])
     .filter((entry) => !entry.startsWith(`${ownFile}:`));
 }
 

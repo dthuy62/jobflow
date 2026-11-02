@@ -1,5 +1,10 @@
 # Project Overview PDR
 
+> The product direction has changed: JobFlow is becoming a hosted product for
+> anyone, not one user's local tool. The source of truth is
+> `docs/superpowers/specs/2026-11-02-jobflow-hosted-product-design.md`. This document describes the local-first
+> model and has not been rewritten.
+
 ## Overview
 
 JobFlow is a personal job application assistant. The product combines a native

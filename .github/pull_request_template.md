@@ -12,8 +12,7 @@
 
 ## Verification
 
-- [ ] `npm test` (wrapper) / `./gradlew …` (Android)
-- [ ] `npm run build`
+- [ ] The gates the impact map printed (backend, packages, wrapper, Android)
 - [ ] Smoke run / manual check:
 - [ ] Self-review findings fixed
 - [ ] Docs updated if architecture, commands, contracts or boundaries changed

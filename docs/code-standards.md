@@ -26,7 +26,25 @@
 - Do not edit Android generated/build outputs such as `R`, `BuildConfig`,
   KSP output, or `build/`.
 
+## Backend Standards
+
+- Core code (`backend/src/core/`) depends only on port interfaces; every external
+  system sits behind an adapter. A test enforces this.
+- Every route is denied by default. A public route is an explicit exception.
+- A route takes the user id only from the verified token, never from the request.
+- Each endpoint with user data has a test that user A cannot read or change user
+  B's data.
+- Routes validate input with Zod schemas from `@jobflow/contract`.
+- HTTP handlers answer fast; scans and AI calls are queue jobs.
+- Schema changes are migrations, run as a separate step. The app's database role
+  cannot change the schema.
+- The full list is the Security baseline in
+  `docs/superpowers/specs/2026-11-02-jobflow-hosted-product-design.md`.
+
 ## Wrapper Standards
+
+The wrapper is frozen as a development and self-host tool. These rules apply
+when its imports, packaging or dependencies change.
 
 - Contracts are Zod schemas in `src/contracts/`.
 - Routes should parse/validate request bodies before calling services.
@@ -41,8 +59,10 @@
 
 ## API Contract Standards
 
-- Keep wrapper APIs versioned under `/api/v1`.
-- Add or update `contracts/examples/` when response shapes change.
+- Keep APIs versioned under `/api/v1`.
+- The hosted contract lives in root `contracts/`; the wrapper's stays in
+  `career-ops-wrapper/contracts/`.
+- Add or update the contract's `examples/` when response shapes change.
 - Android DTO tests should use checked-in examples where practical.
 - Use stable error codes from the shared error contract.
 - Never expose raw local filesystem paths through Android-facing API payloads.
@@ -51,6 +71,7 @@
 
 - Do not commit `.env`, provider API keys, pairing tokens, release keystores,
   local workspace paths, or real CV/profile content.
+- Do not commit real tokens or production credentials; test values are synthetic.
 - Localhost wrapper mode may be unauthenticated for setup diagnostics.
 - LAN/private wrapper mode must require `X-Career-Ops-Token` for protected
   routes.
@@ -69,6 +90,8 @@
 | Android full gate | `cd android && ./gradlew assembleDevDebug testDevDebugUnitTest lintDevDebug detekt ktlintCheck` |
 | Wrapper contract/service/security | `cd career-ops-wrapper && npm test` |
 | Wrapper TypeScript build/openapi | `cd career-ops-wrapper && npm run build` |
+| Backend, packages, hosted contract | The gates the `review-change` impact map prints |
+| Review skill scripts | `node --test '.claude/skills/review-change/scripts/*.test.mjs'` |
 
 Add one focused test for new branches, parsing, persistence, network mapping,
 or security-sensitive behavior.

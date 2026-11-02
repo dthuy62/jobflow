@@ -324,3 +324,98 @@ test("uses tier L with the full panel for high-risk areas, contracts, Android, C
     assert.deepEqual(report.reviewers.slice(0, 3), ["spec", "impact", "tests"], Object.keys(files).join(", "));
   }
 });
+
+const BACKEND_GATE = "npm test -w @jobflow/backend && npm run build -w @jobflow/backend";
+const WRAPPER_GATE = "cd career-ops-wrapper && npm test && npm run build";
+const CONTRACT_GATE = "npm test -w @jobflow/contract";
+const ANDROID_GATE = "cd android && ./gradlew testDevDebugUnitTest lintDevDebug detekt ktlintCheck";
+/** An unchanged file, so the backend package exists in the head tree without being in the diff. */
+const BACKEND_EXISTS = { "backend/package.json": { before: "{}\n", after: "{}\n" } };
+
+test("classifies hosted backend paths by risk area, tier and gates", () => {
+  const code = { before: "export const a = 1;\n", after: "export const a = 2;\n" };
+  const text = { before: "a\n", after: "b\n" };
+  const cases = [
+    ["backend/src/http/routes/x.ts", code, "routes", [BACKEND_GATE]],
+    ["backend/src/http/auth-plugin.ts", code, "security", [BACKEND_GATE]],
+    ["backend/src/adapters/oidc-auth-verifier.ts", code, "security", [BACKEND_GATE]],
+    ["backend/migrations/0002_x.sql", text, "database", [BACKEND_GATE]],
+    ["backend/src/db/migrate.ts", code, "database", [BACKEND_GATE]],
+    ["backend/src/config.ts", code, "config", [BACKEND_GATE]],
+    ["docker/postgres-init.sql", text, "database", [BACKEND_GATE]],
+    ["backend/Dockerfile", text, "config", [WRAPPER_GATE, BACKEND_GATE]],
+    ["compose.yaml", text, "config", [WRAPPER_GATE, BACKEND_GATE]],
+    ["package-lock.json", text, "config", [WRAPPER_GATE, BACKEND_GATE]],
+    ["package.json", text, "config", [WRAPPER_GATE, BACKEND_GATE]],
+    [".dockerignore", text, "config", [WRAPPER_GATE, BACKEND_GATE]],
+    ["tsconfig.base.json", text, "config", [WRAPPER_GATE, BACKEND_GATE]],
+    [".gitleaks.toml", text, "security", []],
+    ["packages/safety/src/x.ts", code, "security", [WRAPPER_GATE, BACKEND_GATE]],
+    ["packages/contract/src/x.ts", code, "contracts", [CONTRACT_GATE]],
+    ["contracts/examples/x.json", text, "contracts", [CONTRACT_GATE]],
+    ["vendor/career-ops/x.mjs", code, "vendor", []],
+    ["vendor/career-ops/modes/oferta.md", text, "vendor", []]
+  ];
+  for (const [file, change, area, gates] of cases) {
+    const report = mapAfterCommit({ ...BACKEND_EXISTS, [file]: change });
+    assert.equal(report.mode, "full", file);
+    assert.equal(report.tier, "L", file);
+    assert.ok(report.risks[area]?.includes(file), `${file} flags ${area}`);
+    assert.ok(report.riskChecks[area], `${area} has a question`);
+    assert.deepEqual(report.gates, gates, file);
+  }
+});
+
+test("still gates the wrapper's contract examples with the wrapper and Android", () => {
+  const report = mapAfterCommit({ "career-ops-wrapper/contracts/x.json": { before: "a\n", after: "b\n" } });
+  assert.ok(report.risks.contracts);
+  assert.equal(report.tier, "L");
+  assert.deepEqual(report.gates, [WRAPPER_GATE, ANDROID_GATE]);
+});
+
+test("does not print the backend gate before the backend package exists", () => {
+  const report = mapAfterCommit({ "packages/safety/src/x.ts": { before: "export const a = 1;\n", after: "export const a = 2;\n" } });
+  assert.deepEqual(report.gates, [WRAPPER_GATE]);
+});
+
+test("requires the security reviewer for database and vendor changes", () => {
+  for (const file of ["backend/migrations/0002_x.sql", "docker/postgres-init.sql", "vendor/career-ops/modes/oferta.md"]) {
+    const report = mapAfterCommit({ [file]: { before: "a\n", after: "b\n" } });
+    assert.ok(report.reviewers.includes("security"), file);
+  }
+});
+
+test("does not treat a Markdown file under root contracts as documentation", () => {
+  const report = mapAfterCommit({ "contracts/README.md": { before: "a\n", after: "b\n" } });
+  assert.equal(report.mode, "full");
+  assert.notEqual(report.tier, "S");
+});
+
+test("lists references in backend and packages for a changed symbol", () => {
+  const report = mapAfterCommit({
+    "backend/src/core/identity.ts": { before: "export const parseIdentity = 1;\n", after: "export const parseIdentity = 2;\n" },
+    "backend/src/http/routes/me.ts": { before: "import { parseIdentity } from 'x';\n", after: "import { parseIdentity } from 'x';\n" },
+    "packages/contract/src/identity.ts": { before: "// parseIdentity\n", after: "// parseIdentity\n" }
+  });
+  const symbol = report.symbols.find(({ name }) => name === "parseIdentity");
+  assert.ok(symbol.references.some((ref) => ref.startsWith("backend/src/http/routes/me.ts:")));
+  assert.ok(symbol.references.some((ref) => ref.startsWith("packages/contract/src/identity.ts:")));
+});
+
+test("lists who uses a changed hosted contract example", () => {
+  const report = mapAfterCommit({
+    "contracts/examples/me.valid.json": { before: "{}\n", after: "{\"a\":1}\n" },
+    "packages/contract/test/contract.test.ts": { before: "// me.valid.json\n", after: "// me.valid.json\n" }
+  });
+  const example = report.contractExamples.find(({ path: file }) => file === "contracts/examples/me.valid.json");
+  assert.ok(example.references.some((ref) => ref.startsWith("packages/contract/test/contract.test.ts:")));
+});
+
+test("uses tier L when a change spans the backend and Android", () => {
+  const report = mapAfterCommit({
+    "android/app/src/main/kotlin/me/x/ui/home/HomeScreen.kt": { before: "val a = 1\n", after: "val a = 2\n" },
+    "backend/src/services/x.ts": { before: "export const a = 1;\n", after: "export const a = 2;\n" }
+  });
+  assert.equal(report.tier, "L");
+  assert.ok(report.tierReasons.includes("spans backend and Android"));
+});

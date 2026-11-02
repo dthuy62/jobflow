@@ -1,8 +1,44 @@
 # System Architecture
 
-## Overview
+## Hosted Product (target)
 
-JobFlow is local-first. The Android app is the user interface. The wrapper API
+JobFlow is becoming a hosted product that anyone can install and use. The source
+of truth is `docs/superpowers/specs/2026-11-02-jobflow-hosted-product-design.md`, including its
+Security baseline. Phase 1 is being built (`docs/superpowers/plans/2026-11-02-hosted-backend-phase-1.md`).
+
+```mermaid
+flowchart LR
+  Android["Android app"]
+  API["API service\nFastify + Zod"]
+  DB["PostgreSQL\nincluding the pg-boss queue"]
+  Workers["Workers\nscan, match, evaluate, notify"]
+  Blob["Object storage\nencrypted CV files"]
+  External["Job sources, AI providers, FCM"]
+
+  Android -->|"HTTPS + Firebase ID token"| API
+  API --> DB
+  API --> Blob
+  DB --> Workers
+  Workers --> DB
+  Workers --> External
+```
+
+Main rules:
+
+- Core code depends only on ports; each external system has an adapter.
+- The API is stateless; slow work runs in queue workers.
+- One container image runs on any host, configured by environment.
+- The contract in root `contracts/` is the boundary with Android.
+
+## Wrapper (frozen)
+
+The rest of this document describes `career-ops-wrapper/`. It is frozen as a
+development and self-host tool. The Android app still talks to it until the app
+moves to the hosted contract.
+
+### Overview
+
+In the wrapper model, the Android app is the user interface and the wrapper API
 is the only integration surface for Career Ops workspace files and scripts.
 
 ```mermaid
@@ -17,7 +53,7 @@ flowchart LR
   Wrapper --> Workspace
 ```
 
-## Component Responsibilities
+### Component Responsibilities
 
 | Component | Owns |
 | --- | --- |
@@ -34,7 +70,7 @@ flowchart LR
 | Wrapper security | Path containment, pairing token guard, redaction |
 | Career Ops workspace | Source-of-truth files and local scripts |
 
-## Android Data Flow
+### Android Data Flow
 
 ```mermaid
 flowchart TD
@@ -63,7 +99,7 @@ Rules:
 - Errors cross layers as `Either<AppError, T>`; details in
   `android/docs/system-architecture.md`.
 
-## Wrapper Request Flow
+### Wrapper Request Flow
 
 ```mermaid
 flowchart TD
@@ -95,7 +131,7 @@ Rules:
   opaque hashes or report numbers, matched against listings, never joined
   into paths.
 
-## Scan Run Lifecycle
+### Scan Run Lifecycle
 
 ```mermaid
 sequenceDiagram
@@ -120,7 +156,7 @@ sequenceDiagram
 `evaluationStatus: "notEvaluated"` until an AI evaluation runs, on the desktop
 or through the evaluation lifecycle below.
 
-## AI Evaluation Lifecycle
+### AI Evaluation Lifecycle
 
 Off unless the desktop sets `CAREER_OPS_EVALUATION_PROVIDER=claude`. The phone
 sends only an `offerId`; it cannot pick the provider, model, prompt, URL, or
@@ -167,7 +203,7 @@ Security boundary:
 - One evaluation at a time; a scan may run at the same time (different
   files). Cancel works until the write step starts.
 
-## Runtime Configuration
+### Runtime Configuration
 
 Wrapper config order:
 
@@ -192,7 +228,7 @@ Android dev flavor points to:
 http://10.0.2.2:3000
 ```
 
-## API Surface
+### API Surface
 
 Current wrapper route families:
 
@@ -207,7 +243,7 @@ Current wrapper route families:
 - Reports (`/reports`) and artifacts (`/artifacts`, PDF download).
 - API docs/OpenAPI.
 
-## Key Architecture Decisions
+### Key Architecture Decisions
 
 - Wrapper over direct Android workspace access.
 - Career Ops workspace as source of truth.
@@ -221,7 +257,7 @@ Current wrapper route families:
 - AI evaluation runs the desktop's logged-in CLI with no tools; the wrapper
   fetches and writes (owner decisions, 2026-10-31).
 
-## Risk Areas
+### Risk Areas
 
 - Contract drift between wrapper DTOs and Android DTOs.
 - Accidental raw path exposure.

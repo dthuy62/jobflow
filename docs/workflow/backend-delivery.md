@@ -1,7 +1,7 @@
 # Backend Delivery Workflow
 
-How backend work on `career-ops-wrapper/` goes from idea to `main`. An agent
-does every step; the owner reviews the finished PR and makes the decisions
+How backend work on `backend/`, `packages/`, `contracts/`, `vendor/` and the
+frozen `career-ops-wrapper/` goes from idea to `main`. An agent does every step; the owner reviews the finished PR and makes the decisions
 listed under [Owner decisions](#owner-decisions).
 
 ## Tiers
@@ -14,7 +14,7 @@ The owner can always ask for a higher tier.
 | --- | --- | --- | --- | --- |
 | S | Docs, typos, comments | Issue optional; no spec; small items may share one PR | Inline or a subagent | Gates + Spec reviewer, 1 round |
 | M | Contained bug fix or small feature, no high-risk area | Issue with acceptance criteria; no spec | Inline or a subagent | Gates + one Standard reviewer, 1 round |
-| L | Features, security/contract/process/workspace-write changes, wrapper + Android, large diffs, unclear design | Issue + spec in `docs/superpowers/specs/` + plan | Its own session and worktree | Full `review-change`, up to 3 rounds |
+| L | Features, security/contract/process/workspace-write/database changes, backend or wrapper + Android, large diffs, unclear design | Issue + spec in `docs/superpowers/specs/` + plan | Its own session and worktree | Full `review-change`, up to 3 rounds |
 
 LOW findings never start another review round; they go to a follow-up issue.
 Out-of-scope notes are recorded in the PR, not fixed.
@@ -30,8 +30,9 @@ or a real risk turns up.
    mark it in the spec.
 3. **Branch.** Cut from up-to-date `main` (in its own worktree for tier L),
    named per [Branch names](#branch-names).
-4. **Build.** Plan, then test-first implementation. Run `npm test`,
-   `npm run build`, and a smoke run against a fixture workspace.
+4. **Build.** Plan, then test-first implementation. Run the gates the impact
+   map prints, and a smoke run: Docker Compose for the backend, a fixture
+   workspace for the wrapper.
 5. **Self-review.** Run the `review-change` skill
    (`.claude/skills/review-change/`) on the committed branch at the tier its
    impact map prints. Every tier runs the machine gates and uses reviewers
@@ -41,8 +42,8 @@ or a real risk turns up.
    external model reviews code.
 6. **Pull request.** Use the PR template, link the issue, and keep the title in
    Conventional Commits form.
-7. **CI.** Wait for the `Wrapper` workflow (and `Android` when contracts
-   change, `Review skill` when `.claude/skills/**` changes) to pass; fix
+7. **CI.** Wait for the workflows the change triggers (`Wrapper`, `Android`,
+   `Review skill`, and the hosted backend's as they are added) to pass; fix
    failures on the branch.
 8. **Owner review.** Announce the PR as ready. Merge only after the owner
    approves.
@@ -62,13 +63,13 @@ or a real risk turns up.
 | `design` | UI/visual change |
 | `doc` | Documentation only |
 
-Examples: `feature/wrapper-ai-evaluation`, `bugfix/scan-timeout-cleanup`.
+Examples: `feature/backend-auth`, `bugfix/scan-timeout-cleanup`.
 The `Branch name` workflow fails PRs from other names and is a required
 check on `main`.
 
 ## Commits and PRs
 
-- Conventional Commits: `feat(wrapper): …`, `fix(wrapper): …`, `docs: …`.
+- Conventional Commits: `feat(backend): …`, `fix(wrapper): …`, `docs: …`.
 - Authored by the repository owner only: no co-author trailers or tool
   attribution footers in commits or PR descriptions.
 - `main` is protected: changes land only through PRs; no direct or force
@@ -80,8 +81,9 @@ Ask the owner before:
 
 - Changing product behavior beyond the issue.
 - Changing a security boundary (for example letting the wrapper invoke AI
-  CLIs, adding write access, exposing new data).
-- Breaking the wrapper–Android contract.
+  CLIs, adding write access, exposing new data), or removing or weakening an
+  item of the design's Security baseline.
+- Breaking a contract an Android build uses.
 - Merging to `main`.
 - Changing repository settings, secrets, or anything that costs money.
 
