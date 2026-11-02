@@ -25,7 +25,7 @@ with the cheapest relevant check.
 | Path | Responsibility |
 | --- | --- |
 | `android/` | Native Android client |
-| `backend/` | Hosted API and workers (being built, see `docs/superpowers/plans/2026-11-02-hosted-backend-phase-1.md`) |
+| `backend/` | Hosted API and workers (being built, see `docs/superpowers/plans/2026-11-02-hosted-backend-phase-1.md`). `docs/deployment-guide.md` has how to run it |
 | `packages/` | Shared TypeScript packages: `safety` (SSRF-guarded fetch, HTML to text, redaction), `contract` (hosted API schemas) |
 | `contracts/` | Hosted API examples, generated OpenAPI and how to run the mock |
 | `vendor/career-ops/` | Vendored Career Ops parts (being built) |
@@ -59,8 +59,8 @@ curl http://127.0.0.1:3000/api/v1/health
 ```
 
 Backend, shared packages and hosted contract, from the repo root. The backend's
-work once task 4 of the phase 1 plan lands. The `review-change` impact map prints
-the ones a change needs.
+tests need PostgreSQL: `docker compose up -d postgres`. The `review-change` impact map
+prints the ones a change needs.
 
 ```bash
 npm test -w @jobflow/safety

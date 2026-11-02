@@ -40,6 +40,8 @@
   stored row can never fail a response.
 - Schema changes are migrations, run as a separate step. The app's database role
   cannot change the schema.
+- Logs are allowlists: a request logs its route pattern, never its URL, headers or
+  body, and an error logs its type, code and scrubbed message, never a driver's other fields.
 - The full list is the Security baseline in
   `docs/superpowers/specs/2026-11-02-jobflow-hosted-product-design.md`.
 

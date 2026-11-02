@@ -1,0 +1,81 @@
+name: Backend
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "backend/**"
+      - "packages/**"
+      - "contracts/**"
+      - "vendor/**"
+      - "scripts/**"
+      - "docker/**"
+      - ".dockerignore"
+      - "compose.yaml"
+      - "tsconfig.base.json"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/backend.yml"
+  pull_request:
+    paths:
+      - "backend/**"
+      - "packages/**"
+      - "contracts/**"
+      - "vendor/**"
+      - "scripts/**"
+      - "docker/**"
+      - ".dockerignore"
+      - "compose.yaml"
+      - "tsconfig.base.json"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/backend.yml"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17@sha256:7d0a41464797aeb9862dfdc0bbf1526b82cfd324cdd8036df19e3545f4a9ccb8
+        env:
+          POSTGRES_PASSWORD: dev-only-superuser
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+      # Service containers start before checkout, so they cannot mount this script.
+      - name: Create the database roles
+        run: psql -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -f docker/postgres-init.sql
+        env:
+          PGPASSWORD: dev-only-superuser
+      - run: npm ci
+      - run: npm test -w @jobflow/backend
+      - run: npm run build -w @jobflow/backend
+      - run: npm audit --omit=dev --audit-level=high
+      - name: Build the image
+        run: docker build -f backend/Dockerfile -t jobflow-backend:ci .
+      - name: Check the container does not run as root
+        run: test "$(docker run --rm --entrypoint id jobflow-backend:ci -u)" != "0"
+      - name: Scan the image
+        run: >-
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock
+          aquasec/trivy:0.76.1@sha256:790fd66d1697395d8693d1acaa1ea702406a20f109b6fc7bac8db623eca6c06c
+          image --exit-code 1 --severity HIGH,CRITICAL --ignore-unfixed jobflow-backend:ci

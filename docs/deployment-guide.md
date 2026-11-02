@@ -1,6 +1,54 @@
 # Deployment Guide
 
-## Local Development
+## Hosted Backend, Local Development
+
+Everything runs in Docker Compose, with development-only passwords.
+
+```bash
+docker compose up -d --build api
+curl http://127.0.0.1:8080/api/v1/health
+```
+
+This starts PostgreSQL, runs the migrations once with the owner role, then starts the API with
+the app role. All ports bind to `127.0.0.1`.
+
+To run the backend's tests, start only the database:
+
+```bash
+docker compose up -d postgres
+npm test -w @jobflow/backend
+```
+
+Each test file creates its own database.
+
+To run the API outside Docker, with PostgreSQL still in Compose:
+
+```bash
+cp backend/.env.example backend/.env
+npm run migrate -w @jobflow/backend
+npm run dev -w @jobflow/backend
+```
+
+Stop Docker when done, because it uses a lot of memory:
+
+```bash
+docker compose down
+```
+
+### Rules For A Deployed Database
+
+- Two roles: an owner that runs migrations, and an app role with no right to change the schema.
+- The owner role must own the database. Since PostgreSQL 15, only the database owner can create
+  objects in `public`.
+- Migrations are a separate step (`node backend/dist/db/migrate-cli.js`, with
+  `DATABASE_MIGRATION_URL` and `JOBFLOW_ENV`), never run at API start. The API never holds the
+  owner's URL.
+- `JOBFLOW_ENV=production` refuses a database URL that holds a development password, in both
+  steps.
+- Set `TRUST_PROXY` to the real number of proxies in front of the API, or leave it at `0`. A
+  higher number lets clients forge their address and dodge rate limits.
+
+## Wrapper, Local Development
 
 Install and run the wrapper:
 

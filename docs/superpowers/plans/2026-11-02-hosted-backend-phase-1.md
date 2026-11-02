@@ -448,7 +448,8 @@ which would trust a client's own `X-Forwarded-For`). Tests also read
 `TEST_DATABASE_ADMIN_URL`, which `withTestDatabase` uses to create databases.
 
 `@jobflow/backend` has `pretest`, `prebuild` and `predev` scripts that build
-`@jobflow/safety` and `@jobflow/contract`.
+`@jobflow/contract`, and `@jobflow/safety` once the backend imports it. `HOST` defaults to
+`127.0.0.1`; Compose sets `0.0.0.0` inside the container.
 
 `users`: `id uuid primary key default gen_random_uuid()`, `auth_subject text not null
 unique`, `created_at timestamptz not null default now()`, `deleted_at timestamptz`.
@@ -494,7 +495,7 @@ it("the app role can read and write users");
 it("the app role cannot create a table");
 // architecture
 it("the import check flags a sample source that imports pg"); // so the checks below cannot pass by finding nothing
-it("backend/src/core imports nothing but core/, zod and node: modules");
+it("backend/src/core imports nothing but core/, zod and node: modules"); // task 5 also asserts core has files, so this cannot pass by finding none
 it("backend/src/http imports no file from backend/src/adapters");
 ```
 
@@ -505,8 +506,12 @@ Expected: FAIL.
 
 - [ ] **Step 4: Implement `config`, `http/errors`, `http/error-handler`, `logging`, `server`**
 
-Fastify `bodyLimit` 1 MiB, `requestTimeout` 30 s. The error handler maps `ApiError` and
-Zod errors, then Fastify client errors by their `statusCode`, then falls back to the
+Fastify `bodyLimit` 1 MiB, `requestTimeout` 30 s, `frameworkErrors` so a malformed or
+overlong path gets the envelope instead of Fastify's own body, which echoes the path, and
+`clientErrorHandler` for a request too malformed to parse. Routes parse client input with
+`parseRequest`; any other `ZodError` is a logged 500. Fastify's
+types take no number for `trustProxy`, so use a function of the hop. The error handler maps `ApiError` and
+then Fastify's own (`FST_`) client errors by their `statusCode`, then falls back to the
 fixed 500. `setNotFoundHandler` returns the envelope. Logging: pino through Fastify
 with request and response serializers that keep only id, method, route, status and
 duration.
@@ -523,7 +528,7 @@ this would corrupt.
 - [ ] **Step 5: Implement `db/pool`, `db/migrate`, the migration and `routes/health`**
 
 `migrate` uses `node-pg-migrate` with `DATABASE_MIGRATION_URL`. It is a separate
-command, never run at API start. `0001_users.sql` also grants `jobflow_app` what it
+command with its own entry file, `db/migrate-cli.ts`, never run at API start. `0001_users.sql` also grants `jobflow_app` what it
 needs. Grants belong in migrations because default privileges are per database, so
 an init script would not reach test or deployed databases.
 
@@ -534,8 +539,11 @@ Expected: PASS.
 
 - [ ] **Step 7: Add the Dockerfile and Compose services**
 
-- Multi-stage, from the repo root; `node:22-slim` pinned by digest; `npm ci` with
-  the three workspaces; `npm prune --omit=dev`; `USER node`; `CMD node backend/dist/main.js`.
+- Multi-stage, from the repo root; `node:22-slim` pinned by digest; a separate
+  `npm ci --omit=dev` for the final stage, because `npm prune` leaves development packages
+  behind in a workspace; `npm` and `corepack` removed from the final stage, because Trivy
+  flags their bundled packages and the API never installs anything; `USER node`;
+  `CMD node backend/dist/main.js`.
 - `compose.yaml`: add `migrate` (one-shot) and `api`. All published ports bind to
   `127.0.0.1`. The worker joins in task 6.
 
@@ -554,12 +562,12 @@ Paths: `backend/**`, `packages/**`, `contracts/**`, `vendor/**`, `scripts/**`,
 and lockfile, and the workflow file. Jobs: a PostgreSQL service container; after checkout, a step that
 runs `docker/postgres-init.sql` with `psql`, because service containers start before
 checkout and cannot mount it; `npm ci`; backend tests and build;
-`npm audit --omit=dev --audit-level=high`; Docker build; image scan with Trivy pinned
-by commit SHA or digest. A HIGH or CRITICAL fixable finding fails the job.
+`npm audit --omit=dev --audit-level=high`; Docker build; a non-root check; image scan with
+Trivy by image digest, with no third-party action. A HIGH or CRITICAL fixable finding fails the job.
 
 - [ ] **Step 9: Add `secret-scan.yml`**
 
-Gitleaks, pinned the same way, on every PR and push to `main` with no path filter, so
+Gitleaks, by image digest, on every PR and push to `main` with no path filter, so
 a secret in any file is caught. A finding fails the job. It scans each PR's commits.
 Scan the full history once when adding it, and report the result in the PR.
 
