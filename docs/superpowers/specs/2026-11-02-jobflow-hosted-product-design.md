@@ -1,6 +1,6 @@
 # JobFlow As A Hosted Product
 
-Status: draft for owner approval. Date: 2026-11-02.
+Status: approved by the owner on 2026-11-02.
 
 ## Intent
 
@@ -392,18 +392,32 @@ questions were settled as follows.
   - The report says what was not researched. Web research is a later, paid
     addition behind its own port.
 
-## Open owner questions
+## Owner answers (2026-11-02)
 
-1. **Paid or licensed job aggregator APIs** (for example Adzuna or Jooble).
-   They cover occupations and countries that ATS company lists miss. Should
-   they be allowed when their terms permit it, even with a cost?
-2. **Accounts and environments for phases 2 and 3.**
-   - Who owns the Firebase/GCP project and the Play Console listing, and does
-     `me.dthuy.jobflow` stay the app ID?
-   - Is there a budget for a small staging host? It is needed to test FCM, Play
-     Billing notifications (which need a public HTTPS endpoint) and Play
-     Integrity for real.
-   - Must data stay in a particular region?
+1. **Job aggregator APIs** (for example Adzuna or Jooble) are allowed where
+   their terms permit. Start on free tiers and pay only when needed.
+2. **Accounts and environments:**
+   - The owner owns the Firebase/GCP project and the Play Console listing.
+   - The app ID stays `me.dthuy.jobflow`.
+   - A small staging host (about 5–10 USD a month) is approved from phase 2.
+   - No data-region constraint yet; the region is chosen with the cloud.
+
+The design is approved by the owner as of 2026-11-02.
+
+## How to continue (for any agent or person picking this up)
+
+Read, in order:
+
+1. `AGENTS.md`;
+2. `docs/workflow/backend-delivery.md` (steps, tiers, owner decisions,
+   branch and commit rules);
+3. this document;
+4. `career-ops-wrapper/` for the modules to carry over.
+
+The next step is a plan for phase 1 (see `docs/superpowers/plans/` for the
+format), then issues per piece. The review process lives in
+`.claude/skills/review-change/`. It is written for Claude Code, but its
+`references/` describe the reviewer roles in plain language.
 
 ## Left to the builder
 
