@@ -26,8 +26,8 @@ with the cheapest relevant check.
 | --- | --- |
 | `android/` | Native Android client |
 | `backend/` | Hosted API and workers (being built, see `docs/superpowers/plans/2026-11-02-hosted-backend-phase-1.md`) |
-| `packages/` | Shared TypeScript packages: `safety` (SSRF-guarded fetch, HTML to text, redaction) |
-| `contracts/` | Hosted API contract and examples (being built) |
+| `packages/` | Shared TypeScript packages: `safety` (SSRF-guarded fetch, HTML to text, redaction), `contract` (hosted API schemas) |
+| `contracts/` | Hosted API examples, generated OpenAPI and how to run the mock |
 | `vendor/career-ops/` | Vendored Career Ops parts (being built) |
 | `career-ops-wrapper/` | Frozen development and self-host tool: a local Fastify API over Career Ops workspace files/scripts |
 | `docs/` | Product and engineering source of truth |
@@ -58,9 +58,9 @@ npm run dev -- --workspace /path/to/career-ops
 curl http://127.0.0.1:3000/api/v1/health
 ```
 
-Backend, shared packages and hosted contract, from the repo root. `safety` works
-now; the others work once tasks 3 and 4 of the phase 1 plan land. The
-`review-change` impact map prints the ones a change needs.
+Backend, shared packages and hosted contract, from the repo root. The backend's
+work once task 4 of the phase 1 plan lands. The `review-change` impact map prints
+the ones a change needs.
 
 ```bash
 npm test -w @jobflow/safety

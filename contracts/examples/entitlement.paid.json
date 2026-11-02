@@ -1,0 +1,16 @@
+{
+  "plan": "paid",
+  "features": [
+    "feed",
+    "tracker",
+    "evaluation"
+  ],
+  "quotas": [
+    {
+      "feature": "evaluation",
+      "used": 4,
+      "limit": 50,
+      "resetsAt": "2026-12-01T00:00:00.000Z"
+    }
+  ]
+}

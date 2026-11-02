@@ -8,7 +8,9 @@ explains why they fit. It is becoming a hosted, install-and-use product; see
 
 - `android/` - Android app.
 - `packages/safety/` - Safety helpers shared with the wrapper.
-- `backend/`, `contracts/`, `vendor/` - Hosted backend, being built
+- `packages/contract/`, `contracts/` - Hosted API contract and its mock. See
+  `contracts/README.md`.
+- `backend/`, `vendor/` - Hosted backend, being built
   (`docs/superpowers/plans/2026-11-02-hosted-backend-phase-1.md`).
 - `career-ops-wrapper/` - Local wrapper over a Career Ops workspace. Frozen as a
   development and self-host tool.

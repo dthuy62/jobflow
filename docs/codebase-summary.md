@@ -11,7 +11,8 @@ jobflow/
 ├── android/
 ├── backend/             # planned: hosted API and workers
 ├── packages/safety/     # SSRF-guarded fetch, HTML to text, redaction
-├── contracts/           # planned: hosted API contract
+├── packages/contract/   # hosted API schemas and the OpenAPI generator
+├── contracts/           # hosted API examples, generated OpenAPI, mock guide
 ├── vendor/career-ops/   # planned: vendored Career Ops parts
 ├── career-ops-wrapper/
 ├── docs/

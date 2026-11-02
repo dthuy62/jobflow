@@ -1,0 +1,6 @@
+{
+  "error": {
+    "code": "SIGN_IN_REQUIRED",
+    "message": "Sign in with Google to use this."
+  }
+}

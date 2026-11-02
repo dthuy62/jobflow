@@ -1,0 +1,9 @@
+{
+  "evaluationId": "evaluation_01",
+  "jobId": "job_01",
+  "createdAt": "2026-11-02T08:00:00.000Z",
+  "updatedAt": "2026-11-02T08:00:00.000Z",
+  "result": null,
+  "failureMessage": null,
+  "stage": "queued"
+}

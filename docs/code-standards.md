@@ -60,8 +60,9 @@ when its imports, packaging or dependencies change.
 ## API Contract Standards
 
 - Keep APIs versioned under `/api/v1`.
-- The hosted contract lives in root `contracts/`; the wrapper's stays in
-  `career-ops-wrapper/contracts/`.
+- The hosted contract's source is `packages/contract/`, with examples and the
+  generated OpenAPI in root `contracts/` (see `contracts/README.md`); the wrapper's
+  stays in `career-ops-wrapper/contracts/`.
 - Add or update the contract's `examples/` when response shapes change.
 - Android DTO tests should use checked-in examples where practical.
 - Use stable error codes from the shared error contract.

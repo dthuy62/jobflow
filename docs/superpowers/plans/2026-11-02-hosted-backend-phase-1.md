@@ -377,8 +377,9 @@ Expected: PASS.
 - [ ] **Step 6: Add the `mock` service and smoke it**
 
 `compose.yaml`: image `stoplight/prism:5` pinned to the digest at build time,
-profile `mock`, command `mock -h 0.0.0.0 /contracts/openapi.json`, the file mounted
-read-only, port `127.0.0.1:4010:4010`.
+profile `mock`, `platform: linux/amd64` (the only image published), command
+`mock -h 0.0.0.0 --multiprocess=false /contracts/openapi.json` (multiprocess crashes in
+this image), the file mounted read-only, port `127.0.0.1:4010:4010`.
 
 ```bash
 docker compose --profile mock up -d mock

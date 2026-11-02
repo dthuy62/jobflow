@@ -10,7 +10,7 @@ Status: in progress. Plan: `docs/superpowers/plans/2026-11-02-hosted-backend-pha
 
 - [x] Align repo rules, docs and the review skill.
 - [x] npm workspace and `@jobflow/safety`.
-- [ ] Contract draft and mock server.
+- [x] Contract draft and mock server.
 - [ ] Backend skeleton, database, Compose and CI.
 - [ ] Authentication, authorization and rate limits.
 - [ ] Queue and worker.
