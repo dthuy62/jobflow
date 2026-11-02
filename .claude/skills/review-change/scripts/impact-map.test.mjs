@@ -334,6 +334,7 @@ const ANDROID_GATE = "cd android && ./gradlew testDevDebugUnitTest lintDevDebug 
 /** An unchanged file, so the backend package exists in the head tree without being in the diff. */
 const BACKEND_EXISTS = { "backend/package.json": { before: "{}\n", after: "{}\n" } };
 const SAFETY_EXISTS = { "packages/safety/package.json": { before: "{}\n", after: "{}\n" } };
+const SYNC_TEST_EXISTS = { "scripts/sync-career-ops.test.mjs": { before: "// test\n", after: "// test\n" } };
 
 test("classifies hosted backend paths by risk area, tier and gates", () => {
   const code = { before: "export const a = 1;\n", after: "export const a = 2;\n" };
@@ -358,6 +359,10 @@ test("classifies hosted backend paths by risk area, tier and gates", () => {
     ["compose.yaml", text, "config", [WRAPPER_GATE, BACKEND_GATE]],
     ["package-lock.json", text, "config", [WRAPPER_GATE, BACKEND_GATE]],
     ["package.json", text, "config", [WRAPPER_GATE, BACKEND_GATE]],
+    [".npmrc", text, "config", [WRAPPER_GATE, BACKEND_GATE]],
+    ["backend/package.json", text, "config", [BACKEND_GATE]],
+    ["backend/.env.example", text, "config", [BACKEND_GATE]],
+    ["packages/safety/package.json", text, "config", [WRAPPER_GATE, SAFETY_GATE, BACKEND_GATE]],
     [".dockerignore", text, "config", [WRAPPER_GATE, BACKEND_GATE]],
     ["tsconfig.base.json", text, "config", [WRAPPER_GATE, BACKEND_GATE]],
     [".gitleaks.toml", text, "security", []],
@@ -369,7 +374,7 @@ test("classifies hosted backend paths by risk area, tier and gates", () => {
     ["vendor/career-ops/modes/oferta.md", text, "vendor", []]
   ];
   for (const [file, change, area, gates] of cases) {
-    const report = mapAfterCommit({ ...BACKEND_EXISTS, ...SAFETY_EXISTS, [file]: change });
+    const report = mapAfterCommit({ ...BACKEND_EXISTS, ...SAFETY_EXISTS, ...SYNC_TEST_EXISTS, [file]: change });
     assert.equal(report.mode, "full", file);
     assert.equal(report.tier, "L", file);
     assert.ok(report.risks[area]?.includes(file), `${file} flags ${area}`);
@@ -488,4 +493,67 @@ test("requires the security reviewer when a workflow changes or is removed", () 
     rmSync(path.join(root, ".github/workflows/secret-scan.yml"));
   });
   assert.ok(removed.reviewers.includes("security"));
+});
+
+test("prints no gate for a package or script that a change removed or renamed away", () => {
+  const renamed = mapAfterMutation(
+    { "packages/safety/package.json": "{}\n", "packages/safety/src/x.ts": "export const a = 1;\n" },
+    (root) => git(root, "mv", "packages/safety", "packages/guard")
+  );
+  assert.ok(renamed.gates.includes("npm test -w @jobflow/guard"));
+  assert.ok(!renamed.gates.includes(SAFETY_GATE));
+
+  const removed = mapAfterMutation(
+    { "backend/package.json": "{}\n", "backend/src/x.ts": "export const a = 1;\n", "README.md": "a\n" },
+    (root) => git(root, "rm", "-rq", "backend")
+  );
+  assert.ok(!removed.gates.includes(BACKEND_GATE));
+
+  const script = mapAfterMutation(
+    { "scripts/sync-career-ops.mjs": "export const a = 1;\n", "scripts/sync-career-ops.test.mjs": "// test\n" },
+    (root) => git(root, "rm", "-q", "scripts/sync-career-ops.test.mjs")
+  );
+  assert.ok(!script.gates.includes(SYNC_GATE));
+});
+
+test("prints no gate for a docs-only change inside a package or next to the sync script", () => {
+  for (const file of ["packages/safety/README.md", "scripts/sync-career-ops.md"]) {
+    const report = mapAfterCommit({ ...SAFETY_EXISTS, [file]: { before: "a\n", after: "b\n" } });
+    assert.equal(report.mode, "docs-only", file);
+    assert.deepEqual(report.gates, [], file);
+  }
+});
+
+test("follows a rename for the skill test gate and the contract example list", () => {
+  const skillTest = mapAfterMutation({ ".claude/skills/review-change/scripts/x.test.mjs": "// test\n" }, (root) => {
+    mkdirSync(path.join(root, ".claude/skills/review-change/old"), { recursive: true });
+    git(root, "mv", ".claude/skills/review-change/scripts/x.test.mjs", ".claude/skills/review-change/old/x.test.mjs");
+  });
+  assert.ok(skillTest.gates.includes("node --test '.claude/skills/review-change/scripts/*.test.mjs'"));
+
+  const example = mapAfterMutation({ "contracts/examples/me.valid.json": "{\"a\":1}\n", "packages/contract/test/c.test.ts": "// me.valid.json\n" }, (root) => {
+    mkdirSync(path.join(root, "old"));
+    git(root, "mv", "contracts/examples/me.valid.json", "old/me.valid.json");
+  });
+  assert.equal(example.contractExamples.length, 1);
+  assert.ok(example.contractExamples[0].references.some((ref) => ref.startsWith("packages/contract/test/c.test.ts:")));
+});
+
+test("refuses a package directory name that is not safe to print in a gate", () => {
+  const root = mkdtempSync(path.join(tmpdir(), "impact-map-"));
+  try {
+    git(root, "init", "-q");
+    write(root, "README.md", "a\n");
+    git(root, "add", "-A");
+    git(root, "commit", "-qm", "base");
+    write(root, "packages/x;touch PWNED;#/package.json", "{}\n");
+    git(root, "add", "-A");
+    git(root, "commit", "-qm", "head");
+    const result = spawnSync("node", [script, "--base", "HEAD~1", "--json"], { cwd: root, encoding: "utf8" });
+    assert.equal(result.status, 2);
+    assert.match(result.stderr, /package directory name/);
+    assert.doesNotMatch(result.stdout, /touch PWNED/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
 });

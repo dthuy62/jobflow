@@ -32,14 +32,16 @@ const PATH_RISKS = [
   { area: "routes", pattern: /^backend\/src\/(http\/|server\.ts$|main\.ts$)/ },
   { area: "database", pattern: /^backend\/(migrations|src\/db|src\/adapters\/pg-)|^docker\// },
   { area: "config", pattern: /^backend\/src\/config\.ts$|^backend\/Dockerfile$/ },
-  { area: "config", pattern: /^(compose\.yaml|package\.json|package-lock\.json|\.dockerignore|tsconfig\.base\.json)$/ },
+  { area: "config", pattern: /^(compose\.yaml|package\.json|package-lock\.json|\.npmrc|\.dockerignore|tsconfig\.base\.json)$/ },
+  // A manifest's scripts decide what the gates run and what `npm ci` executes.
+  { area: "config", pattern: /^(backend|packages\/[^/]+)\/package\.json$|^backend\/\.env\.example$/ },
   { area: "vendor", pattern: /^vendor\/|^scripts\/sync-career-ops/ },
   { area: "android-remote", pattern: /^android\/app\/src\/main\/kotlin\/.*\/data\/remote\// },
   { area: "ci", pattern: /^\.github\// }
 ];
 
 /** Files that shape every workspace package, so they gate both the backend and the wrapper. */
-const WORKSPACE_FILES = /^(compose\.yaml|package\.json|package-lock\.json|\.dockerignore|tsconfig\.base\.json|backend\/Dockerfile)$/;
+const WORKSPACE_FILES = /^(compose\.yaml|package\.json|package-lock\.json|\.npmrc|\.dockerignore|tsconfig\.base\.json|backend\/Dockerfile)$/;
 
 /** Content rules on added or removed lines. */
 const CONTENT_RISKS = [
@@ -167,7 +169,7 @@ function buildReport(fileReports) {
   const docsOnly = fileReports.length > 0 && fileReports.every(({ path, oldPath }) => isDocumentation(path) && (!oldPath || isDocumentation(oldPath)));
 
   const gates = [];
-  if (fileReports.some(({ path }) => path.startsWith(".claude/skills/review-change/scripts/"))) {
+  if (changedPaths.some((path) => path.startsWith(".claude/skills/review-change/scripts/"))) {
     gates.push("node --test '.claude/skills/review-change/scripts/*.test.mjs'");
   }
   const sharedChange = components.has("packages") || components.has("workspace");
@@ -176,12 +178,23 @@ function buildReport(fileReports) {
     gates.push("cd android && ./gradlew testDevDebugUnitTest lintDevDebug detekt ktlintCheck");
   }
   if (components.has("hosted-contract")) gates.push("npm test -w @jobflow/contract");
-  if (changedPaths.some((path) => path.startsWith("scripts/sync-career-ops"))) gates.push("node --test scripts/sync-career-ops.test.mjs");
-  // A package's tests run under no other gate. Shared files can change before a package
-  // exists, when its gate would fail for no reason; a deleted manifest keeps its gate.
-  const packageExists = (dir) => show(args.base, `${dir}/package.json`) !== null || show(head, `${dir}/package.json`) !== null;
-  const packages = new Set(changedPaths.map((path) => path.match(/^packages\/([^/]+)\//)?.[1]).filter((name) => name && name !== "contract"));
+  const codePaths = changedPaths.filter((path) => !isDocumentation(path));
+  if (codePaths.some((path) => path.startsWith("scripts/sync-career-ops")) && show(head, "scripts/sync-career-ops.test.mjs") !== null) {
+    gates.push("node --test scripts/sync-career-ops.test.mjs");
+  }
+  // A package's tests run under no other gate. A package that does not exist yet, or that
+  // the change removed, has no gate that could pass; a manifest deleted from a package
+  // that still has files keeps its gate, which then reports the breakage.
+  const packageExists = (dir) =>
+    show(head, `${dir}/package.json`) !== null ||
+    (show(args.base, `${dir}/package.json`) !== null && git(["ls-tree", "-r", "--name-only", head, `${dir}/`]).trim() !== "");
+  const packages = new Set(codePaths.map((path) => path.match(/^packages\/([^/]+)\//)?.[1]).filter((name) => name && name !== "contract"));
   for (const name of [...packages].sort()) {
+    if (!/^[a-z0-9][a-z0-9._-]*$/.test(name)) {
+      // The gates are run in a shell, so a directory name must not reach them unchecked.
+      console.error(`impact-map: unsupported package directory name: ${JSON.stringify(name)}`);
+      process.exit(2);
+    }
     if (packageExists(`packages/${name}`)) gates.push(`npm test -w @jobflow/${name}`);
   }
   if ((components.has("backend") || components.has("hosted-contract") || sharedChange) && packageExists("backend")) {
@@ -212,9 +225,9 @@ function buildReport(fileReports) {
     });
 
   const examples = fileReports
-    .filter(({ path }) => /^(career-ops-wrapper\/)?contracts\//.test(path))
-    .map(({ path, status }) => {
-      const base = path.split("/").pop();
+    .filter(({ path, oldPath }) => /^(career-ops-wrapper\/)?contracts\//.test(oldPath ?? path))
+    .map(({ path, oldPath, status }) => {
+      const base = (oldPath ?? path).split("/").pop();
       return { path, status, references: grep(["-F", base], ["android/", "career-ops-wrapper/test/", "career-ops-wrapper/src/", "packages/contract/", "backend/test/"]) };
     });
 

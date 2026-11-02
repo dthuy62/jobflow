@@ -131,7 +131,9 @@ Follow the fixture repo pattern in `impact-map.test.mjs`. One test per row:
 | `backend/migrations/0002_x.sql` | `database` | L | backend |
 | `backend/src/config.ts` | `config` | L | backend |
 | `backend/Dockerfile`, `compose.yaml`, `package-lock.json` | `config` | L | backend and wrapper |
-| `.dockerignore`, `tsconfig.base.json` | `config` | L | backend and wrapper |
+| `backend/package.json`, `backend/.env.example` | `config` | L | backend |
+| `packages/safety/package.json` | `config` | L | safety, backend and wrapper |
+| `.dockerignore`, `.npmrc`, `tsconfig.base.json` | `config` | L | backend and wrapper |
 | `.gitleaks.toml` | `security` | L | none |
 | `docker/postgres-init.sql` | `database` | L | backend |
 | `packages/safety/src/x.ts` | `security` | L | safety, backend and wrapper |
@@ -154,8 +156,10 @@ Expected: the new tests FAIL, except two regression tests that already pass: the
 - [ ] **Step 3: Extend `PATH_RISKS`, `RISK_CHECKS`, components, gates and grep paths in `impact-map.mjs`**
 
 Gates: backend `npm test -w @jobflow/backend && npm run build -w @jobflow/backend`;
-contract `npm test -w @jobflow/contract`; packages run both the backend and the
-wrapper gates. Add `database` and `vendor` to `MANDATORY_REVIEWER` with `security`.
+contract `npm test -w @jobflow/contract` and the backend gate; `packages/<name>` runs
+`npm test -w @jobflow/<name>`, the backend gate and the wrapper gate. A gate prints only
+when its package exists. Add `database`, `vendor` and `ci` to `MANDATORY_REVIEWER` with
+`security`.
 Exclude `vendor/` from `isDocumentation`.
 
 `RISK_CHECKS` gets questions for the hosted backend, so its PRs stop asking about
