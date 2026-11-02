@@ -265,6 +265,10 @@ expect(redactSensitiveText("[db](postgres://app:s3cret@db/x)")).toBe("[db](postg
 
 - [ ] **Step 5: Add `redactLogText` and run the package tests**
 
+It also covers plainly written secrets in other shapes: any `Authorization` value, URLs
+of any scheme, `password=` style keys in `=`, `:` and JSON form, and a bare `Bearer`
+token. It over-redacts on purpose and caps its input.
+
 Run: `npm test -w @jobflow/safety`
 Expected: PASS.
 

@@ -57,7 +57,13 @@ describe("redactLogText", () => {
     ["Authorization: Token abc", "Authorization: Token [REDACTED]"],
     ["Authorization: abc", "Authorization: [REDACTED]"],
     ["proxy-authorization: Bearer abc", "proxy-authorization: Bearer [REDACTED]"],
-    ["sent Bearer abc.def.ghi upstream", "sent Bearer [REDACTED] upstream"]
+    ["sent Bearer abc.def.ghi upstream", "sent Bearer [REDACTED] upstream"],
+    ["Authorization: ApiKey s3cretvalue", "Authorization: [REDACTED]"],
+    ["Authorization: Negotiate YII123abc", "Authorization: [REDACTED]"],
+    ['Authorization: Digest username="u", response="abc123"', "Authorization: [REDACTED]"],
+    ['Authorization: Token token="abc123"', "Authorization: Token [REDACTED]"],
+    ["HTTP_AUTHORIZATION: Basic dXNlcjpwYXNz", "HTTP_AUTHORIZATION: Basic [REDACTED]"],
+    ["authorization: [ 'Bearer abc' ]", "authorization: [ 'Bearer [REDACTED]' ]"]
   ])("redacts the credential in %s", (input, expected) => {
     expect(redactLogText(input)).toBe(expected);
   });
@@ -81,7 +87,19 @@ describe("redactLogText", () => {
     [`postgres://app:${"x".repeat(600)}@db/x`, "postgres://app:[REDACTED]@db/x"],
     ["postgres://app@db/x?password=s3cret&a=1", "postgres://app@db/x?password=[REDACTED]&a=1"],
     ["host=db password=s3cret user=app", "host=db password=[REDACTED] user=app"],
-    ["GET /x?access_token=abc&y=1", "GET /x?access_token=[REDACTED]&y=1"]
+    ["GET /x?access_token=abc&y=1", "GET /x?access_token=[REDACTED]&y=1"],
+    ["smtp://user:pw@mail.example/", "smtp://user:[REDACTED]@mail.example/"],
+    ["postgresql+asyncpg://app:s3cret@db/x", "postgresql+asyncpg://app:[REDACTED]@db/x"],
+    ["client_secret=abc&x=1", "client_secret=[REDACTED]&x=1"],
+    ["OPENAI_API_KEY=sk-abc123", "OPENAI_API_KEY=[REDACTED]"],
+    ["PGPASSWORD=s3cret", "PGPASSWORD=[REDACTED]"],
+    ["DB_PASSWORD=s3cret", "DB_PASSWORD=[REDACTED]"],
+    ["host=db password='s3cret' user=app", "host=db password='[REDACTED]' user=app"],
+    ['{"password":"s3cret"}', '{"password":"[REDACTED]"}'],
+    ["password: s3cret", "password: [REDACTED]"],
+    ["x-api-key: abc123", "x-api-key: [REDACTED]"],
+    ['{"headers":{"x-api-key":"sk-live-abc"}}', '{"headers":{"x-api-key":"[REDACTED]"}}'],
+    ["?token=abc", "?token=[REDACTED]"]
   ])("redacts the secret in %s", (input, expected) => {
     expect(redactLogText(input)).toBe(expected);
   });
@@ -92,11 +110,29 @@ describe("redactLogText", () => {
     }
   });
 
-  it("caps very long text and stays fast on hostile input", () => {
-    const started = performance.now();
-    for (const text of ["postgres://a:".repeat(50_000), "https://a:".repeat(50_000), "a.".repeat(200_000), "Authorization: ".repeat(50_000)]) {
-      expect(redactLogText(text).length).toBeLessThanOrEqual(LOG_TEXT_MAX_CHARS + 20);
+  it("does not log part of a secret that crosses the length cap", () => {
+    const secrets = ["postgres://app:s3cretpassword@db/x", "https://app:s3cretpassword@db/x", 'password="s3cretpassword"'];
+    for (const secret of secrets) {
+      for (let offset = 0; offset < secret.length; offset += 1) {
+        const output = redactLogText(`${" ".repeat(LOG_TEXT_MAX_CHARS - offset)}${secret} tail`);
+        expect(output, `offset ${offset}`).not.toContain("s3cret");
+      }
     }
-    expect(performance.now() - started).toBeLessThan(1_000);
+  });
+
+  it.each([
+    ["repeated URLs", "postgres://a:".repeat(50_000)],
+    ["repeated web URLs", "https://a:".repeat(50_000)],
+    ["dotted text", "a.".repeat(200_000)],
+    ["repeated headers", "Authorization: ".repeat(50_000)],
+    ["a header and spaces", `authorization:${" ".repeat(16_370)}`],
+    ["a quoted header and spaces", `authorization:${" ".repeat(16_369)}"`],
+    ["a key and spaces", `password=${" ".repeat(16_370)}`],
+    ["repeated keys", "password".repeat(2_500)],
+    ["repeated schemes", "x://a:".repeat(5_000)]
+  ])("caps and stays fast on %s", (_name, text) => {
+    const started = performance.now();
+    expect(redactLogText(text).length).toBeLessThanOrEqual(LOG_TEXT_MAX_CHARS + 20);
+    expect(performance.now() - started).toBeLessThan(300);
   });
 });
