@@ -1,7 +1,7 @@
 import { connect, type Socket } from "node:net";
 import { ErrorResponseDtoSchema } from "@jobflow/contract";
 import type { FastifyInstance } from "fastify";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import { clientErrorHandler } from "../src/http/error-handler.js";
 import { ApiError, parseRequest } from "../src/http/errors.js";
@@ -27,8 +27,8 @@ function registerTestRoutes(scope: FastifyInstance): void {
   scope.get("/test/odd-message", async () => {
     throw Object.assign(new Error("x"), { message: { reason: "odd" }, stack: 42 });
   });
-  scope.get("/test/client-gone", async () => {
-    throw Object.assign(new Error("aborted"), { code: "ECONNRESET" });
+  scope.get("/test/upstream-reset", async () => {
+    throw Object.assign(new Error("read ECONNRESET"), { code: "ECONNRESET" });
   });
   scope.get("/test/many-fields", async () => parseRequest(z.array(z.string()), Array.from({ length: 60 }, () => 1)));
   scope.get("/test/long-key", async () => parseRequest(z.record(z.string(), z.string()), { ["k".repeat(300)]: 1 }));
@@ -102,9 +102,22 @@ describe("the error envelope", () => {
     expect(test.logLines().some((line) => line.msg === "unexpected error")).toBe(true);
   });
 
-  it("a client that hung up is not logged as a server error", async () => {
-    await test.server.inject({ url: "/api/v1/test/client-gone" });
+  it("a client that hung up mid-upload is not logged as a server error", async () => {
+    const address = await test.server.listen({ host: "127.0.0.1", port: 0 });
+    const socket = connect(Number(new URL(address).port), "127.0.0.1");
+    await new Promise((resolve) => socket.once("connect", resolve));
+    socket.write("POST /api/v1/test/echo HTTP/1.1\r\nHost: x\r\nContent-Type: application/json\r\nContent-Length: 1000\r\n\r\n{\"a\":");
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    socket.destroy();
+    await vi.waitFor(() => expect(test.logLines().some((line) => line.msg === "client disconnected")).toBe(true));
     expect(test.logLines().filter((line) => (line.level as number) >= 50)).toEqual([]);
+  });
+
+  it("a connection reset on the server's own call is a logged 500, because the client is still there", async () => {
+    const response = await test.server.inject({ url: "/api/v1/test/upstream-reset" });
+    expect(response.statusCode).toBe(500);
+    expectEnvelope(response.body, "UNEXPECTED_ERROR");
+    expect(test.logLines().some((line) => line.msg === "unexpected error")).toBe(true);
   });
 
   it.each(["/test/many-fields", "/test/long-key"])("%s stays within the contract's limits on details", async (url) => {
@@ -204,14 +217,21 @@ describe("the error envelope", () => {
 describe("clientErrorHandler", () => {
   function run(code: string, socketState: Partial<Socket> = {}): string {
     let written = "";
+    let destroyed = false;
     const socket = {
       destroyed: false,
-      end: (text: string) => {
+      end: (text: string, done: () => void) => {
         written = text;
+        done();
+      },
+      destroy: () => {
+        destroyed = true;
       },
       ...socketState
     } as unknown as Socket;
     clientErrorHandler(Object.assign(new Error(code), { code }), socket);
+    // A client that never closes must not hold the socket open.
+    if (written) expect(destroyed).toBe(true);
     return written;
   }
 

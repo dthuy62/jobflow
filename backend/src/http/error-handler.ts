@@ -38,8 +38,9 @@ export function registerErrorHandlers(server: FastifyInstance): void {
       const code = codeForClientError(statusCode);
       return reply.status(ERROR_STATUS[code]).send(fixedBody(code));
     }
-    // A phone losing signal mid-upload is normal, and no one is left to read a reply.
-    if (errorCode === "ECONNRESET" || request.raw.aborted) {
+    // A phone losing signal mid-upload is normal, and no one is left to read a reply. Both
+    // checks, because a server-side reset, or a real failure after the phone left, must be logged.
+    if (errorCode === "ECONNRESET" && request.raw.aborted) {
       request.log.info("client disconnected");
       return reply.status(ERROR_STATUS.VALIDATION_ERROR).send(fixedBody("VALIDATION_ERROR"));
     }
@@ -68,5 +69,6 @@ export function clientErrorHandler(error: NodeJS.ErrnoException, socket: Socket)
   const timedOut = error.code === "ERR_HTTP_REQUEST_TIMEOUT";
   const body = JSON.stringify(timedOut ? { error: { code: "UNAVAILABLE", message: "The request took too long. Try again." } } : fixedBody("VALIDATION_ERROR"));
   const statusLine = timedOut ? `${ERROR_STATUS.UNAVAILABLE} Service Unavailable` : `${ERROR_STATUS.VALIDATION_ERROR} Bad Request`;
-  socket.end(`HTTP/1.1 ${statusLine}\r\nContent-Type: application/json\r\nContent-Length: ${Buffer.byteLength(body)}\r\nConnection: close\r\n\r\n${body}`);
+  const response = `HTTP/1.1 ${statusLine}\r\nContent-Type: application/json\r\nContent-Length: ${Buffer.byteLength(body)}\r\nConnection: close\r\n\r\n${body}`;
+  socket.end(response, () => socket.destroy());
 }
