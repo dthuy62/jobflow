@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { loadConfig, loadMigrationUrl } from "../src/config.js";
+import { loadConfig, loadMigrationUrl, loadWorkerConfig } from "../src/config.js";
 
 const valid = {
   JOBFLOW_ENV: "development",
@@ -112,5 +112,20 @@ describe("loadMigrationUrl", () => {
     const message = messageOf(() => loadMigrationUrl({ JOBFLOW_ENV: "development", DATABASE_MIGRATION_URL: "garbage-s3cret" }));
     expect(message).toContain("DATABASE_MIGRATION_URL");
     expect(message).not.toContain("s3cret");
+  });
+});
+
+describe("loadWorkerConfig", () => {
+  it("reads the app role's URL, and needs no Firebase project", () => {
+    expect(loadWorkerConfig({ JOBFLOW_ENV: "development", DATABASE_URL: "postgres://a:b@db/x" })).toEqual({ databaseUrl: "postgres://a:b@db/x" });
+  });
+
+  it.each([
+    [{ DATABASE_URL: "postgres://a:b@db/x" }, "JOBFLOW_ENV"],
+    [{ JOBFLOW_ENV: "development" }, "DATABASE_URL"],
+    [{ JOBFLOW_ENV: "development", DATABASE_URL: "garbage" }, "DATABASE_URL"],
+    [{ JOBFLOW_ENV: "production", DATABASE_URL: "postgres://a:dev-only-app@db/x" }, "DATABASE_URL"]
+  ])("rejects %j", (env, name) => {
+    expect(messageOf(() => loadWorkerConfig(env))).toContain(name);
   });
 });
