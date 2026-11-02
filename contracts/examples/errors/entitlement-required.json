@@ -1,0 +1,6 @@
+{
+  "error": {
+    "code": "ENTITLEMENT_REQUIRED",
+    "message": "This needs a plan or the free trial."
+  }
+}

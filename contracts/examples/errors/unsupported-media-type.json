@@ -1,0 +1,6 @@
+{
+  "error": {
+    "code": "UNSUPPORTED_MEDIA_TYPE",
+    "message": "Use a PDF or DOCX file."
+  }
+}

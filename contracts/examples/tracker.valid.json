@@ -1,0 +1,25 @@
+{
+  "items": [
+    {
+      "job": {
+        "jobId": "job_01",
+        "title": "Staff Nurse, Pediatrics",
+        "company": "Example Hospital",
+        "location": "Hanoi",
+        "remotePolicy": "onsite",
+        "salary": {
+          "min": 30000000,
+          "max": 45000000,
+          "currency": "VND",
+          "period": "month"
+        },
+        "url": "https://jobs.example.com/postings/1",
+        "firstSeenAt": "2026-11-02T08:00:00.000Z",
+        "closed": false
+      },
+      "status": "applied",
+      "updatedAt": "2026-11-02T09:30:00.000Z"
+    }
+  ],
+  "nextCursor": null
+}

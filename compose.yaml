@@ -1,0 +1,12 @@
+services:
+  mock:
+    profiles: [mock]
+    # The image is published for amd64 only; Docker Desktop on Apple Silicon emulates it.
+    image: stoplight/prism:5@sha256:3f6d29e31bfe0b99587f0f6f79c423858dd6a2ea7e1e4658273ed930a78a9acf
+    platform: linux/amd64
+    # Prism's multiprocess mode crashes in this image.
+    command: mock -h 0.0.0.0 --multiprocess=false /contracts/openapi.json
+    volumes:
+      - ./contracts/openapi.json:/contracts/openapi.json:ro
+    ports:
+      - "127.0.0.1:4010:4010"

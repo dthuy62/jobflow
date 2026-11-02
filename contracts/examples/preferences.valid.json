@@ -1,0 +1,33 @@
+{
+  "roles": [
+    "Staff nurse",
+    "Clinical lead"
+  ],
+  "keywordsInclude": [
+    "pediatrics"
+  ],
+  "keywordsExclude": [
+    "night shift only"
+  ],
+  "locations": [
+    "Hanoi"
+  ],
+  "remotePolicies": [
+    "hybrid",
+    "onsite"
+  ],
+  "countries": [
+    "VN",
+    "SG"
+  ],
+  "minimumSalary": {
+    "amount": 30000000,
+    "currency": "VND",
+    "period": "month"
+  },
+  "seniority": [
+    "mid",
+    "senior"
+  ],
+  "aim": "A senior role on a children's ward, with mentoring."
+}

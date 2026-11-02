@@ -296,7 +296,8 @@ git commit -m "refactor: extract shared safety modules into an npm workspace pac
 ### Task 3: Contract draft and mock
 
 Android can start from here. The draft covers the first release; later phases
-may refine shapes through their own contract PRs.
+may refine shapes through their own contract PRs. Their scan and evaluator workers must
+validate data against these schemas before writing it (see `contracts/README.md`).
 
 **Files:**
 - Create: `packages/contract/{package.json,tsconfig.json,vitest.config.ts}` (builds to
@@ -324,14 +325,14 @@ may refine shapes through their own contract PRs.
 | `GET /me` | `{ userId, isAnonymous, createdAt }`; creates the user on first call | 1 |
 | `DELETE /me` | Delete the account, 202 | 3 |
 | `GET`, `PUT /me/preferences` | Roles, keywords in and out, locations, remote policy, countries, minimum salary, seniority, optional `aim` text | 2 |
-| `POST /me/cv/import` | Multipart, 5 MiB; returns `{ importId, markdown }` for review. `X-Integrity-Token` is documented as optional in this draft. Phase 3, which ships Play Integrity, makes it required through its contract PR. `restructure=true` uses AI, so it also needs Google sign-in and an entitlement or the trial (documented statuses: `SIGN_IN_REQUIRED`, `INTEGRITY_FAILED`, `ENTITLEMENT_REQUIRED`) | 2; integrity and AI 3 |
+| `POST /me/cv/import` | Multipart, 5 MiB; returns `{ importId, markdown }` for review. The file and text are held encrypted for at most 24 hours, one pending import per user, capped per address and in total, because anonymous accounts are free. `X-Integrity-Token` is documented as optional in this draft. Phase 3, which ships Play Integrity, makes it required through its contract PR. `restructure=true` uses AI, so it also needs Google sign-in and an entitlement or the trial (documented statuses: `SIGN_IN_REQUIRED`, `INTEGRITY_FAILED`, `ENTITLEMENT_REQUIRED`) | 2; integrity and AI 3 |
 | `GET`, `PUT /me/cv` | Reviewed Markdown; `PUT` takes `{ importId?, markdown }` | 2 |
 | `GET /feed` | Newest and best first: job summary, `reasons[]`, `trackerStatus?` | 2 |
 | `GET /jobs/{jobId}` | Job fields from the spec's job index, plus `closed` | 2 |
 | `PUT`, `DELETE /jobs/{jobId}/tracker` | `applied\|interview\|rejected\|skipped` | 2 |
 | `GET /tracker` | Jobs the user has marked | 2 |
-| `POST /companies` | `{ careersUrl }`; adds the company to the shared index | 2 |
-| `PUT`, `DELETE /me/devices/{installationId}` | `{ fcmToken }` | 2 |
+| `POST /companies` | `{ careersUrl }`; adds the company to the shared index. Needs Google sign-in and a per-user cap, because anonymous tokens are free to mint | 2 |
+| `PUT`, `DELETE /me/devices/{installationId}` | `{ fcmToken }`. Rows are per user and installation, at most 10 per user. `PUT` removes other users' rows only when they hold the same `fcmToken`, so these never answer 404 and one user cannot change another's row | 2 |
 | `POST /jobs/{jobId}/evaluations` | 202 with an evaluation; needs `X-Integrity-Token` | 3 |
 | `GET /evaluations/{id}` | Stage `queued\|fetching_job\|analyzing\|writing_report\|done\|failed`, score and report when done, labelled AI output | 3 |
 | `GET /me/entitlement` | Plan, features, quota counters with reset time | 3 |
@@ -377,8 +378,9 @@ Expected: PASS.
 - [ ] **Step 6: Add the `mock` service and smoke it**
 
 `compose.yaml`: image `stoplight/prism:5` pinned to the digest at build time,
-profile `mock`, command `mock -h 0.0.0.0 /contracts/openapi.json`, the file mounted
-read-only, port `127.0.0.1:4010:4010`.
+profile `mock`, `platform: linux/amd64` (the only image published), command
+`mock -h 0.0.0.0 --multiprocess=false /contracts/openapi.json` (multiprocess crashes in
+this image), the file mounted read-only, port `127.0.0.1:4010:4010`.
 
 ```bash
 docker compose --profile mock up -d mock
@@ -402,8 +404,8 @@ Record the commands there too, including that the emulator reaches the mock at
 
 - [ ] **Step 7: Add `contract.yml`**
 
-Runs on `packages/contract/**`, `contracts/**`, root `package.json`, lockfile and
-`tsconfig.base.json`: `npm ci`, then the tests.
+Runs on `packages/contract/**`, `contracts/**`, `compose.yaml`, root `package.json`, lockfile
+and `tsconfig.base.json`: `npm ci`, the tests, the build, then the mock smoke.
 
 - [ ] **Step 8: Commit**
 

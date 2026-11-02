@@ -11,7 +11,8 @@ jobflow/
 ├── android/
 ├── backend/             # planned: hosted API and workers
 ├── packages/safety/     # SSRF-guarded fetch, HTML to text, redaction
-├── contracts/           # planned: hosted API contract
+├── packages/contract/   # hosted API schemas and the OpenAPI generator
+├── contracts/           # hosted API examples, generated OpenAPI, mock guide
 ├── vendor/career-ops/   # planned: vendored Career Ops parts
 ├── career-ops-wrapper/
 ├── docs/
@@ -47,7 +48,7 @@ Key implementation facts:
 - Home is MVI; Settings is MVVM-lite; three Navigation 3 tabs keep Home at the
   bottom of the stack.
 - Retrofit/OkHttp/kotlinx.serialization call the wrapper; contract tests parse
-  `career-ops-wrapper/contracts/examples` and `contracts/error-codes.json`.
+  `career-ops-wrapper/contracts/examples` and `career-ops-wrapper/contracts/error-codes.json`.
 - Errors: `Either<AppError, T>`, one mapper per data source, one UI mapper.
 - Konsist enforces layers; detekt and ktlint run in the verify command and CI.
 - `dev` and `prod` product flavors exist; `dev` allows cleartext access to

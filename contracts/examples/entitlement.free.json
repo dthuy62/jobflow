@@ -1,0 +1,15 @@
+{
+  "plan": "free",
+  "features": [
+    "feed",
+    "tracker"
+  ],
+  "quotas": [
+    {
+      "feature": "evaluation",
+      "used": 1,
+      "limit": 3,
+      "resetsAt": null
+    }
+  ]
+}

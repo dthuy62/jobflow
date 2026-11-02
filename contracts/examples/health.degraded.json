@@ -1,0 +1,6 @@
+{
+  "status": "degraded",
+  "checks": {
+    "database": "failed"
+  }
+}

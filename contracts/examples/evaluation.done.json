@@ -1,0 +1,14 @@
+{
+  "evaluationId": "evaluation_01",
+  "jobId": "job_01",
+  "createdAt": "2026-11-02T08:00:00.000Z",
+  "updatedAt": "2026-11-02T09:30:00.000Z",
+  "result": {
+    "score": 82,
+    "summary": "A strong fit for the role; the posting does not state pay.",
+    "reportMarkdown": "# Evaluation\n\nThis report was not checked against outside sources.\n",
+    "aiGenerated": true
+  },
+  "failureMessage": null,
+  "stage": "done"
+}

@@ -1,0 +1,6 @@
+{
+  "error": {
+    "code": "PAYLOAD_TOO_LARGE",
+    "message": "The file, or the text extracted from it, is too large."
+  }
+}

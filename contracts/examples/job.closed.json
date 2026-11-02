@@ -1,0 +1,17 @@
+{
+  "jobId": "job_02",
+  "title": "Staff Nurse, Pediatrics",
+  "company": "Example Hospital",
+  "location": "Hanoi",
+  "remotePolicy": "onsite",
+  "salary": null,
+  "url": "https://jobs.example.com/postings/1",
+  "firstSeenAt": "2026-11-02T08:00:00.000Z",
+  "closed": true,
+  "source": "example-board",
+  "externalId": null,
+  "acceptedCountries": [],
+  "acceptedTimezones": [],
+  "descriptionText": "Example Hospital is hiring a staff nurse for its pediatrics ward.",
+  "lastSeenAt": "2026-11-02T09:30:00.000Z"
+}
