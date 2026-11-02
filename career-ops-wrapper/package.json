@@ -5,14 +5,18 @@
   "type": "module",
   "main": "dist/server.js",
   "scripts": {
+    "predev": "npm run build -w @jobflow/safety",
     "dev": "tsx watch src/server.ts",
+    "prebuild": "npm run build -w @jobflow/safety",
     "build": "tsc -p tsconfig.json",
+    "pretest": "npm run build -w @jobflow/safety",
     "test": "vitest run"
   },
   "keywords": [],
   "author": "",
   "license": "MIT",
   "dependencies": {
+    "@jobflow/safety": "file:../packages/safety",
     "@scalar/fastify-api-reference": "^1.60.0",
     "dotenv": "^17.4.2",
     "fastify": "^5.8.5",

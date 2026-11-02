@@ -588,3 +588,39 @@ test("still maps a change that removes a package with an unsupported directory n
   const report = mapAfterMutation({ "README.md": "a\n", "packages/Foo/x.txt": "a\n" }, (root) => git(root, "rm", "-rq", "packages/Foo"));
   assert.deepEqual(report.gates, [WRAPPER_GATE]);
 });
+
+test("prints one tests-prove-change command per package with changed source", () => {
+  const report = mapAfterCommit({
+    ...BACKEND_EXISTS,
+    ...SAFETY_EXISTS,
+    "backend/src/x.ts": { before: "export const a = 1;\n", after: "export const a = 2;\n" },
+    "packages/safety/src/x.ts": { before: "export const a = 1;\n", after: "export const a = 2;\n" },
+    "career-ops-wrapper/src/x.ts": { before: "export const a = 1;\n", after: "export const a = 2;\n" },
+    "packages/contract/test/x.test.ts": { before: "// a\n", after: "// b\n" }
+  });
+  const { baseSha } = report.range;
+  const prove = (dir) => `node .claude/skills/review-change/scripts/tests-prove-change.mjs --base ${baseSha} --package ${dir}`;
+  assert.deepEqual(report.proveCommands, [prove("backend"), prove("career-ops-wrapper"), prove("packages/safety")]);
+});
+
+test("prints no tests-prove-change command for a change with no package source", () => {
+  const report = mapAfterCommit({ "README.md": { before: "a\n", after: "b\n" } });
+  assert.deepEqual(report.proveCommands, []);
+});
+
+test("renders the tests-prove-change commands under Layer 0 gates", () => {
+  const root = mkdtempSync(path.join(tmpdir(), "impact-map-"));
+  try {
+    git(root, "init", "-q");
+    write(root, "career-ops-wrapper/src/x.ts", "export const a = 1;\n");
+    git(root, "add", "-A");
+    git(root, "commit", "-qm", "base");
+    write(root, "career-ops-wrapper/src/x.ts", "export const a = 2;\n");
+    git(root, "commit", "-qam", "head");
+    const markdown = execFileSync("node", [script, "--base", "HEAD~1"], { cwd: root, encoding: "utf8" });
+    const gates = markdown.slice(markdown.indexOf("## Layer 0 gates"), markdown.indexOf("## Risk areas"));
+    assert.match(gates, /tests-prove-change\.mjs --base [0-9a-f]+ --package career-ops-wrapper/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});

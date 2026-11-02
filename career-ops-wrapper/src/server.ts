@@ -4,8 +4,10 @@ import { registerDocsRoutes } from "./api/docs-routes.js";
 import { registerApiRoutes } from "./api/register-routes.js";
 import { loadRuntimeConfig, type RuntimeConfig } from "./config/runtime-config.js";
 import { mapErrorToResponse } from "./errors/error-mapper.js";
-import { redactSensitiveText } from "./security/redaction.js";
+import { redactSensitiveText } from "@jobflow/safety";
 import type { EvaluationServiceOptions } from "./services/evaluation-service.js";
+
+const MAX_PARAM_LENGTH = 16 * 1024;
 
 export interface CreateServerOptions {
   readonly config?: RuntimeConfig;
@@ -18,7 +20,11 @@ export async function createServer(options: CreateServerOptions = {}): Promise<F
   const config = options.config ?? loadRuntimeConfig();
   const server = Fastify({
     routerOptions: {
-      ignoreTrailingSlash: true
+      ignoreTrailingSlash: true,
+      // Fastify answers a longer path parameter itself, before the pairing token
+      // guard, with a 414 that echoes the path. Node's 16 KiB header limit caps the
+      // real length, so an overlong id reaches its route and gets the API's answers.
+      maxParamLength: MAX_PARAM_LENGTH
     },
     logger: false
   });

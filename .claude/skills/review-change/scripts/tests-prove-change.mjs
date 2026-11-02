@@ -1,48 +1,43 @@
 #!/usr/bin/env node
-// Layer 0 "tests prove the change" check for career-ops-wrapper.
-// Checks out <head> in a throwaway git worktree, reverts only the non-test
-// source files (career-ops-wrapper/src/**) to <base>, and runs the added and
-// changed test files there. A new test that still passes proves nothing.
-// The caller's working tree is never modified.
-// Usage: node tests-prove-change.mjs --base <rev> [--head <rev>] [--json]
+// Layer 0 "tests prove the change" check for one workspace package.
+// Checks out <head> in a throwaway git worktree, installs and builds there,
+// reverts only the package's non-test source files (<package>/src/**) to <base>,
+// and runs the added and changed test files. A new test that still passes proves
+// nothing. The caller's working tree is never modified.
+// Usage: node tests-prove-change.mjs --base <rev> [--head <rev>] [--package <dir>] [--json]
 
 import { execFileSync, spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, rmSync, symlinkSync } from "node:fs";
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
-const WRAPPER = "career-ops-wrapper";
 const args = parseArgs(process.argv.slice(2));
-if (!args?.base) {
-  console.error("usage: node tests-prove-change.mjs --base <rev> [--head <rev>] [--json]");
+const PACKAGE = args?.package ?? "career-ops-wrapper";
+if (!args?.base || !/^(?:packages\/)?[a-z0-9][a-z0-9._-]*$/.test(PACKAGE)) {
+  console.error("usage: node tests-prove-change.mjs --base <rev> [--head <rev>] [--package <dir>] [--json]");
   process.exit(2);
 }
 const head = args.head ?? "HEAD";
 const repoRoot = git(["rev-parse", "--show-toplevel"], process.cwd()).trim();
-const nodeModules = path.join(repoRoot, WRAPPER, "node_modules");
 
-const changed = git(["diff", "--name-status", "--no-renames", `${args.base}..${head}`, "--", `${WRAPPER}/`], repoRoot)
+const changed = git(["diff", "--name-status", "--no-renames", `${args.base}..${head}`, "--", `${PACKAGE}/`], repoRoot)
   .split("\n").filter(Boolean).map((line) => {
     const [status, file] = line.split("\t");
     return { status, file };
   });
-const sourceFiles = changed.filter(({ file }) => file.startsWith(`${WRAPPER}/src/`));
-const testFiles = changed.filter(({ file, status }) => status !== "D" && /^career-ops-wrapper\/test\/.*\.test\.ts$/.test(file));
+const sourceFiles = changed.filter(({ file }) => file.startsWith(`${PACKAGE}/src/`));
+const testFiles = changed.filter(({ file, status }) => status !== "D" && file.startsWith(`${PACKAGE}/test/`) && file.endsWith(".test.ts"));
 
 if (sourceFiles.length === 0 || testFiles.length === 0) {
-  emit({ skipped: true, reason: sourceFiles.length === 0 ? "no wrapper source changes" : "no added or changed wrapper tests", sourceFiles, testFiles });
+  emit({ skipped: true, reason: sourceFiles.length === 0 ? `no source changes in ${PACKAGE}` : `no added or changed tests in ${PACKAGE}`, sourceFiles, testFiles });
   process.exit(0);
-}
-if (!existsSync(nodeModules)) {
-  console.error(`missing ${nodeModules}; run npm ci in ${WRAPPER} first`);
-  process.exit(2);
 }
 
 const scratch = mkdtempSync(path.join(process.env.TMPDIR ?? tmpdir(), "tests-prove-change-"));
 const tree = path.join(scratch, "tree");
 try {
   git(["worktree", "add", "--detach", tree, head], repoRoot);
-  symlinkSync(nodeModules, path.join(tree, WRAPPER, "node_modules"), "dir");
+  installAndBuild();
   for (const { file, status } of sourceFiles) {
     if (status === "A") rmSync(path.join(tree, file), { force: true });
     else git(["checkout", args.base, "--", file], tree);
@@ -67,10 +62,29 @@ try {
   rmSync(scratch, { recursive: true, force: true });
 }
 
+/**
+ * A real install, not a symlink to the main checkout's node_modules: npm's workspace
+ * links would then load `@jobflow/*` from the main checkout. Packages are built here
+ * because dependents import their `dist`.
+ */
+function installAndBuild() {
+  run("npm", ["ci", "--prefer-offline", "--ignore-scripts", "--no-audit", "--no-fund"]);
+  const packagesDir = path.join(tree, "packages");
+  if (!existsSync(packagesDir)) return;
+  for (const name of readdirSync(packagesDir)) {
+    if (existsSync(path.join(packagesDir, name, "package.json"))) run("npm", ["run", "build", "--if-present", "-w", `packages/${name}`]);
+  }
+}
+
+function run(command, commandArgs) {
+  const result = spawnSync(command, commandArgs, { cwd: tree, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], timeout: 300_000 });
+  if (result.status !== 0) throw new Error(`${command} ${commandArgs.join(" ")} failed: ${String(result.stderr).slice(0, 500)}`);
+}
+
 function runVitest(files, label) {
   const reportPath = path.join(scratch, `${label}.json`);
-  spawnSync("npx", ["vitest", "run", ...files.map((file) => path.relative(WRAPPER, file)), "--reporter=json", `--outputFile=${reportPath}`], {
-    cwd: path.join(tree, WRAPPER),
+  spawnSync("npx", ["vitest", "run", ...files.map((file) => path.relative(PACKAGE, file)), "--reporter=json", `--outputFile=${reportPath}`], {
+    cwd: path.join(tree, PACKAGE),
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],
     timeout: 300_000
@@ -82,7 +96,7 @@ function summarize(vitest, baseNames) {
   const files = [];
   for (const result of vitest.testResults ?? []) {
     // Vitest reports real paths (/private/var/… on macOS), so match on the suffix.
-    const repoFile = result.name.slice(result.name.lastIndexOf(`/${WRAPPER}/`) + 1);
+    const repoFile = result.name.slice(result.name.lastIndexOf(`/${PACKAGE}/`) + 1);
     const tests = (result.assertionResults ?? []).map((assertion) => ({
       name: assertion.fullName,
       status: assertion.status,
@@ -147,7 +161,7 @@ function parseArgs(argv) {
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
     if (arg === "--json") parsed.json = true;
-    else if (arg === "--base" || arg === "--head") {
+    else if (arg === "--base" || arg === "--head" || arg === "--package") {
       const value = argv[++index];
       if (value === undefined || value.startsWith("-")) return null;
       parsed[arg.slice(2)] = value;

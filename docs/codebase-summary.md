@@ -10,7 +10,7 @@ do not exist until its tasks land.
 jobflow/
 ├── android/
 ├── backend/             # planned: hosted API and workers
-├── packages/            # planned: shared TypeScript packages
+├── packages/safety/     # SSRF-guarded fetch, HTML to text, redaction
 ├── contracts/           # planned: hosted API contract
 ├── vendor/career-ops/   # planned: vendored Career Ops parts
 ├── career-ops-wrapper/
@@ -68,11 +68,11 @@ tool. The hosted backend reuses its modules through shared packages.
 | Services | `src/services/` (incl. `career-ops-projection.ts`) |
 | Parsers | `src/parsers/` |
 | Scan engine | `src/career-ops-engine/`, `src/runs/` |
-| AI evaluation | `src/evaluation/` (posting fetch + SSRF guard, prompt, fixed CLI command, output parsing, writer), `src/services/evaluation-*.ts` |
+| AI evaluation | `src/evaluation/` (prompt, fixed CLI command, output parsing, writer), `src/services/evaluation-*.ts` |
 | Child processes | `src/process/bounded-process.ts` (no shell, process group, timeout, bounded output) |
 | Workspace IO | `src/workspace/` |
 | Output PDFs | `src/outputs/` |
-| Security | `src/security/` |
+| Security | `src/security/`, `@jobflow/safety` |
 | Errors | `src/errors/` |
 | API docs | `src/openapi/openapi-document.ts`, `src/api/docs-routes.ts` |
 | Tests | `test/` |

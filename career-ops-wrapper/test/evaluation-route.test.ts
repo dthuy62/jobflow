@@ -5,7 +5,7 @@ import type { FastifyInstance } from "fastify";
 import { afterEach, describe, expect, it } from "vitest";
 import type { RuntimeConfig } from "../src/config/runtime-config.js";
 import { EvaluationDtoSchema, ErrorResponseDtoSchema, OfferDtoSchema, type EvaluationDto } from "../src/contracts/index.js";
-import type { PostingResult } from "../src/evaluation/posting-fetcher.js";
+import type { PostingResult } from "@jobflow/safety";
 import { createServer } from "../src/server.js";
 import { createFakeClaude, type FakeClaude, type FakeClaudeBehaviour } from "./support/fake-claude.js";
 import { EvaluationNotReadyDetailsSchema } from "./support/evaluation-not-ready.js";

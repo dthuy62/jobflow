@@ -37,8 +37,7 @@ export async function registerApiRoutes(
   await server.register(
     async (apiV1) => {
       registerLocalPairingTokenGuard(apiV1, options.config);
-      // Also answers an {id} over Fastify's 100-character path parameter limit,
-      // which never reaches its route, with the error envelope.
+      // Answers unknown paths under /api/v1 with the error envelope.
       apiV1.setNotFoundHandler(async () => {
         throw new ApiError("NOT_FOUND", "Resource was not found.");
       });

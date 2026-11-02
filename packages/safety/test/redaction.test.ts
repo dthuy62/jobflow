@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { redactSensitiveText } from "../src/security/redaction.js";
+import { redactSensitiveText } from "../src/redaction.js";
 
 describe("sensitive text redaction", () => {
   it("redacts local pairing token values", () => {
@@ -28,5 +28,16 @@ describe("sensitive text redaction", () => {
         workspacePath: "/Users/hy/career-ops"
       })
     ).toBe("Failed under [WORKSPACE]/profile.yml");
+  });
+});
+
+describe("redactSensitiveText keeps report text intact", () => {
+  it.each([
+    "[db](postgres://app:s3cret@db:5432/x)",
+    "[apply](https://user:pw@jobs.example/x) tail",
+    "`Authorization: Bearer <token>` is needed",
+    "Use Authorization: Bearer tokens for all calls."
+  ])("leaves %s to the report sanitizer", (text) => {
+    expect(redactSensitiveText(text)).toBe(text);
   });
 });

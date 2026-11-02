@@ -1,8 +1,8 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { htmlToText } from "../src/evaluation/html-text.js";
-import { fetchPostingText, type FetchPostingOptions } from "../src/evaluation/posting-fetcher.js";
+import { htmlToText } from "../src/html-text.js";
+import { fetchPostingText, type FetchPostingOptions } from "../src/posting-fetcher.js";
 
 const LONG_TEXT = "Senior Android engineer building offline-first apps. ".repeat(20);
 
@@ -141,7 +141,7 @@ describe("fetchPostingText", () => {
   });
 
   it("refuses an https to http downgrade", async () => {
-    const { checkRedirect } = await import("../src/evaluation/posting-fetcher.js");
+    const { checkRedirect } = await import("../src/posting-fetcher.js");
 
     expect(checkRedirect(new URL("https://jobs.example/a"), "http://jobs.example/b")).toBeUndefined();
     expect(checkRedirect(new URL("http://jobs.example/a"), "https://jobs.example/b")?.href).toBe(

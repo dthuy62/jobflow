@@ -8,8 +8,8 @@ Design: `docs/superpowers/specs/2026-11-02-jobflow-hosted-product-design.md`.
 
 Status: in progress. Plan: `docs/superpowers/plans/2026-11-02-hosted-backend-phase-1.md`. Issues #23 to #29.
 
-- [ ] Align repo rules, docs and the review skill.
-- [ ] npm workspace and `@jobflow/safety`.
+- [x] Align repo rules, docs and the review skill.
+- [x] npm workspace and `@jobflow/safety`.
 - [ ] Contract draft and mock server.
 - [ ] Backend skeleton, database, Compose and CI.
 - [ ] Authentication, authorization and rate limits.

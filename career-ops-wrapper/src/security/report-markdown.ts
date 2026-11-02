@@ -1,5 +1,5 @@
 import path from "node:path";
-import { redactSensitiveText } from "./redaction.js";
+import { redactSensitiveText } from "@jobflow/safety";
 
 /**
  * Report Markdown sanitizer. Design: docs/superpowers/specs/2026-10-31-report-markdown-links-design.md.

@@ -5,10 +5,10 @@ import { isIP, type LookupFunction } from "node:net";
 import { isBlockedAddress as defaultIsBlockedAddress } from "./address-guard.js";
 import { htmlToText } from "./html-text.js";
 
-// The wrapper, not the model, fetches the posting. The URL comes from the
-// workspace projection, never from the phone, and every address the request
-// could reach is checked: IP-literal hosts before connecting, and every
-// resolved address on every connection (so DNS rebinding cannot switch it).
+// The server, not the model, fetches the posting. Treat the URL as untrusted:
+// every address the request could reach is checked: IP-literal hosts before
+// connecting, and every resolved address on every connection (so DNS rebinding
+// cannot switch it).
 
 export const POSTING_TIMEOUT_MS = 20_000;
 export const POSTING_MAX_BYTES = 2 * 1024 * 1024;
@@ -16,7 +16,7 @@ export const POSTING_MAX_CHARS = 60_000;
 export const POSTING_MIN_CHARS = 500;
 export const POSTING_MAX_REDIRECTS = 5;
 
-const USER_AGENT = "JobFlow-Wrapper/1.0";
+const USER_AGENT = "JobFlow/1.0";
 const ALLOWED_CONTENT_TYPES = new Set(["text/html", "text/plain", "application/json"]);
 const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
 

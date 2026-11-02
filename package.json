@@ -1,0 +1,16 @@
+{
+  "name": "jobflow",
+  "private": true,
+  "engines": {
+    "node": ">=22.12"
+  },
+  "workspaces": [
+    "packages/*",
+    "backend",
+    "career-ops-wrapper"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "test": "npm test --workspaces --if-present"
+  }
+}

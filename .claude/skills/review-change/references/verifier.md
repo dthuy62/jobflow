@@ -7,8 +7,10 @@ finding. Your job is to prove or disprove one finding, not to agree with it.
 
 - One finding (below), in the `finding-format.md` shape.
 - The code at {{HEAD}} in {{REPO}}. Work on a copy, never in {{REPO}}
-  itself: your own `git worktree add --detach <tmp> {{HEAD}}` (symlink
-  `career-ops-wrapper/node_modules` into it), a `npx tsx` script in a temp
+  itself: your own `git worktree add --detach <tmp> {{HEAD}}` (run
+  `npm ci --prefer-offline` and build the packages under `packages/` there; a
+  symlinked `node_modules` loads `@jobflow/*` from the main checkout), a
+  `npx tsx` script in a temp
   directory, or a copied fixture workspace
   (`career-ops-wrapper/fixtures/workspaces/` has fixtures).
 
