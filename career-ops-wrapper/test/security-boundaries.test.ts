@@ -112,8 +112,8 @@ describe("security boundaries", () => {
     }
   );
 
-  // Fastify rejects path parameters over 100 characters before routing; the
-  // /api/v1 not-found handler still answers with the error envelope.
+  // Overlong ids reach their routes, behind the pairing token guard, because the
+  // server raises Fastify's path parameter limit; each route answers with the envelope.
   it.each(Object.keys(sampleIds))("returns NOT_FOUND without leaking for an overlong id on %s", async (route) => {
     for (const id of ["x".repeat(101), "x".repeat(300), `${sampleIds[route]}${"0".repeat(100)}`]) {
       const response = await server.inject({
@@ -123,7 +123,7 @@ describe("security boundaries", () => {
       });
 
       expect(response.statusCode, id).toBe(404);
-      expect(response.json()).toEqual({ error: { code: "NOT_FOUND", message: "Resource was not found." } });
+      expect(response.json()).toEqual({ error: { code: "NOT_FOUND", message: notFoundMessages[route] } });
       expect(response.body).not.toContain(workspaceRealPath);
     }
   });

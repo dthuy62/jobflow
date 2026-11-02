@@ -5,10 +5,18 @@ on:
     branches: [main]
     paths:
       - "career-ops-wrapper/**"
+      - "packages/safety/**"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.base.json"
       - ".github/workflows/wrapper.yml"
   pull_request:
     paths:
       - "career-ops-wrapper/**"
+      - "packages/safety/**"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.base.json"
       - ".github/workflows/wrapper.yml"
 
 concurrency:
@@ -17,10 +25,6 @@ concurrency:
 
 permissions:
   contents: read
-
-defaults:
-  run:
-    working-directory: career-ops-wrapper
 
 jobs:
   test:
@@ -32,7 +36,8 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: career-ops-wrapper/package-lock.json
+          cache-dependency-path: package-lock.json
       - run: npm ci
-      - run: npm test
-      - run: npm run build
+      - run: npm test -w @jobflow/safety
+      - run: npm test -w career-ops-wrapper
+      - run: npm run build -w career-ops-wrapper

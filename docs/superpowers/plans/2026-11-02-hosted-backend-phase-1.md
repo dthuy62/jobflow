@@ -270,7 +270,8 @@ the moved tests, and those pass in the package.
 
 - [ ] **Step 7: Update the vulnerable dependencies**
 
-Run: `npm audit fix --omit=dev`, then repeat the step 6 test and build commands, then
+Run: `npm audit fix --omit=dev`, then `npm ci` (the fix removes dev dependencies from
+`node_modules`), then repeat the step 6 test and build commands, then
 `npm audit --omit=dev --audit-level=high`.
 Expected: PASS and no high or critical finding. The PR lists each version change. If a
 fix needs a major version, or a wrapper test fails because of it, stop and ask the owner.
@@ -487,6 +488,7 @@ it("an oversized body maps to 413 PAYLOAD_TOO_LARGE");  // via registerTestRoute
 it("a malformed JSON body maps to 400 VALIDATION_ERROR");
 it("an unsupported content type maps to 415 UNSUPPORTED_MEDIA_TYPE");
 it("an unknown path returns the 404 NOT_FOUND envelope");
+it("an overlong path parameter gets the envelope, not Fastify's own 414 that echoes the path"); // via registerTestRoutes
 // health
 it("returns 200 ok when the database answers");
 it("returns 503 degraded when the database fails, within 2 s");

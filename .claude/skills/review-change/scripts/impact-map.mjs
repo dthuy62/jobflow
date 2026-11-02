@@ -3,8 +3,8 @@
 // it, which risk areas it touches, and which gates and reviewers are mandatory.
 // Usage: node impact-map.mjs --base <rev> [--head <rev>] [--json]
 // Reads git only (git diff, git show, git grep); never writes. TypeScript and
-// JavaScript symbols come from the TypeScript compiler that career-ops-wrapper
-// installs (`npm ci` there); Kotlin symbols are still matched by line.
+// JavaScript symbols come from the TypeScript compiler that the root workspace
+// installs (`npm ci` at the repo root); Kotlin symbols are still matched by line.
 
 import { execFileSync } from "node:child_process";
 import { createRequire } from "node:module";
@@ -202,6 +202,12 @@ function buildReport(fileReports) {
     gates.push("npm test -w @jobflow/backend && npm run build -w @jobflow/backend");
   }
 
+  const baseSha = git(["rev-parse", args.base]).trim();
+  const provablePackages = new Set(codePaths.map((path) => path.match(/^(backend|career-ops-wrapper|packages\/[a-z0-9][a-z0-9._-]*)\/src\//)?.[1]).filter(Boolean));
+  const proveCommands = [...provablePackages]
+    .sort()
+    .map((dir) => `node .claude/skills/review-change/scripts/tests-prove-change.mjs --base ${baseSha} --package ${dir}`);
+
   const source = fileReports.filter((file) => !file.isTest && !file.path.includes("/fixtures/"));
   const symbols = new Map();
   for (const file of source) {
@@ -271,12 +277,13 @@ function buildReport(fileReports) {
   const androidChecklist = components.has("android") ? "android/.claude/skills/android-agentic-starter/references/review-checklist.md" : null;
 
   return {
-    range: { base: args.base, head, baseSha: git(["rev-parse", args.base]).trim(), headSha: git(["rev-parse", head]).trim() },
+    range: { base: args.base, head, baseSha, headSha: git(["rev-parse", head]).trim() },
     mode: docsOnly ? "docs-only" : "full",
     tier,
     tierReasons,
     components: [...components].sort(),
     gates,
+    proveCommands,
     reviewers: [...reviewers],
     androidChecklist,
     risks: Object.fromEntries([...risks.entries()].sort()),
@@ -297,7 +304,7 @@ function renderMarkdown(report) {
   out.push(`Components: ${report.components.join(", ") || "none"}`);
   out.push(`Mandatory reviewers: ${report.reviewers.join(", ")}`);
   if (report.androidChecklist) out.push(`Android checklist: ${report.androidChecklist}`);
-  out.push("", "## Layer 0 gates", ...report.gates.map((gate) => `- \`${gate}\``));
+  out.push("", "## Layer 0 gates", ...[...report.gates, ...report.proveCommands].map((gate) => `- \`${gate}\``));
   out.push("", "## Risk areas");
   for (const [area, paths] of Object.entries(report.risks)) {
     out.push(`- **${area}**${MANDATORY_REVIEWER[area] ? ` (→ ${MANDATORY_REVIEWER[area]} reviewer)` : ""}: ${RISK_CHECKS[area] ?? ""}`);
@@ -494,14 +501,14 @@ function bindingIdentifiers(ts, name) {
   return name.elements.flatMap((element) => (ts.isOmittedExpression(element) ? [] : bindingIdentifiers(ts, element.name)));
 }
 
-/** The wrapper's pinned compiler, loaded once and only when a TS/JS file changed. */
+/** The workspace's pinned compiler, loaded once and only when a TS/JS file changed. */
 function typescript() {
   if (!typescript.module) {
-    const wrapperPackage = new URL("../../../../career-ops-wrapper/package.json", import.meta.url);
+    const rootPackage = new URL("../../../../package.json", import.meta.url);
     try {
-      typescript.module = createRequire(wrapperPackage)("typescript");
+      typescript.module = createRequire(rootPackage)("typescript");
     } catch {
-      console.error("impact-map: cannot load typescript from career-ops-wrapper; run `npm ci` in career-ops-wrapper first");
+      console.error("impact-map: cannot load typescript from the workspace; run `npm ci` at the repo root first");
       process.exit(2);
     }
   }

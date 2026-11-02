@@ -27,7 +27,8 @@ Rules:
   `npx tsx` script, or curl) against a copy, never against tracked files.
 - Never add or edit files inside the repository: other reviewers run tests
   in the same checkout at the same time. For a scratch vitest test, make your
-  own copy (`git worktree add --detach <tmp> HEAD` and symlink
-  `career-ops-wrapper/node_modules`), and remove it with
+  own copy (`git worktree add --detach <tmp> HEAD`, then `npm ci --prefer-offline`
+  and build the packages under `packages/` there, with no symlinked
+  `node_modules`), and remove it with
   `git worktree remove --force <tmp>` when done. Scripts and fixture copies go
   in a temp directory.

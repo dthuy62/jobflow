@@ -1,7 +1,7 @@
 import type { EvaluationDto } from "../contracts/index.js";
 import type { ProcessResult } from "../process/bounded-process.js";
 import type { ParsedCliOutput } from "./evaluation-output.js";
-import type { PostingFailureReason } from "./posting-fetcher.js";
+import type { PostingFailureReason } from "@jobflow/safety";
 
 // CLI output is read here only to pick a category. No text from it is ever
 // returned: every failure message is a fixed sentence.

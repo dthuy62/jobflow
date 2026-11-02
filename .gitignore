@@ -10,6 +10,8 @@
 /.idea/assetWizardSettings.xml
 .DS_Store
 /build
+node_modules/
+dist/
 /android/build
 /android/app/build
 /android/local.properties

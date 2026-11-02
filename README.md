@@ -7,7 +7,8 @@ explains why they fit. It is becoming a hosted, install-and-use product; see
 ## Projects
 
 - `android/` - Android app.
-- `backend/`, `packages/`, `contracts/`, `vendor/` - Hosted backend, being built
+- `packages/safety/` - Safety helpers shared with the wrapper.
+- `backend/`, `contracts/`, `vendor/` - Hosted backend, being built
   (`docs/superpowers/plans/2026-11-02-hosted-backend-phase-1.md`).
 - `career-ops-wrapper/` - Local wrapper over a Career Ops workspace. Frozen as a
   development and self-host tool.
@@ -40,9 +41,10 @@ git config core.hooksPath .githooks
 
 ## Career Ops Wrapper
 
+Run `npm ci` once at the repo root; the wrapper is part of the npm workspace.
+
 ```bash
 cd career-ops-wrapper
-npm install
 npm run dev -- --workspace /path/to/career-ops
 npm test
 ```

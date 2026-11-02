@@ -25,7 +25,7 @@ import {
   type EvaluationInputs
 } from "../evaluation/evaluation-prompt.js";
 import { writeEvaluation } from "../evaluation/evaluation-writer.js";
-import { fetchPostingText, type FetchPostingOptions, type PostingResult } from "../evaluation/posting-fetcher.js";
+import { fetchPostingText, type FetchPostingOptions, type PostingResult } from "@jobflow/safety";
 import { parseScoreToPercent } from "../parsers/index.js";
 import { runBoundedProcess } from "../process/bounded-process.js";
 import { RunStore } from "../runs/index.js";

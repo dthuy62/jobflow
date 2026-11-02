@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isBlockedAddress } from "../src/evaluation/address-guard.js";
+import { isBlockedAddress } from "../src/address-guard.js";
 
 describe("isBlockedAddress", () => {
   it.each([

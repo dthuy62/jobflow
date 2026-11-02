@@ -588,3 +588,22 @@ test("still maps a change that removes a package with an unsupported directory n
   const report = mapAfterMutation({ "README.md": "a\n", "packages/Foo/x.txt": "a\n" }, (root) => git(root, "rm", "-rq", "packages/Foo"));
   assert.deepEqual(report.gates, [WRAPPER_GATE]);
 });
+
+test("prints one tests-prove-change command per package with changed source", () => {
+  const report = mapAfterCommit({
+    ...BACKEND_EXISTS,
+    ...SAFETY_EXISTS,
+    "backend/src/x.ts": { before: "export const a = 1;\n", after: "export const a = 2;\n" },
+    "packages/safety/src/x.ts": { before: "export const a = 1;\n", after: "export const a = 2;\n" },
+    "career-ops-wrapper/src/x.ts": { before: "export const a = 1;\n", after: "export const a = 2;\n" },
+    "packages/contract/test/x.test.ts": { before: "// a\n", after: "// b\n" }
+  });
+  const { baseSha } = report.range;
+  const prove = (dir) => `node .claude/skills/review-change/scripts/tests-prove-change.mjs --base ${baseSha} --package ${dir}`;
+  assert.deepEqual(report.proveCommands, [prove("backend"), prove("career-ops-wrapper"), prove("packages/safety")]);
+});
+
+test("prints no tests-prove-change command for a change with no package source", () => {
+  const report = mapAfterCommit({ "README.md": { before: "a\n", after: "b\n" } });
+  assert.deepEqual(report.proveCommands, []);
+});

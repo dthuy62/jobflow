@@ -5,8 +5,8 @@
 Install and run the wrapper:
 
 ```bash
+npm ci
 cd career-ops-wrapper
-npm install
 npm run dev -- --workspace /path/to/career-ops
 ```
 

@@ -66,8 +66,8 @@ One non-documentation file in the diff means tier M or L.
 node .claude/skills/review-change/scripts/impact-map.mjs --base $BASE > $SCRATCH/impact.md
 ```
 
-The map needs the wrapper's TypeScript compiler: run `npm ci` in
-`career-ops-wrapper/` first (exit 2 says so when it is missing).
+The map needs the workspace's TypeScript compiler: run `npm ci` at the repo root
+first (exit 2 says so when it is missing).
 
 Run every command under "Layer 0 gates" in `impact.md`. The map prints them per
 component (backend and shared files, hosted contract, wrapper:
@@ -75,14 +75,14 @@ component (backend and shared files, hosted contract, wrapper:
 change: `./gradlew testDevDebugUnitTest lintDevDebug detekt ktlintCheck`).
 A failing gate is not a review finding: fix it and start again.
 
-Then, for wrapper source changes:
+The gates include one command per package with changed source:
 
 ```bash
-node .claude/skills/review-change/scripts/tests-prove-change.mjs --base $BASE > $SCRATCH/prove.md
+node .claude/skills/review-change/scripts/tests-prove-change.mjs --base $BASE --package <dir> >> $SCRATCH/prove.md
 ```
 
-It reverts `career-ops-wrapper/src/**` to `$BASE` in a throwaway worktree and
-re-runs the added/changed tests. New tests that still pass prove nothing; the
+It installs and builds in a throwaway worktree, reverts `<dir>/src/**` to `$BASE`,
+and re-runs the added/changed tests. New tests that still pass prove nothing; the
 Tests reviewer judges each one. Android has no automated equivalent: the Tests
 reviewer checks Android tests by reading them.
 
