@@ -10,7 +10,7 @@
 import { execFileSync, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { isBuiltin } from "node:module";
+import { createRequire, isBuiltin } from "node:module";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -25,11 +25,8 @@ const SAFE_PATH = /^[A-Za-z0-9_][A-Za-z0-9._-]*(?:\/[A-Za-z0-9_][A-Za-z0-9._-]*)
 const AGENT_FILES = new Set(["agents.md", "claude.md", "claude.local.md", "gemini.md", "codex.md"]);
 // A full hash, because upstream can name a branch after a short one and git would prefer the branch.
 const SAFE_COMMIT = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/;
-const CODE_FILE = /\.(?:mjs|cjs|js)$/;
-
-// Anchored to the start of a line, so a comment or message saying "from 'x'" is not an import.
-const STATIC_IMPORT = /(?:^\s*(?:import|export|\})[^"'`\n]*?\bfrom\s*|^\s*import\s+|\b(?:import|require)\s*\(\s*)["'`]([^"'`\n]+)["'`]/gm;
-const COMPUTED_IMPORT = /\b(?:import|require)\s*\(\s*(?!["'][^"'\n]*["']\s*[,)])(?!`[^`$\n]*`\s*[,)])/;
+const CODE_FILE = /\.(?:[cm]?[jt]s|[jt]sx)$/;
+const COMPUTED_IMPORT = /\b(?:import|require)\s*\(\s*(?!["'][^"'\n]*["']\s*[,)])(?!`[^`$\n]*`\s*[,)])|\bcreateRequire\b|\brequire\.resolve\b/;
 
 /** Thrown rather than exiting, so the temporary clone is still removed on the way out. */
 class SyncError extends Error {}
@@ -104,11 +101,8 @@ function collect(clone, commit) {
 
     const text = content.toString("utf8");
     if (COMPUTED_IMPORT.test(text)) computed.add(file);
-    for (const match of text.matchAll(STATIC_IMPORT)) {
-      const specifier = match[1];
-      if (specifier.includes("${")) {
-        computed.add(file);
-      } else if (specifier.startsWith(".")) {
+    for (const specifier of importsOf(text)) {
+      if (specifier.startsWith(".")) {
         const resolved = path.posix.normalize(path.posix.join(path.posix.dirname(file), specifier));
         if (resolved.startsWith("..")) fail(`${file} imports ${JSON.stringify(specifier)}, which leaves the repository.`);
         pending.push(resolved);
@@ -118,6 +112,12 @@ function collect(clone, commit) {
     }
   }
   return { files, packages, computed };
+}
+
+/** TypeScript's scanner: it runs nothing, and tells a comment or a string from an import. */
+function importsOf(text) {
+  const ts = createRequire(import.meta.url)("typescript");
+  return ts.preProcessFile(text, true, true).importedFiles.map((entry) => entry.fileName);
 }
 
 function expandEntry(entry, tree) {
@@ -193,7 +193,9 @@ function printDifferences(collected, commit, scratch) {
     mkdirSync(path.dirname(path.join(after, file)), { recursive: true });
     writeFileSync(path.join(after, file), content);
   }
-  const diff = spawnSync("git", ["diff", "--no-index", "--no-color", "--no-ext-diff", "--no-textconv", "before", "after"], { cwd: scratch, encoding: "utf8", maxBuffer: 256 * 1024 * 1024 });
+  const diff = spawnSync("git", ["diff", "--no-index", "--text", "--no-color", "--no-ext-diff", "--no-textconv", "before", "after"], { cwd: scratch, encoding: "utf8", maxBuffer: 256 * 1024 * 1024 });
+  // A cut-off diff could leave out the change a reader most needs to see. Status 1 only means "differs".
+  if (diff.error || diff.status !== 1) fail(`Could not print the diff: ${diff.error?.message ?? diff.stderr}`);
   process.stdout.write(`\n${printable(diff.stdout)}`);
 }
 
@@ -205,8 +207,9 @@ function report({ packages, computed }) {
 /** Offline, so a check never depends on upstream still existing. The pinned hashes came from upstream at --write. */
 function check() {
   const problems = [];
-  if (!manifest.commit) problems.push(`${MANIFEST} records no commit.`);
+  if (!SAFE_COMMIT.test(manifest.commit ?? "")) problems.push(`${MANIFEST} records no full commit hash.`);
   const recorded = new Map(manifest.files.map((entry) => [entry.path, entry.sha256]));
+  if (recorded.size === 0) problems.push(`${MANIFEST} records no files.`);
   for (const [file, expected] of recorded) {
     assertSafePath(file, "path");
     const target = safeTarget(file);

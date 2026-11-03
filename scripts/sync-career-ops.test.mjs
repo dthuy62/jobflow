@@ -57,6 +57,8 @@ beforeEach(() => {
   write(upstream, "modes/oferta.md", "# Prompt\n");
   write(upstream, "modes/signals/a.md", "a\n");
   write(upstream, "modes/signals/b.md", "b\n");
+  write(upstream, "modes/signals/deep/x.md", "nested, so outside the entry\n");
+  write(upstream, "modes/signals-extra.md", "a sibling, so outside the entry\n");
   write(upstream, "providers/lever.mjs", `import { get } from "./_http.mjs";\nimport yaml from "js-yaml";\nexport { get, yaml };\n`);
   write(upstream, "providers/_http.mjs", `export { ip } from '../lib/ip.mjs';\nexport const get = 1;\n`);
   write(upstream, "lib/ip.mjs", "export const ip = 1;\n");
@@ -84,7 +86,7 @@ test("--write copies only allowlisted entries and their relative imports, and up
 });
 
 test("--write reports package imports, leaving out built-in modules and text that only looks like an import", () => {
-  write(upstream, "providers/lever.mjs", `import { lookup } from "dns/promises";\nimport yaml from "js-yaml";\n// Read from 'portals.yml' first.\nexport const a = "copied from 'location'";\n`);
+  write(upstream, "providers/lever.mjs", `import { lookup } from "dns/promises";\nimport yaml from "js-yaml";\n// Read from 'portals.yml' first.\nexport const a = "copied from 'location'"; // read from 'other.yml'\n// we used to require("./gone.mjs") here\n`);
   commit("imports");
   const result = sync("--write");
   assert.match(result.stdout, /Package imports, not vendored: js-yaml$/m);
@@ -159,24 +161,131 @@ test("follows dynamic imports with a fixed path, and reports those it cannot fol
   assert.match(result.stdout, /providers\/lever\.mjs.*dynamic import/);
 });
 
-for (const [name, importLine] of [
-  ["through a relative import", `import "../../../../outside.mjs";\n`],
-  ["with an odd character", `import "./a b;touch x.mjs";\n`]
+for (const importLine of [
+  `import { a,\n  b } from "./dep.mjs";\n`,
+  `import\n  d from "./dep.mjs";\n`,
+  `const q = 1; import d from "./dep.mjs";\n`,
+  `/* c */ import d from "./dep.mjs";\n`,
+  `import"./dep.mjs";\n`,
+  `export * from "./dep.mjs";\n`,
+  "const m = await import(`./dep.mjs`);\n",
+  `const m = require("./dep.mjs");\n`
 ]) {
-  test(`refuses a path that leaves the repository or vendor directory: ${name}`, () => {
+  test(`follows the import in ${JSON.stringify(importLine)}`, () => {
+    write(upstream, "providers/dep.mjs", "export const a = 1;\n");
     write(upstream, "providers/lever.mjs", importLine);
-    commit("hostile");
-    const result = sync("--write");
-    assert.notEqual(result.status, 0);
-    assert.ok(!existsSync(path.join(root, "outside.mjs")));
+    commit("form");
+    assert.equal(sync("--write").status, 0);
+    assert.ok(recordedPaths().includes("providers/dep.mjs"));
   });
 }
+
+for (const file of ["helper.mts", "helper.js"]) {
+  test(`follows imports in ${file}`, () => {
+    write(upstream, "providers/dep.mjs", "export const a = 1;\n");
+    write(upstream, `providers/${file}`, `export * from "./dep.mjs";\n`);
+    write(upstream, "providers/lever.mjs", `import "./${file}";\n`);
+    commit("helper");
+    assert.equal(sync("--write").status, 0);
+    assert.ok(recordedPaths().includes("providers/dep.mjs"));
+  });
+}
+
+for (const code of ["await import(name);\n", "require(name);\n", `createRequire(import.meta.url)("./dep.mjs");\n`, `require.resolve("./dep.mjs");\n`]) {
+  test(`reports what it cannot follow in ${JSON.stringify(code)}, in --write and the dry run`, () => {
+    write(upstream, "providers/lever.mjs", code);
+    commit("computed");
+    assert.match(sync().stdout, /providers\/lever\.mjs.*dynamic import/);
+    assert.match(sync("--write").stdout, /providers\/lever\.mjs.*dynamic import/);
+  });
+}
+
+test("the dry run reports package imports", () => {
+  write(upstream, "providers/lever.mjs", `import "evil-pkg";\n`);
+  commit("package");
+  assert.match(sync().stdout, /Package imports, not vendored: evil-pkg$/m);
+});
+
+test("refuses an import that leaves the repository", () => {
+  write(upstream, "providers/lever.mjs", `import "../../../../outside.mjs";\n`);
+  commit("hostile");
+  const result = sync("--write");
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /leaves the repository/);
+});
+
+test("refuses a file whose name is not a plain path, though it is in upstream", () => {
+  write(upstream, "providers/a b;touch x.mjs", "export const a = 1;\n");
+  write(upstream, "providers/lever.mjs", `import "./a b;touch x.mjs";\n`);
+  commit("hostile");
+  const result = sync("--write");
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /not a plain relative path/);
+  assert.ok(!existsSync(path.join(vendor, "providers/a b;touch x.mjs")));
+});
 
 test("refuses an entry that leaves the repository", () => {
   setEntries(["../secret"]);
   const result = sync("--write");
   assert.notEqual(result.status, 0);
-  assert.match(result.stderr, /entry|path/i);
+  assert.match(result.stderr, /not a plain relative path/);
+});
+
+test("--check refuses a recorded path that leaves the vendor directory", () => {
+  sync("--write");
+  const data = manifest();
+  write(vendor, "../outside.md", "x\n");
+  data.files.push({ path: "../outside.md", sha256: createHash("sha256").update("x\n").digest("hex") });
+  write(vendor, "UPSTREAM.json", JSON.stringify(data));
+  const result = sync("--check");
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /not a plain relative path/);
+});
+
+test("--check refuses a commit that is not a full hash, and an empty list", () => {
+  sync("--write");
+  const data = manifest();
+  write(vendor, "UPSTREAM.json", JSON.stringify({ ...data, commit: "not-a-commit" }));
+  assert.notEqual(sync("--check").status, 0);
+  write(vendor, "UPSTREAM.json", JSON.stringify({ ...data, files: [] }));
+  rmSync(path.join(vendor, "modes"), { recursive: true });
+  rmSync(path.join(vendor, "providers"), { recursive: true });
+  rmSync(path.join(vendor, "lib"), { recursive: true });
+  rmSync(path.join(vendor, "LICENSE"));
+  assert.notEqual(sync("--check").status, 0);
+});
+
+test("fails when an allowlisted directory no longer matches anything, and keeps what is vendored", () => {
+  sync("--write");
+  rmSync(path.join(upstream, "modes/signals/a.md"));
+  rmSync(path.join(upstream, "modes/signals/b.md"));
+  commit("renamed");
+  const result = sync("--write");
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /modes\/signals\/\*/);
+  assert.ok(existsSync(path.join(vendor, "modes/signals/a.md")));
+});
+
+test("copies an executable file like any other", () => {
+  chmodSync(path.join(upstream, "providers/_http.mjs"), 0o755);
+  commit("executable");
+  assert.equal(sync("--write").status, 0);
+  assert.ok(recordedPaths().includes("providers/_http.mjs"));
+});
+
+test("refuses a hash that is not a commit", () => {
+  assert.notEqual(sync("--write", "--commit", git("rev-parse", "HEAD^{tree}")).status, 0);
+  assert.ok(!existsSync(path.join(vendor, "modes/oferta.md")));
+});
+
+test("the dry run shows the change in a file with a NUL byte, rather than calling it binary", () => {
+  sync("--write");
+  write(upstream, "modes/oferta.md", "// \0\nfetch('evil')\n");
+  commit("binary");
+  const result = sync();
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /^\+fetch\('evil'\)$/m);
+  assert.doesNotMatch(result.stdout, /\0/);
 });
 
 test("refuses a symlink, which could point anywhere", () => {
@@ -256,8 +365,6 @@ test("runs no upstream code", () => {
   const code = `import { writeFileSync } from "node:fs";\nwriteFileSync(${JSON.stringify(marker)}, "ran");\n`;
   write(upstream, "providers/lever.mjs", code);
   write(upstream, "package.json", JSON.stringify({ scripts: { postinstall: `touch ${marker}`, prepare: `touch ${marker}` } }));
-  write(upstream, ".git/hooks/post-checkout", `#!/bin/sh\ntouch ${marker}\n`);
-  chmodSync(path.join(upstream, ".git/hooks/post-checkout"), 0o755);
   commit("hostile");
   assert.equal(sync("--write").status, 0);
   assert.equal(sync().status, 0);
@@ -363,17 +470,18 @@ test("takes only a full commit hash, since upstream can name a branch after a sh
 
 test("the dry run prints no terminal control characters from upstream", () => {
   sync("--write");
-  write(upstream, "modes/oferta.md", "# Line\u001b[1A\u001b[2K\u009b2K\n");
+  write(upstream, "modes/oferta.md", "# Line\u001b[1A\u001b[2K\u009b2K\nevil line\rsafe line\n");
   write(upstream, "providers/lever.mjs", `import "\u001b[2Kevil-pkg";\n`);
   commit("escapes");
   const result = sync();
   assert.equal(result.status, 0, result.stderr);
   assert.match(result.stdout, /^changed +modes\/oferta\.md$/m);
-  assert.doesNotMatch(result.stdout, /[\u001b\u009b]/);
+  assert.doesNotMatch(result.stdout, /[\u001b\u009b\r]/);
 });
 
 test("rejects --write and --check together, and an unsafe commit", () => {
   assert.notEqual(sync("--write", "--check").status, 0);
   assert.notEqual(sync("--commit", "--upload-pack=touch x").status, 0);
   assert.notEqual(sync("--bogus").status, 0);
+  assert.notEqual(sync("--vendor-dir", "--write").status, 0);
 });

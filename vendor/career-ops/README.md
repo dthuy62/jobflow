@@ -29,6 +29,6 @@ node scripts/sync-career-ops.mjs --check                 # compare with the reco
 
 The script reads upstream's git objects as data, and installs and runs nothing from it.
 CI runs `--check`, which needs no network, so it fails on a local edit and never on
-upstream moving. A deliberate hand edit of a file and its hash would still pass, and
-shows up in the pull request. To compare with upstream itself, run the first command
+upstream moving. A deliberate hand edit of a file and its hash, or of the list of files,
+would still pass, and shows up in the pull request. To compare with upstream itself, run the first command
 with the pinned commit: it should print `No differences`.

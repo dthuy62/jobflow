@@ -142,10 +142,6 @@
       "sha256": "b09aee8a0a6f2c0a81769639d5f4a426850b1db13ddc8aa4625c85e30f72f050"
     },
     {
-      "path": "providers/_types.js",
-      "sha256": "203a86e85c5cb3042f62e2afae435b4c5001b13dbd4a181a58b7449832b15d59"
-    },
-    {
       "path": "providers/arbeitsagentur.mjs",
       "sha256": "eb922db635a2ac26be479423ad9130118a623408ddb18955b16c5238169b4370"
     },
