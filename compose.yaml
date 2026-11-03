@@ -17,6 +17,7 @@ services:
 
   migrate:
     image: jobflow-backend:dev
+    # Only this service builds: several building one tag at once fail with "already exists".
     build:
       context: .
       dockerfile: backend/Dockerfile
@@ -30,9 +31,6 @@ services:
 
   api:
     image: jobflow-backend:dev
-    build:
-      context: .
-      dockerfile: backend/Dockerfile
     environment:
       JOBFLOW_ENV: development
       HOST: 0.0.0.0
@@ -41,6 +39,18 @@ services:
       FIREBASE_PROJECT_ID: demo-jobflow
     ports:
       - "127.0.0.1:8080:8080"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  worker:
+    image: jobflow-backend:dev
+    command: ["node", "backend/dist/worker.js"]
+    # Longer than the worker's own 30-second wait for running jobs.
+    stop_grace_period: 35s
+    environment:
+      JOBFLOW_ENV: development
+      DATABASE_URL: postgres://jobflow_app:dev-only-app@postgres:5432/jobflow
     depends_on:
       migrate:
         condition: service_completed_successfully

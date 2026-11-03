@@ -723,10 +723,12 @@ interface JobQueue {
 }
 type JobHandler<T> = (payload: T, signal: AbortSignal) => Promise<void>;
 // adapter
-createPgBossQueue(url: string): JobQueue & {
-  register<T>(job: JobDefinition<T>, handler: JobHandler<T>): Promise<void>;
+createPgBossQueue(url: string, options: { logger: QueueLogger; role: "worker" | "client" }): Promise<JobQueue & {
+  register<T>(job: JobDefinition<T>, handler: JobHandler<T>): Promise<void>; // worker only
+  schedule<T>(job: JobDefinition<T>, cron: string, payload: T): Promise<void>; // worker only
   stop(): Promise<void>;
-}
+}>
+installJobs(ownerUrl: string, jobs: readonly JobDefinition<never>[]): Promise<void> // migrate step
 ```
 
 Defaults: `retryLimit` 3, `retryBackoff` true, `expireInSeconds` 300.

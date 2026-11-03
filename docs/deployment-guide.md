@@ -5,12 +5,15 @@
 Everything runs in Docker Compose, with development-only passwords.
 
 ```bash
-docker compose up -d --build api
+docker compose up -d --build api worker
 curl http://127.0.0.1:8080/api/v1/health
+docker compose logs worker
 ```
 
-This starts PostgreSQL, runs the migrations once with the owner role, then starts the API with
-the app role. All ports bind to `127.0.0.1`.
+This starts PostgreSQL, runs the migrations once with the owner role, then starts the API and
+the worker with the app role. The worker logs a heartbeat every minute. All ports bind to
+`127.0.0.1`. To rebuild the image alone, use `docker compose build migrate`, the one service
+that builds it.
 
 To run the backend's tests, start only the database:
 
@@ -42,8 +45,13 @@ docker compose down
 - The owner role must own the database. Since PostgreSQL 15, only the database owner can create
   objects in `public`.
 - Migrations are a separate step (`node backend/dist/db/migrate-cli.js`, with
-  `DATABASE_MIGRATION_URL` and `JOBFLOW_ENV`), never run at API start. The API never holds the
-  owner's URL.
+  `DATABASE_MIGRATION_URL` and `JOBFLOW_ENV`), never run at API start. The API and the worker
+  never hold the owner's URL. This step also installs pg-boss, in the `pgboss` schema, and creates
+  each queue, so run it before starting a release that adds a job. A pg-boss upgrade can queue
+  index builds, which this step waits for, up to 30 minutes; it fails if one fails.
+- Run the worker with `node backend/dist/worker.js`, with `DATABASE_URL` and `JOBFLOW_ENV`. It
+  exits 1 if it cannot run, so give it a restart policy. On SIGTERM it waits up to 30 seconds for
+  running jobs, so allow it longer than that before a kill; a job cut off is retried.
 - `JOBFLOW_ENV=production` refuses a database URL that holds a development password, in both
   steps.
 - Set `TRUST_PROXY` to the exact number of proxies in front of the API, and to `0` only when

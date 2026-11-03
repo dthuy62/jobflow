@@ -1,5 +1,7 @@
 import { fileURLToPath } from "node:url";
 import { runner } from "node-pg-migrate";
+import { installJobs } from "../adapters/pg-boss-queue.js";
+import { ALL_JOBS } from "../core/jobs.js";
 
 const MIGRATIONS_DIR = fileURLToPath(new URL("../../migrations", import.meta.url));
 
@@ -15,4 +17,5 @@ export async function migrateUp(databaseUrl: string): Promise<void> {
     checkOrder: true,
     log: () => undefined
   });
+  await installJobs(databaseUrl, ALL_JOBS);
 }

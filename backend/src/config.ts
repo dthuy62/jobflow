@@ -54,6 +54,18 @@ export function loadConfig(env: NodeJS.ProcessEnv | Record<string, string | unde
   };
 }
 
+/** The worker needs no sign-in settings. Refuses the same development password as the API. */
+export function loadWorkerConfig(env: NodeJS.ProcessEnv | Record<string, string | undefined>): { readonly databaseUrl: string } {
+  const jobflowEnv = JobflowEnvSchema.safeParse(env.JOBFLOW_ENV);
+  if (!jobflowEnv.success) throw new Error("Invalid configuration: JOBFLOW_ENV");
+  const url = PostgresUrlSchema.safeParse(env.DATABASE_URL);
+  if (!url.success) throw new Error("Invalid configuration: DATABASE_URL");
+  if (jobflowEnv.data === "production" && hasDevelopmentPassword(url.data)) {
+    throw new Error("Invalid configuration: DATABASE_URL holds a development password");
+  }
+  return { databaseUrl: url.data };
+}
+
 /** The owner role's URL. Only the migrate step reads it; the API never holds it. */
 export function loadMigrationUrl(env: NodeJS.ProcessEnv | Record<string, string | undefined>): string {
   // Validated here too, or a misspelled value would silently turn off the production check.
