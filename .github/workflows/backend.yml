@@ -67,6 +67,14 @@ jobs:
         env:
           PGPASSWORD: dev-only-superuser
       - run: npm ci
+      - name: Check the vendored Career Ops files
+        run: |
+          node --test scripts/sync-career-ops.test.mjs
+          node scripts/sync-career-ops.mjs --check
+          if git grep -n 'vendor/career-ops' -- backend packages; then
+            echo "Nothing vendored runs in this phase, so no backend code may import it." >&2
+            exit 1
+          fi
       - run: npm test -w @jobflow/backend
       - run: npm run build -w @jobflow/backend
       - run: npm audit --omit=dev --audit-level=high

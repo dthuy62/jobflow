@@ -792,10 +792,11 @@ many of which scrape sites whose terms are unchecked, so this is an allowlist.
 - Modify: `README.md`, `.github/workflows/backend.yml`
 
 **Interfaces:**
-- Produces: `UPSTREAM.json`: `{ repository, commit, entries: string[], files: string[] }`.
+- Produces: `UPSTREAM.json`: `{ repository, commit, entries: string[], files: { path, sha256 }[] }`.
   `node scripts/sync-career-ops.mjs [--commit <sha>] [--write | --check]`. With no mode
   it prints the diff against upstream and changes nothing. `--check` compares vendored
-  files with `UPSTREAM.json`'s pinned commit and exits non-zero on any difference.
+  files with the hashes recorded from `UPSTREAM.json`'s pinned commit, with no network,
+  and exits non-zero on any difference.
 
 Allowlist entries:
 
