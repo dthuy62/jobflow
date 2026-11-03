@@ -228,6 +228,7 @@ function vendoredFiles() {
   const found = [];
   const walk = (dir) => {
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      if (entry.name === ".DS_Store") continue; // Finder writes these, and git ignores them.
       const full = path.join(dir, entry.name);
       const file = path.relative(vendorDir, full).split(path.sep).join("/");
       if (entry.isDirectory()) walk(full);

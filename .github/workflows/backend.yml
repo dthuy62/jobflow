@@ -71,7 +71,8 @@ jobs:
         run: |
           node --test scripts/sync-career-ops.test.mjs
           node scripts/sync-career-ops.mjs --check
-          if git grep -n 'vendor/' -- backend packages package.json 'tsconfig*.json' docker .dockerignore compose.yaml; then
+          if git grep -n 'vendor/' -- backend packages ||
+            git grep -n -w vendor -- package.json 'tsconfig*.json' docker .dockerignore compose.yaml backend/Dockerfile; then
             echo "Nothing vendored runs in this phase, so no backend code may import it." >&2
             exit 1
           fi

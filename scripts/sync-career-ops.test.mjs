@@ -334,6 +334,14 @@ test("--check exits non-zero when a vendored file was edited locally", () => {
   assert.match(result.stderr, /modes\/oferta\.md/);
 });
 
+test("--check and --write leave a .DS_Store from macOS alone", () => {
+  sync("--write");
+  write(vendor, "modes/.DS_Store", "finder\n");
+  assert.equal(sync("--check").status, 0);
+  assert.equal(sync("--write").status, 0);
+  assert.ok(existsSync(path.join(vendor, "modes/.DS_Store")));
+});
+
 test("--check exits non-zero when a vendored file is missing or an extra file appears", () => {
   sync("--write");
   rmSync(path.join(vendor, "lib/ip.mjs"));

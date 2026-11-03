@@ -330,6 +330,7 @@ const WRAPPER_GATE = "cd career-ops-wrapper && npm test && npm run build";
 const CONTRACT_GATE = "npm test -w @jobflow/contract";
 const SAFETY_GATE = "npm test -w @jobflow/safety";
 const SYNC_GATE = "node --test scripts/sync-career-ops.test.mjs";
+const SYNC_CHECK_GATE = "node scripts/sync-career-ops.mjs --check";
 const ANDROID_GATE = "cd android && ./gradlew testDevDebugUnitTest lintDevDebug detekt ktlintCheck";
 /** An unchanged file, so the backend package exists in the head tree without being in the diff. */
 const BACKEND_EXISTS = { "backend/package.json": { before: "{}\n", after: "{}\n" } };
@@ -370,9 +371,9 @@ test("classifies hosted backend paths by risk area, tier and gates", () => {
     ["packages/safety/src/x.ts", code, "security", [WRAPPER_GATE, SAFETY_GATE, BACKEND_GATE]],
     ["packages/contract/src/x.ts", code, "contracts", [CONTRACT_GATE, BACKEND_GATE]],
     ["contracts/examples/x.json", text, "contracts", [CONTRACT_GATE, BACKEND_GATE]],
-    ["scripts/sync-career-ops.mjs", code, "vendor", [SYNC_GATE]],
-    ["vendor/career-ops/x.mjs", code, "vendor", []],
-    ["vendor/career-ops/modes/oferta.md", text, "vendor", []]
+    ["scripts/sync-career-ops.mjs", code, "vendor", [SYNC_GATE, SYNC_CHECK_GATE]],
+    ["vendor/career-ops/x.mjs", code, "vendor", [SYNC_CHECK_GATE]],
+    ["vendor/career-ops/modes/oferta.md", text, "vendor", [SYNC_CHECK_GATE]]
   ];
   for (const [file, change, area, gates] of cases) {
     const report = mapAfterCommit({ ...BACKEND_EXISTS, ...SAFETY_EXISTS, ...CONTRACT_EXISTS, ...SYNC_TEST_EXISTS, [file]: change });
