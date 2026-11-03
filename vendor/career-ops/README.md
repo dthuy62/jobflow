@@ -17,9 +17,13 @@ backend will reuse from phase 2. `UPSTREAM.json` records the commit and the allo
 
 ## Changing it
 
-Edit `entries` in `UPSTREAM.json`, or pick a full commit hash, and go through the
-script. Files that upstream's allowlisted code imports come along, so read the list it
-prints.
+After `npm ci`, edit `entries` in `UPSTREAM.json`, or pick a full commit hash, and go
+through the script. Files that upstream's allowlisted code imports come along, so read
+the list it prints. Only code imports are followed: a file that code reads at runtime,
+such as `data-static/aggregator-domains.txt`, or a table a prompt names has to be
+allowlisted by hand. The tables that `modes/` names, such as
+`templates/agency-licensing.yml` and `templates/jurisdiction-*.yml`, are not vendored
+yet: the phase that adopts those prompts decides.
 
 ```bash
 node scripts/sync-career-ops.mjs --commit <sha>          # print the differences
@@ -30,5 +34,6 @@ node scripts/sync-career-ops.mjs --check                 # compare with the reco
 The script reads upstream's git objects as data, and installs and runs nothing from it.
 CI runs `--check`, which needs no network, so it fails on a local edit and never on
 upstream moving. A deliberate hand edit of a file and its hash, or of the list of files,
-would still pass, and shows up in the pull request. To compare with upstream itself, run the first command
+would still pass, and shows up in the pull request. `--check` does not read `entries`,
+so run `--write` after editing them. To compare with upstream itself, run the first command
 with the pinned commit: it should print `No differences`.

@@ -793,7 +793,8 @@ many of which scrape sites whose terms are unchecked, so this is an allowlist.
 
 **Interfaces:**
 - Produces: `UPSTREAM.json`: `{ repository, commit, entries: string[], files: { path, sha256 }[] }`.
-  `node scripts/sync-career-ops.mjs [--commit <sha>] [--write | --check]`. With no mode
+  `node scripts/sync-career-ops.mjs [--commit <full sha>] [--write | --check]`, plus
+  `--vendor-dir <dir>` for the tests. With no mode
   it prints the diff against upstream and changes nothing. `--check` compares vendored
   files with the hashes recorded from `UPSTREAM.json`'s pinned commit, with no network,
   and exits non-zero on any difference.
@@ -805,9 +806,11 @@ Allowlist entries:
   `workday`, `smartrecruiters`, `recruitee`, `remoteok`, `remotive`, `workingnomads`,
   `glints`, `jobstreet`, `arbeitsagentur`, `solidjobs`, plus `ADDING_A_PROVIDER.md`
 - `templates/portals.example.yml`, the seed company list named by the spec
+- `data-static/aggregator-domains.txt`, which `url-key.mjs` reads at runtime, and
+  `providers/_types.js`, the provider contract that `ADDING_A_PROVIDER.md` links to
 - `LICENSE`, plus `TRADEMARK.md` for reference
 
-Pin the commit current at build time (`6825dc6` on 2026-11-02).
+Pin the commit current at build time (`1ebef70` on 2026-11-03).
 
 - [ ] **Step 1: Write the failing script tests, against a local fixture git repo**
 
@@ -828,9 +831,10 @@ Expected: FAIL.
 
 - [ ] **Step 3: Implement the script**
 
-Clone into a temp dir with `git clone --no-checkout` and read with `git show`. Install
-nothing and execute nothing from the clone. Follow relative imports statically to find
-helpers (`providers/_http.mjs` and so on).
+Clone into a temp dir with `git clone --bare --filter=blob:none` and read with
+`git cat-file`. Install nothing and execute nothing from the clone. Follow relative
+imports statically, with TypeScript's scanner, to find helpers (`providers/_http.mjs`
+and so on).
 
 - [ ] **Step 4: Run the tests, then vendor**
 

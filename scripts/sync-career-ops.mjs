@@ -22,7 +22,7 @@ const OWN_FILES = new Set([MANIFEST.toLowerCase(), "readme.md"]);
 /** A conservative path, so a hostile name cannot reach a shell, a flag or a parent directory. */
 const SAFE_PATH = /^[A-Za-z0-9_][A-Za-z0-9._-]*(?:\/[A-Za-z0-9_][A-Za-z0-9._-]*)*$/;
 /** Instruction files that coding agents load by name, which would turn upstream's text into project rules. */
-const AGENT_FILES = new Set(["agents.md", "claude.md", "claude.local.md", "gemini.md", "codex.md"]);
+const AGENT_FILE = /^(?:agents|claude|gemini|codex)(?:\.[a-z]+)?\.md$/i;
 // A full hash, because upstream can name a branch after a short one and git would prefer the branch.
 const SAFE_COMMIT = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/;
 const CODE_FILE = /\.(?:[cm]?[jt]s|[jt]sx)$/;
@@ -135,7 +135,7 @@ function expandEntry(entry, tree) {
 
 function assertSafePath(value, kind) {
   if (!SAFE_PATH.test(value) || value.split("/").includes("..")) fail(`Refusing the ${kind} ${JSON.stringify(value)}: it is not a plain relative path.`);
-  if (AGENT_FILES.has(path.posix.basename(value).toLowerCase())) fail(`Refusing the ${kind} ${value}: coding agents would load it as instructions.`);
+  if (AGENT_FILE.test(path.posix.basename(value))) fail(`Refusing the ${kind} ${value}: coding agents would load it as instructions.`);
 }
 
 function writeVendored({ files }, commit) {

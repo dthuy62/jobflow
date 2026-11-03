@@ -4,10 +4,12 @@
   "entries": [
     "LICENSE",
     "TRADEMARK.md",
+    "data-static/aggregator-domains.txt",
     "modes/_shared.md",
     "modes/oferta.md",
     "modes/oferta-signals/*",
     "providers/ADDING_A_PROVIDER.md",
+    "providers/_types.js",
     "providers/greenhouse.mjs",
     "providers/lever.mjs",
     "providers/ashby.mjs",
@@ -32,6 +34,10 @@
     {
       "path": "TRADEMARK.md",
       "sha256": "e14e762518c7d2f6d3ce89a050038f2854cf33b6c89a4f11ec90ec54d102fe33"
+    },
+    {
+      "path": "data-static/aggregator-domains.txt",
+      "sha256": "818e4626d30f8446959427980148353f1dd91ff520ff81b9fe0c15b2c9829e70"
     },
     {
       "path": "lib/linkedin-url.mjs",
@@ -140,6 +146,10 @@
     {
       "path": "providers/_safe-url.mjs",
       "sha256": "b09aee8a0a6f2c0a81769639d5f4a426850b1db13ddc8aa4625c85e30f72f050"
+    },
+    {
+      "path": "providers/_types.js",
+      "sha256": "203a86e85c5cb3042f62e2afae435b4c5001b13dbd4a181a58b7449832b15d59"
     },
     {
       "path": "providers/arbeitsagentur.mjs",
