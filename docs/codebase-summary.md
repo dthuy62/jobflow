@@ -13,7 +13,8 @@ jobflow/
 ├── packages/safety/     # SSRF-guarded fetch, HTML to text, redaction
 ├── packages/contract/   # hosted API schemas and the OpenAPI generator
 ├── contracts/           # hosted API examples, generated OpenAPI, mock guide
-├── vendor/career-ops/   # planned: vendored Career Ops parts
+├── vendor/career-ops/   # vendored Career Ops parts, pinned and not run yet
+├── scripts/             # sync-career-ops: updates vendor/career-ops
 ├── career-ops-wrapper/
 ├── docs/
 ├── README.md

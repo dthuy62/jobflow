@@ -181,6 +181,9 @@ function buildReport(fileReports) {
   if (codePaths.some((path) => path.startsWith("scripts/sync-career-ops")) && show(head, "scripts/sync-career-ops.test.mjs") !== null) {
     gates.push("node --test scripts/sync-career-ops.test.mjs");
   }
+  if (codePaths.some((path) => path.startsWith("vendor/") || path.startsWith("scripts/sync-career-ops"))) {
+    gates.push("node scripts/sync-career-ops.mjs --check");
+  }
   // A package's tests run under no other gate. A package that does not exist yet, or that
   // the change removed, has no gate that could pass; a manifest deleted from a package
   // that still has files keeps its gate, which then reports the breakage.

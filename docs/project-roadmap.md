@@ -14,7 +14,7 @@ Status: in progress. Plan: `docs/superpowers/plans/2026-11-02-hosted-backend-pha
 - [x] Backend skeleton, database, Compose and CI.
 - [x] Authentication, authorization and rate limits.
 - [x] Queue and worker.
-- [ ] Vendor Career Ops.
+- [x] Vendor Career Ops.
 - [ ] Android: base URL, auth layer, Room.
 
 ### Phase 2: Core Loop Without AI
