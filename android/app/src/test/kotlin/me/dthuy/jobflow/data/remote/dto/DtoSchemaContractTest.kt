@@ -10,6 +10,9 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.serializer
+import me.dthuy.jobflow.domain.model.JobRemotePolicy
+import me.dthuy.jobflow.domain.model.SalaryPeriod
+import me.dthuy.jobflow.domain.model.TrackerStatus
 import me.dthuy.jobflow.testing.contractFile
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -55,6 +58,20 @@ class DtoSchemaContractTest {
         val objectSchemas = schemas.filterValues { it.jsonObject.type() == "object" }.keys
 
         assertEquals(objectSchemas, dtos.keys)
+    }
+
+    @Test
+    fun `domain enums know every wire value the contract allows`() {
+        val domain = mapOf(
+            "JobRemotePolicy" to JobRemotePolicy.entries.map { it.wireValue },
+            "SalaryPeriod" to SalaryPeriod.entries.map { it.wireValue },
+            "TrackerStatus" to TrackerStatus.entries.map { it.wireValue },
+        )
+
+        domain.forEach { (name, wireValues) ->
+            val contract = schemas.getValue(name).jsonObject.getValue("enum").jsonArray.map { it.jsonPrimitive.content }
+            assertEquals(name, contract.toSet() + "unknown", wireValues.toSet())
+        }
     }
 
     @Test

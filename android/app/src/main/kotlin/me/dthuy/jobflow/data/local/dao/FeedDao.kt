@@ -18,10 +18,10 @@ interface FeedDao {
 
     // shortcut: holds the feed's first page only, add an append when a screen pages through it.
     @Transaction
-    suspend fun replaceFeed(ownerUserId: String, items: List<FeedItemEntity>, jobs: List<JobEntity>) {
+    suspend fun replaceFeed(ownerUserId: String, feed: List<FeedItemWithJob>) {
         deleteItems(ownerUserId)
-        insertJobs(jobs)
-        insertItems(items)
+        insertJobs(feed.map { it.job })
+        insertItems(feed.map { it.item })
         deleteUnusedJobs()
     }
 

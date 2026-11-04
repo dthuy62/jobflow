@@ -26,13 +26,16 @@ data class FeedItemWithJob(
     @Relation(parentColumns = ["jobId"], entityColumns = ["jobId"]) val job: JobEntity,
 )
 
-fun FeedItemDto.toEntity(ownerUserId: String, position: Int): FeedItemEntity = FeedItemEntity(
-    ownerUserId = ownerUserId,
-    jobId = job.jobId,
-    position = position,
-    reasons = reasons,
-    trackerStatus = trackerStatus,
-    matchedAtEpochMillis = Instant.parse(matchedAt).toEpochMilli(),
+fun FeedItemDto.toEntity(ownerUserId: String, position: Int): FeedItemWithJob = FeedItemWithJob(
+    item = FeedItemEntity(
+        ownerUserId = ownerUserId,
+        jobId = job.jobId,
+        position = position,
+        reasons = reasons,
+        trackerStatus = trackerStatus,
+        matchedAtEpochMillis = Instant.parse(matchedAt).toEpochMilli(),
+    ),
+    job = job.toEntity(),
 )
 
 fun FeedItemWithJob.toDomain(): FeedItem = FeedItem(
