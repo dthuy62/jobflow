@@ -11,7 +11,7 @@ data class ErrorResponseDto(val error: ErrorDto)
 data class ErrorDto(val code: String, val message: String, val details: ErrorDetailsDto? = null)
 
 @Serializable
-data class ErrorDetailsDto(val fields: List<String>? = null, val retryAfterSeconds: Int? = null)
+data class ErrorDetailsDto(val fields: List<String>? = null, val retryAfterSeconds: Long? = null)
 
 @Serializable
 data class MeDto(val userId: String, val isAnonymous: Boolean, val createdAt: String)
@@ -128,7 +128,7 @@ data class EvaluationResultDto(
 data class EntitlementDto(val plan: String, val features: List<String>, val quotas: List<QuotaDto>)
 
 @Serializable
-data class QuotaDto(val feature: String, val used: Int, val limit: Int, val resetsAt: String?)
+data class QuotaDto(val feature: String, val used: Long, val limit: Long, val resetsAt: String?)
 
 @Serializable
 data class PurchaseRequest(val productId: String, val purchaseToken: String)

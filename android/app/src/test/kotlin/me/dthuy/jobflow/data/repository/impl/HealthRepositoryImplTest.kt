@@ -131,6 +131,15 @@ class HealthRepositoryImplTest {
     }
 
     @Test
+    fun `a success status with no body is an invalid response`() = runTest {
+        val api = FakeJobFlowApi { Response.success<HealthDto>(204, null) }
+
+        val snapshot = HealthRepositoryImpl(api, clock).refresh()
+
+        assertEquals(Either.Left(AppError.InvalidResponse), snapshot.result)
+    }
+
+    @Test
     fun `a 429 keeps the rate limit code`() = runTest {
         val api = FakeJobFlowApi { httpError(429, contractFixture("errors/rate-limited.json")) }
 

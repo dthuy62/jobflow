@@ -94,6 +94,17 @@ class ApiContractCompatibilityTest {
     }
 
     @Test
+    fun integersBeyondThirtyTwoBitsAreAccepted() {
+        val quota = json.decodeFromString<QuotaDto>(
+            """{"feature":"evaluation","used":0,"limit":3000000000,"resetsAt":null}""",
+        )
+        val error = json.decodeFromString<ErrorDetailsDto>("""{"retryAfterSeconds":3000000000}""")
+
+        assertEquals(3_000_000_000L, quota.limit)
+        assertEquals(3_000_000_000L, error.retryAfterSeconds)
+    }
+
+    @Test
     fun explicitNullOptionalFieldsAreAccepted() {
         val job = json.decodeFromString<JobDto>(contractFixture("job.closed.json"))
 

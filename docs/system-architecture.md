@@ -79,7 +79,7 @@ flowchart TD
   Repo["Repository Interface"]
   RepoImpl["Repository Impl"]
   Local["Room cache (planned)"]
-  Remote["Retrofit CareerOpsApi"]
+  Remote["Retrofit API client"]
 
   Screen --> VM
   VM --> Repo
@@ -221,7 +221,7 @@ CAREER_OPS_EVALUATION_TIMEOUT_MS=900000  # 60000–3600000
 CAREER_OPS_EVALUATION_CLI=               # optional absolute path; default `claude` on PATH
 ```
 
-Android dev flavor points to:
+An Android emulator reaches it at:
 
 ```text
 http://10.0.2.2:3000

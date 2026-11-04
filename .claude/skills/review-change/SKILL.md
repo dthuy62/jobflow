@@ -71,7 +71,7 @@ first (exit 2 says so when it is missing).
 
 Run every command under "Layer 0 gates" in `impact.md`. The map prints them per
 component (backend and shared files, hosted contract, wrapper:
-`npm test && npm run build`; Android when `android/**` or the wrapper's `contracts/**`
+`npm test && npm run build`; Android when `android/**`, root `contracts/**` or `packages/contract/**`
 change: `./gradlew testDevDebugUnitTest lintDevDebug detekt ktlintCheck`).
 A failing gate is not a review finding: fix it and start again.
 

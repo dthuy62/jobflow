@@ -17,7 +17,7 @@ npm test
 
 ## Scope
 
-The wrapper is the only integration surface the Android app should call. Career Ops Workspace files remain the source of truth. Android Room is a projection cache only.
+The wrapper is a development and self-host tool; the Android app calls the hosted API instead. Career Ops Workspace files remain the source of truth. Android Room is a projection cache only.
 
 All routes live under `/api/v1`. Workspace validation and path containment keep the configured Career Ops Workspace as the only file boundary the wrapper may touch. Android should consume the checked-in JSON examples under `contracts/examples`.
 
