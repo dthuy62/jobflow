@@ -54,10 +54,15 @@ Room 3 (`androidx.room3`, [ADR 6](decisions/0006-use-room-3.md)) holds a cache o
 
 1. To keep a response for offline viewing, use `ResponseCacheDao`: it stores the API's JSON per user and per key, so a
    contract change needs no migration. Add a new entity only for data that must be queried.
-2. Wrap calls with `Either.catch(onError = Throwable::toLocalError) { ... }`.
+2. Wrap suspend calls with `Either.catch(onError = Throwable::toLocalError) { ... }`. That does not cover `observe`, which
+   only builds a `Flow` and fails when collected: map it to `Either` and add
+   `.catch { emit(Either.Left(it.toLocalError())) }`.
 3. Because the database is a rebuildable cache, a destructive migration is acceptable, and `DatabaseModule` uses one.
 4. Expose cached data with its sync time and last refresh error instead of replacing data with an error.
-5. Sign-out and account deletion must call `deleteForUser`.
+5. Decode the JSON outside `toLocalError`, and treat a row that fails to decode as a cache miss: it was written by an
+   older app.
+6. The auth layer must call `deleteForUser` on sign-out and in-app account deletion, and `deleteOtherUsers` whenever the
+   signed-in user changes.
 
 DAO tests run real SQL on the JVM (`ResponseCacheDaoTest`). `@Upsert` does not work there: it reads the error code from
 the message of `SQLException`, which the Android stub drops. Use `@Insert(onConflict = REPLACE)`.

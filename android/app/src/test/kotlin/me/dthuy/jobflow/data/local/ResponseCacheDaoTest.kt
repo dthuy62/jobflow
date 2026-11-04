@@ -70,6 +70,17 @@ class ResponseCacheDaoTest {
         assertEquals("b", dao.observe("user_b", "feed").first()?.json)
     }
 
+    @Test
+    fun `a change of account removes every other user's copies`() = runTest {
+        dao.put(cached("user_a", "feed", "a"))
+        dao.put(cached("user_b", "feed", "b"))
+
+        dao.deleteOtherUsers("user_b")
+
+        assertNull(dao.observe("user_a", "feed").first())
+        assertEquals("b", dao.observe("user_b", "feed").first()?.json)
+    }
+
     private fun cached(user: String, key: String, json: String) =
         CachedResponseEntity(ownerUserId = user, key = key, json = json, syncedAtEpochMillis = 1L)
 }

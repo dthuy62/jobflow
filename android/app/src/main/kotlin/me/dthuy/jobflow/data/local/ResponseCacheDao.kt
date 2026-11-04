@@ -14,7 +14,11 @@ interface ResponseCacheDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun put(response: CachedResponseEntity)
 
-    /** Sign-out and account deletion call this, so a user's copy does not outlive their session. */
+    /** Sign-out and in-app account deletion must call this, so a user's copy does not outlive their session. */
     @Query("DELETE FROM cached_response WHERE ownerUserId = :ownerUserId")
     suspend fun deleteForUser(ownerUserId: String)
+
+    /** Must run when the signed-in user changes: an account deleted on the web leaves no sign-out to clean up after. */
+    @Query("DELETE FROM cached_response WHERE ownerUserId != :currentUserId")
+    suspend fun deleteOtherUsers(currentUserId: String)
 }
