@@ -19,7 +19,7 @@ npm test
 
 The wrapper is a development and self-host tool; the Android app calls the hosted API instead. Career Ops Workspace files remain the source of truth. Android Room is a projection cache only.
 
-All routes live under `/api/v1`. Workspace validation and path containment keep the configured Career Ops Workspace as the only file boundary the wrapper may touch. Android should consume the checked-in JSON examples under `contracts/examples`.
+All routes live under `/api/v1`. Workspace validation and path containment keep the configured Career Ops Workspace as the only file boundary the wrapper may touch.
 
 | Route | Purpose |
 | --- | --- |
@@ -114,7 +114,7 @@ Check backend and workspace readiness with:
 curl http://127.0.0.1:3000/api/v1/health
 ```
 
-`GET /api/v1/health` is public in localhost and LAN mode so Android can diagnose setup before calling protected APIs. In LAN mode, other `/api/v1` routes still require `X-Career-Ops-Token`.
+`GET /api/v1/health` is public in localhost and LAN mode so clients can diagnose setup before calling protected APIs. In LAN mode, other `/api/v1` routes still require `X-Career-Ops-Token`.
 
 The health payload separates API capabilities from Career Ops local script readiness:
 
