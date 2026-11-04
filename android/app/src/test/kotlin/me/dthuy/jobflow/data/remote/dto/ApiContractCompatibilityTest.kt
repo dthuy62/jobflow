@@ -59,7 +59,7 @@ class ApiContractCompatibilityTest {
         val examples =
             Files.walk(contractExamplesDir()).use { paths ->
                 paths.asSequence()
-                    .filter { it.isRegularFile() }
+                    .filter { it.isRegularFile() && it.toString().endsWith(".json") }
                     .map { it.relativeTo(contractExamplesDir()).toString() }
                     .toList()
             }

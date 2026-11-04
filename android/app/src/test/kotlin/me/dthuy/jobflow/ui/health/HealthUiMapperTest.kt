@@ -6,7 +6,10 @@ import me.dthuy.jobflow.core.common.ApiErrorCode
 import me.dthuy.jobflow.core.common.AppError
 import me.dthuy.jobflow.core.common.Either
 import me.dthuy.jobflow.core.common.left
+import me.dthuy.jobflow.domain.model.DependencyStatus
+import me.dthuy.jobflow.domain.model.Health
 import me.dthuy.jobflow.domain.model.HealthSnapshot
+import me.dthuy.jobflow.domain.model.HealthStatus
 import me.dthuy.jobflow.testing.healthFixture
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -38,6 +41,15 @@ class HealthUiMapperTest {
     }
 
     @Test
+    fun `a status this app does not know is not shown as ready`() {
+        val health = Health(HealthStatus.UNKNOWN, DependencyStatus.UNKNOWN)
+
+        val state = HealthSnapshot(Either.Right(health), checkedAt).toHealthUiState(zone)
+
+        assertEquals(HealthUiKind.DEGRADED, state.kind)
+    }
+
+    @Test
     fun `unreachable maps to unreachable`() {
         assertEquals(HealthUiKind.UNREACHABLE, failure(AppError.Unreachable).toHealthUiState(zone).kind)
     }
@@ -49,7 +61,11 @@ class HealthUiMapperTest {
 
     @Test
     fun `a refusal or a server failure reads as unreachable, which can be retried`() {
-        listOf(AppError.Rejected(ApiErrorCode.RATE_LIMITED), AppError.ServerFailure(500)).forEach { error ->
+        listOf(
+            AppError.Rejected(ApiErrorCode.RATE_LIMITED),
+            AppError.Rejected(ApiErrorCode.AUTH_UNAVAILABLE),
+            AppError.ServerFailure(500),
+        ).forEach { error ->
             assertEquals(error.toString(), HealthUiKind.UNREACHABLE, failure(error).toHealthUiState(zone).kind)
         }
     }

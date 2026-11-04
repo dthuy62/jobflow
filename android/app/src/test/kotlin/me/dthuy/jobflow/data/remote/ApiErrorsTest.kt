@@ -26,6 +26,11 @@ class ApiErrorsTest {
     }
 
     @Test
+    fun `http 401 means sign in again, whatever its body says`() {
+        assertEquals(AppError.Unauthorized, httpError(401, "oops").toApiError())
+    }
+
+    @Test
     fun `http 4xx carries the API error code`() {
         assertEquals(
             AppError.Rejected(ApiErrorCode.CONFLICT),

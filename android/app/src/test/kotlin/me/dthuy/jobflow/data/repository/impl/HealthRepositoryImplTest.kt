@@ -159,6 +159,16 @@ class HealthRepositoryImplTest {
     }
 
     @Test
+    fun `latest publishes a failure too, so screens stop showing the last good answer`() = runTest {
+        val repository = HealthRepositoryImpl(FakeJobFlowApi { throw IOException() }, clock)
+
+        val snapshot = repository.refresh()
+
+        assertEquals(snapshot, repository.latest.value)
+        assertEquals(Either.Left(AppError.Unreachable), snapshot.result)
+    }
+
+    @Test
     fun `concurrent refreshes share one request`() = runTest {
         val gate = CompletableDeferred<HealthDto>()
         val api = FakeJobFlowApi { Response.success(gate.await()) }

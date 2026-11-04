@@ -86,13 +86,15 @@ android {
     }
 }
 
-// DocsTest reads these files, so editing them must rerun the unit tests instead of reusing an up-to-date result.
+// Tests read these files, so editing them must rerun the unit tests instead of reusing an up-to-date result.
 tasks.withType<Test>().configureEach {
     inputs.files(
         rootProject.fileTree("docs"),
         rootProject.fileTree(".claude/skills"),
         rootProject.files("README.md", "AGENTS.md"),
     ).withPropertyName("docsInputs").withPathSensitivity(PathSensitivity.RELATIVE)
+    inputs.files(rootProject.fileTree("../contracts")).withPropertyName("contractInputs")
+        .withPathSensitivity(PathSensitivity.RELATIVE)
 }
 
 detekt {
