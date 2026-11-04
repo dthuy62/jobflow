@@ -22,6 +22,9 @@ sealed interface AppError {
     /** The response did not match the contract. */
     data object InvalidResponse : AppError
 
+    /** The local database failed. Its data is a cache, so the API can rebuild it. */
+    data object StorageFailure : AppError
+
     /** Something unexpected, already logged. Debug builds rethrow instead (see [unexpected]). */
     data object Unknown : AppError
 

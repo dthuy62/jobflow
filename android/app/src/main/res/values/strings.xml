@@ -28,6 +28,7 @@
     <string name="error_sign_in_required">Your session has ended. Sign in again.</string>
     <string name="error_server">JobFlow hit a problem. Try again in a moment.</string>
     <string name="error_incompatible">JobFlow answered in an unexpected format. Update the app.</string>
+    <string name="error_storage">Saved data could not be read. Try again.</string>
     <string name="error_unexpected">Something went wrong. Please try again.</string>
     <string name="error_code_validation_error">Some values are not valid. Check them and save again.</string>
     <string name="error_code_unauthorized">Your session has ended. Sign in again.</string>

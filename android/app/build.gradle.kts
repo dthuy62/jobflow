@@ -4,6 +4,7 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.ksp)
     alias(libs.plugins.hilt)
+    alias(libs.plugins.room3)
     alias(libs.plugins.detekt)
     alias(libs.plugins.ktlint)
 }
@@ -97,6 +98,10 @@ tasks.withType<Test>().configureEach {
         .withPathSensitivity(PathSensitivity.RELATIVE)
 }
 
+room3 {
+    schemaDirectory("$projectDir/schemas")
+}
+
 detekt {
     config.setFrom("$rootDir/config/detekt/detekt.yml")
     buildUponDefaultConfig = true
@@ -132,9 +137,14 @@ dependencies {
     implementation(libs.hilt.navigation.compose)
     ksp(libs.hilt.compiler)
 
+    implementation(libs.androidx.room3.runtime)
+    ksp(libs.androidx.room3.compiler)
+
     implementation(libs.timber)
 
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.konsist)
+    // The JVM build of SQLite, so DAO tests run real SQL without a device.
+    testImplementation(libs.androidx.sqlite.bundled.jvm)
 }

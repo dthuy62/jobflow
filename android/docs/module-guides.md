@@ -49,15 +49,18 @@ several features live in `ui/components` or `ui/health`.
 
 ## Add local storage (Room)
 
-Room 3 (`androidx.room3`, [ADR 6](decisions/0006-use-room-3.md)) is not in the app yet; it comes back with Story 2.6 as
-a cache of API data, not a source of truth.
+Room 3 (`androidx.room3`, [ADR 6](decisions/0006-use-room-3.md)) holds a cache of API data, not a source of truth, in
+`data/local`. No screen reads it yet: the first feature of phase 2 does.
 
-1. Add the room3 plugin, runtime and compiler from the version catalog, an entity and DAO in `data/local`, and a
-   `DatabaseModule`.
-2. Write a `toLocalError()` mapper in `data/local` next to the DAOs. Check which exception types the SQLite driver really
-   throws before matching on them.
-3. Because the database is a rebuildable cache, a destructive migration is acceptable; say so in the database class.
+1. To keep a response for offline viewing, use `ResponseCacheDao`: it stores the API's JSON per user and per key, so a
+   contract change needs no migration. Add a new entity only for data that must be queried.
+2. Wrap calls with `Either.catch(onError = Throwable::toLocalError) { ... }`.
+3. Because the database is a rebuildable cache, a destructive migration is acceptable, and `DatabaseModule` uses one.
 4. Expose cached data with its sync time and last refresh error instead of replacing data with an error.
+5. Sign-out and account deletion must call `deleteForUser`.
+
+DAO tests run real SQL on the JVM (`ResponseCacheDaoTest`). `@Upsert` does not work there: it reads the error code from
+the message of `SQLException`, which the Android stub drops. Use `@Insert(onConflict = REPLACE)`.
 
 ## Change the app identity
 
