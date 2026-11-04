@@ -54,7 +54,7 @@ Key implementation facts:
 - Konsist enforces layers; detekt and ktlint run in the verify command and CI.
 - `dev` and `prod` product flavors exist; `dev` allows cleartext access to
   `10.0.2.2`.
-- No Room yet; it returns as a cache in Story 2.6.
+- Room 3 caches the feed in `data/local`; no screen reads it yet.
 - Release signing reads environment variables.
 
 ## Career Ops Wrapper

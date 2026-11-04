@@ -2,7 +2,7 @@
 
 - Repositories return `Either<AppError, T>` (Left is the error). Wrap each source call with
   `Either.catch(onError = Throwable::toApiError) { api.call() }` from `core/common`; it rethrows `CancellationException`.
-- Errors change shape only at two boundaries: the source mapper in `data/` (`toApiError` for the API, later
+- Errors change shape only at two boundaries: the source mapper in `data/` (`toApiError` for the API,
   `toLocalError` for Room) and `AppError.toUiError()` in `ui/components`. Layers in between pass errors through.
 - Mappers match known exception types only and send anything else to `unexpected()`. Never put a `Throwable` or an
   exception message in `AppError` or UI state; log it at the mapping boundary.

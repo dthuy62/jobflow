@@ -66,7 +66,8 @@ to Room. Data that is not cached, like health, goes straight from DTO to domain.
 1. Add an entity in `data/local/entity` and a DAO in `data/local/dao`, list the entity in `JobFlowDatabase`, and provide
    the DAO in `DatabaseModule`. Per-user data has `ownerUserId` in its key; public data like a job does not.
 2. Keep wire enums as strings in the entity and parse them in `toDomain()`. Parse timestamps to epoch millis in
-   `toEntity()`, so a malformed one fails at the API boundary and reading a row cannot.
+   `toEntity()`, and call `toEntity()` inside `Either.catch(onError = Throwable::toApiError) { ... }`, not in a later
+   `.map`, so a malformed one becomes `InvalidResponse` and reading a row cannot fail.
 3. Wrap suspend calls with `Either.catch(onError = Throwable::toLocalError) { ... }`. That does not cover a DAO's `Flow`,
    which fails when collected: map it to `Either` and add `.catch { emit(Either.Left(it.toLocalError())) }`.
 4. Because the database is a rebuildable cache, a destructive migration is acceptable, and `DatabaseModule` uses one.
@@ -76,7 +77,8 @@ to Room. Data that is not cached, like health, goes straight from DTO to domain.
 
 DAO tests run real SQL on the JVM (`FeedDaoTest`). `@Upsert` does not work there: it reads the error code from the
 message of `SQLException`, which the Android stub drops. Use `@Insert(onConflict = REPLACE)`, and no foreign key to a
-table written that way, because a replace would cascade.
+table written that way, because a replace would cascade. A replace also rewrites the whole row, so job detail goes in its
+own table keyed by `jobId`, not in `JobEntity`.
 
 ## Change the app identity
 

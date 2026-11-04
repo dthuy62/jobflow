@@ -3,6 +3,7 @@ package me.dthuy.jobflow.data.local
 import android.content.ContextWrapper
 import android.database.SQLException
 import androidx.room3.Room
+import androidx.room3.useReaderConnection
 import androidx.room3.useWriterConnection
 import androidx.sqlite.driver.bundled.BundledSQLiteDriver
 import kotlinx.coroutines.flow.first
@@ -84,7 +85,7 @@ class FeedDaoTest {
         dao.replaceFeed("user_a", listOf(entry("user_a", "job_2", 0)))
 
         assertEquals(listOf("job_2"), dao.observeFeed("user_a").first().map { it.item.jobId })
-        assertEquals(listOf("job_2"), dao.jobIds())
+        assertEquals(listOf("job_2"), jobIds())
     }
 
     @Test
@@ -102,7 +103,7 @@ class FeedDaoTest {
             fail("The insert should have failed")
         } catch (_: SQLException) {
             assertEquals("Old", dao.observeFeed("user_a").first().single().job.title)
-            assertEquals(listOf("job_1"), dao.jobIds())
+            assertEquals(listOf("job_1"), jobIds())
         }
     }
 
@@ -134,7 +135,7 @@ class FeedDaoTest {
 
         assertTrue(dao.observeFeed("user_a").first().isEmpty())
         assertEquals(listOf("job_2"), dao.observeFeed("user_b").first().map { it.item.jobId })
-        assertEquals(listOf("job_2"), dao.jobIds())
+        assertEquals(listOf("job_2"), jobIds())
     }
 
     @Test
@@ -146,7 +147,13 @@ class FeedDaoTest {
 
         assertTrue(dao.observeFeed("user_a").first().isEmpty())
         assertEquals(listOf("job_2"), dao.observeFeed("user_b").first().map { it.item.jobId })
-        assertEquals(listOf("job_2"), dao.jobIds())
+        assertEquals(listOf("job_2"), jobIds())
+    }
+
+    private suspend fun jobIds(): List<String> = database.useReaderConnection { connection ->
+        connection.usePrepared("SELECT jobId FROM job ORDER BY jobId") { statement ->
+            buildList { while (statement.step()) add(statement.getText(0)) }
+        }
     }
 
     private fun entry(user: String, jobId: String, position: Int, title: String = "Nurse") = FeedItemWithJob(

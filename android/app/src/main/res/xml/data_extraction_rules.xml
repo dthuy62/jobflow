@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- The cache can hold a user's CV, and the API can rebuild it, so it never leaves the device. allowBackup="false" stops
-     cloud backup, but some manufacturers' device-to-device transfer ignores it. -->
+<!-- The database holds per-user feed data, and the API can rebuild it, so it never leaves the device. allowBackup="false"
+     stops cloud backup, but some manufacturers' device-to-device transfer ignores it. -->
 <data-extraction-rules>
     <cloud-backup>
         <exclude domain="database" path="." />

@@ -39,10 +39,6 @@ interface FeedDao {
         deleteUnusedJobs()
     }
 
-    /** Lets tests see that unused jobs go; a job detail query replaces it. */
-    @Query("SELECT jobId FROM job ORDER BY jobId")
-    suspend fun jobIds(): List<String>
-
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertJobs(jobs: List<JobEntity>)
 
