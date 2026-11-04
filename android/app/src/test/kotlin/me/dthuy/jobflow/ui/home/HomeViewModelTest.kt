@@ -10,7 +10,7 @@ import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import me.dthuy.jobflow.testing.FakeHealthRepository
-import me.dthuy.jobflow.testing.notReadySnapshot
+import me.dthuy.jobflow.testing.degradedSnapshot
 import me.dthuy.jobflow.testing.readySnapshot
 import me.dthuy.jobflow.testing.unreachableSnapshot
 import me.dthuy.jobflow.ui.health.HealthUiKind
@@ -62,7 +62,7 @@ class HomeViewModelTest {
 
     @Test
     fun `open health details consumes the dialog and navigates to settings`() = runTest {
-        val vm = HomeViewModel(FakeHealthRepository(notReadySnapshot()))
+        val vm = HomeViewModel(FakeHealthRepository(degradedSnapshot()))
         val effects = mutableListOf<HomeEffect>()
         backgroundScope.launch(dispatcher) { vm.effects.toList(effects) }
 

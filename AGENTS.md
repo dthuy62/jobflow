@@ -78,8 +78,8 @@ node scripts/sync-career-ops.mjs --check
 
 ## Hard Boundaries
 
-- Android calls an API (the wrapper today, the hosted backend after its
-  migration); it must not read/write Career Ops workspace files directly.
+- Android calls only the hosted API, through the contract in `contracts/`; it must
+  not read/write Career Ops workspace files directly.
 - In the backend, core code reaches Firebase, cloud and AI vendors only through
   adapters.
 - Every backend route is denied by default, and user data is scoped to the

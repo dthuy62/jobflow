@@ -9,14 +9,14 @@ flowchart LR
     UC --> PORTS["domain/repository<br/>interfaces (ports)"]
     DATA["data/<br/>Retrofit"] -. implements .-> PORTS
     DI["di/<br/>Hilt @Binds / @Provides"] -. wires .-> DATA
-    DATA -- HTTP --> WRAPPER["career-ops-wrapper<br/>(local API)"]
+    DATA -- HTTPS --> API["Hosted API<br/>(contract in ../contracts)"]
 ```
 
 - `ui/` depends on `domain/`. `domain/` depends on Kotlin only. `data/` depends on `domain/`.
 - The domain defines ports (`HealthRepository`); `data/` implements them; `di/RepositoryModule`
   binds them. Replacing Retrofit or adding a cache touches `data/` plus one binding.
-- The app never reads Career Ops workspace files. Everything goes through the wrapper API, which owns path containment,
-  safe writes, command allowlists and pairing tokens (`../../docs/system-architecture.md`).
+- The app reaches nothing but the hosted API; the backend owns authorization, user data and job sources
+  (`../../docs/system-architecture.md`).
 - It is one Gradle module on purpose ([ADR 1](decisions/0001-use-a-single-app-module.md)). The compiler cannot stop
   `ui/` from importing `data/`, so Konsist tests do (see [code standards](code-standards.md#automated-checks)).
 - How many layers a feature really needs is a per-feature decision
@@ -47,7 +47,7 @@ flowchart LR
     E --> V
 ```
 
-## Checking wrapper health
+## Checking API health
 
 Home is the reference for async work, caching and one-shot effects.
 
@@ -57,7 +57,7 @@ sequenceDiagram
     participant S as HomeScreen
     participant V as HomeViewModel
     participant R as HealthRepositoryImpl
-    participant A as CareerOpsApi
+    participant A as JobFlowApi
     S->>V: created (init)
     V->>R: refresh(force = false)
     alt fresh READY answer cached (< 3 h)
@@ -75,18 +75,19 @@ sequenceDiagram
 ```
 
 `HealthRepositoryImpl` is an app singleton, so Home and Settings share one cache and one `latest` stream. Only a
-READY answer is reused: failures and not-ready answers are checked again, so starting the wrapper or fixing the
-workspace and tapping Check again (or reopening the app) recovers at once.
+OK answer is reused: failures and degraded answers are checked again, so tapping Check again (or reopening the app)
+recovers at once.
 
 ## Network
 
-- `data/remote/CareerOpsApi.kt` declares the wrapper endpoints under `api/v1/`. Calls are `suspend` and throw on failure.
-- `di/NetworkModule.kt` builds one `OkHttpClient` (with `PairingTokenInterceptor`, which adds `X-Career-Ops-Token` when
-  a token exists; storage arrives with Epic 7) and one `Retrofit` using `ApiJson` (`ignoreUnknownKeys = true`).
-- The base URL comes from the flavor: `BuildConfig.CAREER_OPS_DEFAULT_BASE_URL`. Only `dev` allows cleartext, and only to
+- `data/remote/JobFlowApi.kt` declares the endpoints under `api/v1/`. Calls are `suspend` and throw on failure. Health
+  returns a `Response`, because `healthOrThrow` treats its 503 with a health body as an answer.
+- `di/NetworkModule.kt` builds one `OkHttpClient` (the bearer token interceptor arrives with the auth layer; health needs
+  no token) and one `Retrofit` using `ApiJson` (`ignoreUnknownKeys = true`).
+- The base URL comes from the flavor: `BuildConfig.API_BASE_URL`. Only `dev` allows cleartext, and only to
   `10.0.2.2` and `localhost` (`app/src/dev/res/xml/network_security_config.xml`).
-- DTOs in `data/remote/dto` mirror the wrapper's Zod contracts. Wire enums map unknown values to `UNKNOWN` instead of
-  failing. `ApiContractCompatibilityTest` parses every example in `../career-ops-wrapper/contracts/examples`.
+- DTOs in `data/remote/dto` mirror the hosted contract. Wire enums map unknown values to `UNKNOWN` instead of
+  failing. `ApiContractCompatibilityTest` parses every example in `../contracts/examples`.
 
 ## Errors
 
@@ -104,7 +105,7 @@ flowchart LR
 - One mapper per data **source**, not per feature. It knows the SDK's exception types and nothing else does. Unknown
   exceptions go to `unexpected()`: rethrown in debug, logged and mapped to `AppError.Unknown` in release.
 - `AppError` holds no `Throwable`, so states compare equal and exception text never reaches the UI.
-- A wrapper error code (`ApiErrorCode`, mirrored from `ErrorCodeSchema` and checked by `ApiErrorCodeContractTest`) that
+- An API error code (`ApiErrorCode`, mirrored from `contracts/error-codes.json` and checked by `ApiErrorCodeContractTest`) that
   is a normal branch of a flow becomes part of the success type; one a feature shows as an error becomes
   `AppError.Feature(<its sealed FeatureError>)`.
 - `CancellationException` is always rethrown. Konsist fails the build if `ui/` or `domain/` catches exceptions.

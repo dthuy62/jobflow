@@ -63,20 +63,19 @@ test("maps changed symbols, routes, schemas, Android DTOs and risk reviewers", (
   }
 });
 
-test("adds the Android gate when shared contract examples change", () => {
+test("adds the Android gate when the hosted contract examples change", () => {
   const root = mkdtempSync(path.join(tmpdir(), "impact-map-"));
   try {
     git(root, "init", "-q");
-    write(root, "career-ops-wrapper/contracts/examples/offer.valid.json", "{}\n");
+    write(root, "contracts/examples/offer.valid.json", "{}\n");
     git(root, "add", "-A");
     git(root, "commit", "-qm", "base");
-    write(root, "career-ops-wrapper/contracts/examples/offer.valid.json", "{\"id\":\"offer_1\"}\n");
+    write(root, "contracts/examples/offer.valid.json", "{\"id\":\"offer_1\"}\n");
     git(root, "commit", "-qam", "head");
 
     const report = JSON.parse(execFileSync("node", [script, "--base", "HEAD~1", "--json"], { cwd: root, encoding: "utf8" }));
 
     assert.ok(report.gates.some((gate) => gate.includes("./gradlew")));
-    assert.ok(report.gates.some((gate) => gate.includes("npm test")));
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
@@ -369,8 +368,8 @@ test("classifies hosted backend paths by risk area, tier and gates", () => {
     ["tsconfig.base.json", text, "config", [WRAPPER_GATE, BACKEND_GATE]],
     [".gitleaks.toml", text, "security", []],
     ["packages/safety/src/x.ts", code, "security", [WRAPPER_GATE, SAFETY_GATE, BACKEND_GATE]],
-    ["packages/contract/src/x.ts", code, "contracts", [CONTRACT_GATE, BACKEND_GATE]],
-    ["contracts/examples/x.json", text, "contracts", [CONTRACT_GATE, BACKEND_GATE]],
+    ["packages/contract/src/x.ts", code, "contracts", [ANDROID_GATE, CONTRACT_GATE, BACKEND_GATE]],
+    ["contracts/examples/x.json", text, "contracts", [ANDROID_GATE, CONTRACT_GATE, BACKEND_GATE]],
     ["scripts/sync-career-ops.mjs", code, "vendor", [SYNC_GATE, SYNC_CHECK_GATE]],
     ["vendor/career-ops/x.mjs", code, "vendor", [SYNC_CHECK_GATE]],
     ["vendor/career-ops/modes/oferta.md", text, "vendor", [SYNC_CHECK_GATE]]
@@ -385,11 +384,11 @@ test("classifies hosted backend paths by risk area, tier and gates", () => {
   }
 });
 
-test("still gates the wrapper's contract examples with the wrapper and Android", () => {
+test("gates the wrapper's contract examples with the wrapper alone, now that Android reads the hosted contract", () => {
   const report = mapAfterCommit({ "career-ops-wrapper/contracts/x.json": { before: "a\n", after: "b\n" } });
   assert.ok(report.risks.contracts);
   assert.equal(report.tier, "L");
-  assert.deepEqual(report.gates, [WRAPPER_GATE, ANDROID_GATE]);
+  assert.deepEqual(report.gates, [WRAPPER_GATE]);
 });
 
 test("does not print the backend gate before the backend package exists", () => {
@@ -562,12 +561,12 @@ test("refuses a package directory name that is not safe to print in a gate", () 
 
 test("prints the contract gate only while the contract package exists", () => {
   const absent = mapAfterCommit({ "contracts/examples/x.json": { before: "{}\n", after: "{\"a\":1}\n" } });
-  assert.deepEqual(absent.gates, []);
+  assert.deepEqual(absent.gates, [ANDROID_GATE]);
   const removed = mapAfterMutation(
     { "packages/contract/package.json": "{}\n", "packages/contract/src/x.ts": "export const a = 1;\n" },
     (root) => git(root, "rm", "-rq", "packages/contract")
   );
-  assert.deepEqual(removed.gates, []);
+  assert.deepEqual(removed.gates, [ANDROID_GATE]);
 });
 
 test("lists a contract example renamed into contracts or to a new name, with the users of either name", () => {

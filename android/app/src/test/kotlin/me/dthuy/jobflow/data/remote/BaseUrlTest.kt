@@ -9,14 +9,14 @@ class BaseUrlTest {
     @Test
     fun `flavor default base url gets a trailing slash`() {
         assertEquals(
-            "${BuildConfig.CAREER_OPS_DEFAULT_BASE_URL}/",
-            normalizeBaseUrl(BuildConfig.CAREER_OPS_DEFAULT_BASE_URL),
+            "${BuildConfig.API_BASE_URL}/",
+            normalizeBaseUrl(BuildConfig.API_BASE_URL),
         )
     }
 
     @Test
     fun `existing trailing slash is kept and whitespace trimmed`() {
-        assertEquals("http://10.0.2.2:3000/", normalizeBaseUrl("  http://10.0.2.2:3000/ "))
+        assertEquals("http://10.0.2.2:4010/", normalizeBaseUrl("  http://10.0.2.2:4010/ "))
     }
 
     @Test

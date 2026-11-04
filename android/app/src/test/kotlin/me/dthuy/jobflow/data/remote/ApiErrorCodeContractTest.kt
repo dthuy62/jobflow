@@ -10,11 +10,11 @@ import org.junit.Test
 
 class ApiErrorCodeContractTest {
     @Test
-    fun `android error codes match the wrapper error contract`() {
-        val wrapperCodes =
+    fun `android error codes match the hosted error contract`() {
+        val contractCodes =
             Json.parseToJsonElement(contractFile("error-codes.json")).jsonArray.map { it.jsonPrimitive.content }.toSet()
         val androidCodes = ApiErrorCode.entries.filter { it != ApiErrorCode.UNKNOWN }.map { it.name }.toSet()
 
-        assertEquals(wrapperCodes, androidCodes)
+        assertEquals(contractCodes, androidCodes)
     }
 }

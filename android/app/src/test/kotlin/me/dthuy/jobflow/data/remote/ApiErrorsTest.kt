@@ -26,14 +26,14 @@ class ApiErrorsTest {
     }
 
     @Test
-    fun `http 4xx carries the wrapper error code`() {
+    fun `http 4xx carries the API error code`() {
         assertEquals(
-            AppError.Rejected(ApiErrorCode.SCAN_ALREADY_RUNNING),
-            httpError(409, errorBody("SCAN_ALREADY_RUNNING")).toApiError(),
+            AppError.Rejected(ApiErrorCode.CONFLICT),
+            httpError(409, errorBody("CONFLICT")).toApiError(),
         )
         assertEquals(
-            AppError.Rejected(ApiErrorCode.EVALUATION_ALREADY_RUNNING),
-            httpError(409, errorBody("EVALUATION_ALREADY_RUNNING")).toApiError(),
+            AppError.Rejected(ApiErrorCode.SIGN_IN_REQUIRED),
+            httpError(403, contractFixture("errors/sign-in-required.json")).toApiError(),
         )
     }
 
@@ -43,20 +43,20 @@ class ApiErrorsTest {
     }
 
     @Test
-    fun `unknown wrapper code maps to the UNKNOWN entry`() {
+    fun `unknown API code maps to the UNKNOWN entry`() {
         assertEquals(AppError.Rejected(ApiErrorCode.UNKNOWN), httpError(422, errorBody("FUTURE_CODE")).toApiError())
     }
 
     @Test
-    fun `http 5xx without a wrapper code maps to ServerFailure`() {
+    fun `http 5xx without an API code maps to ServerFailure`() {
         assertEquals(AppError.ServerFailure(503), httpError(503, "oops").toApiError())
     }
 
     @Test
-    fun `http 5xx with a wrapper code is rejected with that code`() {
+    fun `http 5xx with an API code is rejected with that code`() {
         assertEquals(
-            AppError.Rejected(ApiErrorCode.WORKSPACE_UNHEALTHY),
-            httpError(503, contractFixture("errors/workspace-unhealthy.json")).toApiError(),
+            AppError.Rejected(ApiErrorCode.AUTH_UNAVAILABLE),
+            httpError(503, contractFixture("errors/auth-unavailable.json")).toApiError(),
         )
     }
 

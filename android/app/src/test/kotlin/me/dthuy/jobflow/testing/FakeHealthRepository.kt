@@ -12,9 +12,9 @@ import me.dthuy.jobflow.domain.repository.HealthRepository
 
 val CHECKED_AT: Instant = Instant.parse("2026-10-30T02:05:00Z")
 
-fun readySnapshot() = HealthSnapshot(Either.Right(healthFixture("health.ready.json")), CHECKED_AT)
+fun readySnapshot() = HealthSnapshot(Either.Right(healthFixture("health.ok.json")), CHECKED_AT)
 
-fun notReadySnapshot() = HealthSnapshot(Either.Right(healthFixture("health.not-ready.json")), CHECKED_AT)
+fun degradedSnapshot() = HealthSnapshot(Either.Right(healthFixture("health.degraded.json")), CHECKED_AT)
 
 fun unreachableSnapshot() = HealthSnapshot(AppError.Unreachable.left(), CHECKED_AT)
 

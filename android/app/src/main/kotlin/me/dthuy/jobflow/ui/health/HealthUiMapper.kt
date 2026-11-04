@@ -2,7 +2,6 @@ package me.dthuy.jobflow.ui.health
 
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
-import kotlinx.collections.immutable.toImmutableList
 import me.dthuy.jobflow.core.common.AppError
 import me.dthuy.jobflow.core.common.fold
 import me.dthuy.jobflow.domain.model.Health
@@ -20,26 +19,18 @@ fun HealthSnapshot?.toHealthUiState(zone: ZoneId = ZoneId.systemDefault()): Heal
     )
 }
 
-private fun Health.toHealthUiState(checkedAtLabel: String): HealthUiState {
-    val missing = workspace.missingRequirements + careerOps.scanner.missingRequirements
-    val messages = workspace.messages + careerOps.scanner.messages
-    return HealthUiState(
-        kind = if (status == HealthStatus.READY) HealthUiKind.READY else HealthUiKind.NOT_READY,
-        serverMessage = messages.firstOrNull(),
-        firstMissing = missing.firstOrNull(),
-        checkedAtLabel = checkedAtLabel,
-        serverTime = serverTime,
-        workspaceStatus = workspace.status.wireValue,
-        scannerStatus = careerOps.scanner.status.wireValue,
-        guidance = (missing + messages).toImmutableList(),
-    )
-}
+private fun Health.toHealthUiState(checkedAtLabel: String): HealthUiState = HealthUiState(
+    kind = if (status == HealthStatus.OK) HealthUiKind.READY else HealthUiKind.DEGRADED,
+    checkedAtLabel = checkedAtLabel,
+    databaseStatus = database.wireValue,
+)
 
 private fun AppError.toHealthUiKind(): HealthUiKind = when (this) {
-    AppError.Unreachable -> HealthUiKind.UNREACHABLE
-    AppError.Unauthorized -> HealthUiKind.PAIRING_REQUIRED
+    AppError.Unauthorized -> HealthUiKind.SIGN_IN_REQUIRED
+    AppError.Unreachable,
     is AppError.Rejected,
     is AppError.ServerFailure,
+    -> HealthUiKind.UNREACHABLE
     AppError.InvalidResponse,
     AppError.Unknown,
     is AppError.Feature,

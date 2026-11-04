@@ -1,7 +1,6 @@
 # JobFlow Android
 
-Native Android client for JobFlow. It talks to the local Career Ops wrapper (`../career-ops-wrapper`) over HTTP and
-never touches workspace files itself. Built from
+Native Android client for JobFlow. It talks to the hosted API, whose contract is in `../contracts`. Built from
 [android-agentic-starter](https://github.com/dthuy62/android-agentic-starter)
 ([ADR 8](docs/decisions/0008-rebuild-jobflow-android-from-starter.md)).
 
@@ -16,14 +15,14 @@ Requirements: Android Studio (current stable), JDK 21, Android SDK 37.
 ./gradlew assembleDevDebug testDevDebugUnitTest lintDevDebug detekt ktlintCheck
 ```
 
-The `dev` flavor reaches a wrapper running on the host at `http://10.0.2.2:3000` from the emulator:
+The `dev` flavor reaches the contract's mock on the host at `http://10.0.2.2:4010` from the emulator:
 
 ```bash
-cd ../career-ops-wrapper && npm run dev -- --workspace /path/to/career-ops
+cd .. && docker compose --profile mock up -d mock
 ```
 
 Architecture rules are checked by Konsist tests, code smells by detekt (`config/detekt/detekt.yml`), formatting by
-ktlint (`./gradlew ktlintFormat` fixes it). Contract tests read the wrapper's checked-in JSON examples, so a contract
+ktlint (`./gradlew ktlintFormat` fixes it). Contract tests read the hosted contract's JSON examples, so a contract
 change fails here until the DTOs follow.
 
 ## Layout
@@ -32,7 +31,7 @@ change fails here until the DTOs follow.
 app/src/main/kotlin/me/dthuy/jobflow
 ├── core/        common (Either, AppError, ApiErrorCode, unexpected), mvi (MviViewModel)
 ├── domain/      model (Health, HealthSnapshot), repository (interfaces)
-├── data/        remote (CareerOpsApi, DTOs, toApiError), repository/impl
+├── data/        remote (JobFlowApi, DTOs, toApiError), repository/impl
 ├── di/          Hilt modules
 ├── navigation/  NavGraph, tabs, glass bottom bar
 └── ui/          theme, components, health (shared), home (MVI), inputs, settings (MVVM-lite)

@@ -10,7 +10,6 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import me.dthuy.jobflow.R
 import me.dthuy.jobflow.ui.components.JobFlowPage
-import me.dthuy.jobflow.ui.health.GuidanceCard
 import me.dthuy.jobflow.ui.health.HealthDetailsCard
 import me.dthuy.jobflow.ui.health.HealthSummaryCard
 
@@ -30,7 +29,6 @@ fun SettingsContent(
     JobFlowPage(title = stringResource(R.string.settings_title), contentPadding = contentPadding, modifier = modifier) {
         HealthSummaryCard(state.health)
         HealthDetailsCard(state.health, onCheckAgain = onCheckAgain)
-        GuidanceCard(state.health)
     }
 }
 

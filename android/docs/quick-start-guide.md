@@ -1,17 +1,17 @@
 # Quick start
 
-Requirements: Android Studio (current stable), JDK 21, Android SDK 37, and Node for the wrapper.
+Requirements: Android Studio (current stable), JDK 21, Android SDK 37, and Docker for the mock.
 
-## Run against a local wrapper
+## Run against the mock
 
 ```bash
-cd ../career-ops-wrapper
-npm run dev -- --workspace /path/to/career-ops
-curl http://127.0.0.1:3000/api/v1/health
+cd ..
+docker compose --profile mock up -d mock
+curl http://127.0.0.1:4010/api/v1/health
 ```
 
 Then run the `app` configuration with the `devDebug` variant on an emulator; `dev` reaches the host at
-`http://10.0.2.2:3000`. From a shell:
+`http://10.0.2.2:4010`. From a shell:
 
 ```bash
 ./gradlew assembleDevDebug
@@ -39,8 +39,8 @@ entry<ProfileRoute> { ProfileScreen(contentPadding = innerPadding) }
 ```
 
 Keep it simple first: inject a domain repository interface into the ViewModel and add a use case only when logic is real
-or shared ([code standards](code-standards.md#how-much-structure-per-feature)). New wrapper calls follow
-[add a wrapper endpoint](module-guides.md#add-a-wrapper-endpoint).
+or shared ([code standards](code-standards.md#how-much-structure-per-feature)). New API calls follow
+[add an API endpoint](module-guides.md#add-an-api-endpoint).
 
 ## Turn on the local checks
 

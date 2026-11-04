@@ -7,7 +7,7 @@ tracks the Android engineering baseline only.
 
 - [x] Rebuilt on android-agentic-starter: Hilt, Navigation 3, Konsist, detekt, ktlint, docs checks
       ([ADR 8](decisions/0008-rebuild-jobflow-android-from-starter.md))
-- [x] Retrofit + kotlinx.serialization network layer with wrapper contract tests
+- [x] Retrofit + kotlinx.serialization network layer with contract tests
       ([ADR 9](decisions/0009-retrofit-kotlinx-serialization-network-layer.md))
 - [x] `Either<AppError, T>` error model with source and UI mappers and a mirrored `ApiErrorCode`
       ([ADR 10](decisions/0010-use-either-and-two-boundary-error-mapping.md))
@@ -20,7 +20,7 @@ tracks the Android engineering baseline only.
 - [ ] Story 2.6: Room 3 cache with stale-while-error state and a `toLocalError()` mapper
 - [ ] Stories 3.3 and 3.5: portal editing and scan readiness
 - [ ] Install and smoke-test a minified release build (R8 is on, `proguard-rules.pro` is empty)
-- [ ] Epic 7: production endpoint, HTTPS, pairing token storage
+- [ ] Production endpoint, and the auth layer (issue #35)
 - [ ] More Konsist rules: `domain/` must not import `ui/` or `data/`, `data/` must not import `ui/`
 
 ## Dependency note

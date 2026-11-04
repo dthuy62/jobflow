@@ -33,12 +33,11 @@ Main rules:
 ## Wrapper (frozen)
 
 The rest of this document describes `career-ops-wrapper/`. It is frozen as a
-development and self-host tool. The Android app still talks to it until the app
-moves to the hosted contract.
+development and self-host tool. The Android app has moved to the hosted contract.
 
 ### Overview
 
-In the wrapper model, the Android app is the user interface and the wrapper API
+In the wrapper model, an Android client is the user interface and the wrapper API
 is the only integration surface for Career Ops workspace files and scripts.
 
 ```mermaid

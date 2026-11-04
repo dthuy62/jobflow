@@ -1,4 +1,4 @@
-# 9. Use Retrofit and kotlinx.serialization for the wrapper API
+# 9. Use Retrofit and kotlinx.serialization for the API
 
 Status: Accepted (2026-10-30)
 
@@ -14,8 +14,9 @@ had contract tests built on it. Planning notes mentioned Moshi, but nothing used
   `ignoreUnknownKeys = true`) shared by the converter, the error-body parser and the tests.
 - DTOs in `data/remote/dto` mirror the Zod schemas and map to domain models with `toDomain()`. Wire enums carry an
   `UNKNOWN` entry so values added by a newer wrapper do not fail parsing.
-- Contract tests parse every example in `career-ops-wrapper/contracts/examples` directly; Android never keeps a copy.
-- The base URL comes from the flavor; the pairing token header is added by `PairingTokenInterceptor`.
+- Contract tests parse every example in `contracts/examples` directly; Android never keeps a copy.
+- The base URL comes from the flavor. [ADR 11](0011-move-to-the-hosted-api.md) moved the app from the wrapper to the
+  hosted API, and the token header goes with the auth layer.
 
 Rejected: Ktor client (no gain for one REST backend on Android), Moshi (a second serialization stack), and a Retrofit
 `CallAdapter` returning `Either` (hides error mapping inside Retrofit and ties the API interface to `core/` types).

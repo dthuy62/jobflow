@@ -22,7 +22,7 @@ knowing SDK exception types. A review against Android's data and UI layer guidan
   `FeatureError` hierarchy and maps it in its own screen; the global mapper only falls back for it.
 - A wrapper error code that is a normal branch of a flow becomes part of the success type instead of an error.
 - `AppError` holds no `Throwable`. Wrapper error codes are mirrored in `ApiErrorCode` (with `UNKNOWN`) and kept in sync
-  by tests on both sides of `career-ops-wrapper/contracts/error-codes.json`.
+  by tests on both sides of `contracts/error-codes.json`.
 - Konsist fails the build when code outside `core/common` and data sources catches exceptions.
 
 Rejected: the name `Outcome` (team preference); an `apiCall {}` or `ApiCaller` wrapper (no collaborators yet, so a

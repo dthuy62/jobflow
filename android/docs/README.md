@@ -13,7 +13,7 @@ that enforce the rules. Workspace-wide product and architecture docs live in `..
 | [System architecture](system-architecture.md)   | how layers, state, errors, DI and navigation fit together, with diagrams                   |
 | [Code standards](code-standards.md)             | conventions, how much structure a feature needs, testing, automated checks                 |
 | [Codebase summary](codebase-summary.md)         | what each package holds and how long each object lives                                     |
-| [Module guides](module-guides.md)               | recipes: add a screen, add a wrapper endpoint, share logic, add local storage               |
+| [Module guides](module-guides.md)               | recipes: add a screen, add an API endpoint, share logic, add local storage               |
 | [CI/CD](ci-cd.md)                               | which workflows run, versioning and signing                                                |
 | [Development roadmap](development-roadmap.md)   | what is done and what is next                                                              |
 | [Decisions](decisions/)                         | why things are the way they are (ADRs, one per decision)                                   |

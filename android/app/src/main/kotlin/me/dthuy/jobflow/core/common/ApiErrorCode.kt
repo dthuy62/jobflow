@@ -1,21 +1,25 @@
 package me.dthuy.jobflow.core.common
 
 /**
- * Mirror of the wrapper's `ErrorCodeSchema` (`career-ops-wrapper/src/contracts/error-contract.ts`).
- * `ApiErrorCodeContractTest` fails when the two drift; codes added later by the wrapper map to [UNKNOWN].
+ * Mirror of the hosted API's error codes (`contracts/error-codes.json` at the repo root).
+ * `ApiErrorCodeContractTest` fails when the two drift; codes a newer API adds map to [UNKNOWN].
  */
 enum class ApiErrorCode {
     VALIDATION_ERROR,
     UNAUTHORIZED,
-    WORKSPACE_UNHEALTHY,
+    SIGN_IN_REQUIRED,
+    ENTITLEMENT_REQUIRED,
+    INTEGRITY_FAILED,
     NOT_FOUND,
-    SCAN_ALREADY_RUNNING,
-    EVALUATION_ALREADY_RUNNING,
-    COMMAND_FAILED,
-    PARSER_FAILED,
-    PATH_OUTSIDE_WORKSPACE,
+    CONFLICT,
     PAYLOAD_TOO_LARGE,
+    UNSUPPORTED_MEDIA_TYPE,
+    CV_UNREADABLE,
+    RATE_LIMITED,
+    QUOTA_EXCEEDED,
     UNEXPECTED_ERROR,
+    AUTH_UNAVAILABLE,
+    UNAVAILABLE,
     UNKNOWN,
 }
 

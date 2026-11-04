@@ -9,8 +9,13 @@ import org.junit.Test
 
 class UiErrorTest {
     @Test
-    fun `unauthorized asks the user to pair again`() {
-        assertEquals(ErrorAction.Repair, AppError.Unauthorized.toUiError().action)
+    fun `unauthorized asks the user to sign in again`() {
+        assertEquals(ErrorAction.SignIn, AppError.Unauthorized.toUiError().action)
+    }
+
+    @Test
+    fun `auth unavailable offers retry and does not ask to sign in`() {
+        assertEquals(ErrorAction.Retry, AppError.Rejected(ApiErrorCode.AUTH_UNAVAILABLE).toUiError().action)
     }
 
     @Test
@@ -20,7 +25,7 @@ class UiErrorTest {
     }
 
     @Test
-    fun `every wrapper error code has its own message`() {
+    fun `every API error code has its own message`() {
         val messages = ApiErrorCode.entries.map { AppError.Rejected(it).toUiError().message }
 
         messages.forEach { assertNotEquals(0, it) }
