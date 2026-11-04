@@ -13,6 +13,11 @@ class UiErrorTest {
     }
 
     @Test
+    fun `a storage failure offers retry`() {
+        assertEquals(ErrorAction.Retry, AppError.StorageFailure.toUiError().action)
+    }
+
+    @Test
     fun `auth unavailable offers retry and does not ask to sign in`() {
         assertEquals(ErrorAction.Retry, AppError.Rejected(ApiErrorCode.AUTH_UNAVAILABLE).toUiError().action)
     }

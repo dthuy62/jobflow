@@ -36,7 +36,7 @@ The Android app is a single-module native app.
 | Build | `android/settings.gradle.kts`, `android/build.gradle.kts`, `android/app/build.gradle.kts`, `android/gradle/libs.versions.toml` |
 | App root | `MainApplication.kt` (Hilt), `MainActivity.kt` |
 | Core | `core/common/` (`Either`, `AppError`, `ApiErrorCode`), `core/mvi/` |
-| Data | `data/remote/` (`JobFlowApi`, DTOs, `toApiError`), `data/repository/impl/` |
+| Data | `data/remote/` (`JobFlowApi`, DTOs, `toApiError`), `data/local/` (Room cache), `data/repository/impl/` |
 | Domain | `domain/model/`, `domain/repository/` |
 | UI | `ui/home/`, `ui/inputs/`, `ui/settings/`, shared `ui/components/`, `ui/health/`, `ui/theme/`; `navigation/` |
 | DI | `di/` Hilt modules |
@@ -54,7 +54,7 @@ Key implementation facts:
 - Konsist enforces layers; detekt and ktlint run in the verify command and CI.
 - `dev` and `prod` product flavors exist; `dev` allows cleartext access to
   `10.0.2.2`.
-- No Room yet; it returns as a cache in Story 2.6.
+- Room 3 caches the feed in `data/local`; no screen reads it yet.
 - Release signing reads environment variables.
 
 ## Career Ops Wrapper

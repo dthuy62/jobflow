@@ -22,6 +22,7 @@ fun AppError.toUiError(): UiError = when (this) {
     is AppError.Rejected -> code.toUiError()
     is AppError.ServerFailure -> UiError(R.string.error_server, ErrorAction.Retry)
     AppError.InvalidResponse -> UiError(R.string.error_incompatible, ErrorAction.None)
+    AppError.StorageFailure -> UiError(R.string.error_storage, ErrorAction.Retry)
     AppError.Unknown -> UiError(R.string.error_unexpected, ErrorAction.Retry)
     is AppError.Feature -> {
         Timber.w("Unhandled feature error %s; showing the generic message", reason::class.simpleName)

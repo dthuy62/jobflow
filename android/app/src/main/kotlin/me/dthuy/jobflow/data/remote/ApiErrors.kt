@@ -1,6 +1,7 @@
 package me.dthuy.jobflow.data.remote
 
 import java.io.IOException
+import java.time.format.DateTimeParseException
 import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.SerializationException
 import me.dthuy.jobflow.core.common.ApiErrorCode
@@ -22,7 +23,7 @@ fun Throwable.toApiError(): AppError = when (this) {
     is CancellationException -> throw this
     is HttpException -> toHttpError()
     is IOException -> AppError.Unreachable
-    is SerializationException -> {
+    is SerializationException, is DateTimeParseException -> {
         Timber.w(this, "API response did not match the contract")
         AppError.InvalidResponse
     }

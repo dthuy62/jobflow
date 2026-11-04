@@ -32,6 +32,7 @@ private fun AppError.toHealthUiKind(): HealthUiKind = when (this) {
     is AppError.ServerFailure,
     -> HealthUiKind.UNREACHABLE
     AppError.InvalidResponse,
+    AppError.StorageFailure,
     AppError.Unknown,
     is AppError.Feature,
     -> HealthUiKind.INVALID_RESPONSE

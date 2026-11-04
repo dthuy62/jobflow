@@ -58,7 +58,7 @@ flowchart LR
 | --- | --- |
 | Android presentation | Screens, UI state, intents, effects, user feedback |
 | Android domain | App models, repository contracts, use cases |
-| Android data | Retrofit, DTO mapping, error mapping, repository implementations (Room cache planned) |
+| Android data | Retrofit, DTO mapping, error mapping, repository implementations, Room cache |
 | Wrapper routes | HTTP endpoints, request parsing, response schema checks |
 | Wrapper services | Use-case behavior for health, CV, profile, portals, readiness, scan runs, AI evaluations, offer/report/artifact projection |
 | Wrapper parsers | Pure parsing of Career Ops tracker, pipeline, scan history, reports, scan output |
@@ -78,7 +78,7 @@ flowchart TD
   UseCase["Use Case"]
   Repo["Repository Interface"]
   RepoImpl["Repository Impl"]
-  Local["Room cache (planned)"]
+  Local["Room cache"]
   Remote["Retrofit API client"]
 
   Screen --> VM
@@ -94,7 +94,7 @@ Rules:
 
 - UI must not import data-layer DTOs/entities.
 - Repositories translate transport/storage models into domain models.
-- Room (when added) is a projection cache, not Career Ops source of truth.
+- Room is a cache of API data, not a source of truth.
 - Errors cross layers as `Either<AppError, T>`; details in
   `android/docs/system-architecture.md`.
 
@@ -246,7 +246,7 @@ Current wrapper route families:
 
 - Wrapper over direct Android workspace access.
 - Career Ops workspace as source of truth.
-- Android Room as a projection cache (planned, Story 2.6).
+- Android Room as a cache of API data; no screen reads it yet.
 - Fastify + Zod as API boundary.
 - Polling is acceptable for MVP scan lifecycle.
 - Local Pairing Token protects LAN/private wrapper use.
