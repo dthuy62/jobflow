@@ -26,13 +26,13 @@ android {
         create("dev") {
             dimension = "environment"
             applicationIdSuffix = ".dev"
-            buildConfigField("String", "CAREER_OPS_ENVIRONMENT", "\"dev\"")
-            buildConfigField("String", "CAREER_OPS_DEFAULT_BASE_URL", "\"http://10.0.2.2:3000\"")
+            // The contract's mock: `docker compose --profile mock up -d mock`. Local `api` is on :8080.
+            buildConfigField("String", "API_BASE_URL", "\"http://10.0.2.2:4010\"")
         }
         create("prod") {
             dimension = "environment"
-            buildConfigField("String", "CAREER_OPS_ENVIRONMENT", "\"prod\"")
-            buildConfigField("String", "CAREER_OPS_DEFAULT_BASE_URL", "\"http://10.0.2.2:3000\"")
+            // No production endpoint yet; .invalid never resolves, so a prod build reaches nothing by accident.
+            buildConfigField("String", "API_BASE_URL", "\"https://api.jobflow.invalid\"")
         }
     }
 
@@ -86,13 +86,15 @@ android {
     }
 }
 
-// DocsTest reads these files, so editing them must rerun the unit tests instead of reusing an up-to-date result.
+// Tests read these files, so editing them must rerun the unit tests instead of reusing an up-to-date result.
 tasks.withType<Test>().configureEach {
     inputs.files(
         rootProject.fileTree("docs"),
         rootProject.fileTree(".claude/skills"),
         rootProject.files("README.md", "AGENTS.md"),
     ).withPropertyName("docsInputs").withPathSensitivity(PathSensitivity.RELATIVE)
+    inputs.files(rootProject.fileTree("../contracts")).withPropertyName("contractInputs")
+        .withPathSensitivity(PathSensitivity.RELATIVE)
 }
 
 detekt {

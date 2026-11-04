@@ -8,11 +8,11 @@ pipeline is not used here ([ADR 7](decisions/0007-distribute-test-builds-with-fa
 
 | Trigger | Workflow | Jobs |
 |---|---|---|
-| Push to `main` or a pull request touching `android/`, the wrapper contracts or the workflow | `../.github/workflows/android.yml` | `verify` (the verify command from `AGENTS.md`), `agent-layer` (hook and instruction tests), `release-build` (unsigned `assembleProdRelease` with R8) |
+| Push to `main` or a pull request touching `android/`, `contracts/` or the workflow | `../.github/workflows/android.yml` | `verify` (the verify command from `AGENTS.md`), `agent-layer` (hook and instruction tests), `release-build` (unsigned `assembleProdRelease` with R8) |
 | Push to `main` or a pull request touching `career-ops-wrapper/` | `../.github/workflows/wrapper.yml` | `npm ci`, `npm test`, `npm run build` |
 
-Android tests read `career-ops-wrapper/contracts/`, so a contract change runs both workflows and fails until the DTOs,
-fixtures and `ApiErrorCode` agree.
+Android tests read `contracts/`, so a contract change also runs `android.yml` and fails until the DTOs and
+`ApiErrorCode` agree.
 
 ## Versioning
 
@@ -28,6 +28,6 @@ fixtures and `ApiErrorCode` agree.
 
 ## Before shipping a release
 
-- Install a minified release build and check that wrapper JSON still parses (R8 is on; add keep rules to
+- Install a minified release build and check that API JSON still parses (R8 is on; add keep rules to
   `app/proguard-rules.pro` for `data/remote/dto` only if parsing fails).
-- Decide the production endpoint and turn off cleartext for it (Epic 7: HTTPS, pairing token storage, App Check).
+- Set the production endpoint: `prod` points at `https://api.jobflow.invalid`, which never resolves, until one exists.

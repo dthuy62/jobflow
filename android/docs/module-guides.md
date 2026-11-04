@@ -5,8 +5,8 @@ How-to guides for the recurring jobs. Rules and reasons are in [code standards](
 ## Home (MVI reference)
 
 `ui/home` shows the full path: `HomeScreen` -> `HomeViewModel` (`MviViewModel<HomeState, HomeIntent, HomeEffect>`) ->
-`HealthRepository` -> `HealthRepositoryImpl` -> `CareerOpsApi`. The contract (`HomeContract.kt`) holds the state,
-intents and effects. The sequence is in [system architecture](system-architecture.md#checking-wrapper-health).
+`HealthRepository` -> `HealthRepositoryImpl` -> `JobFlowApi`. The contract (`HomeContract.kt`) holds the state,
+intents and effects. The sequence is in [system architecture](system-architecture.md#checking-api-health).
 
 Use it as the model when a screen has async work, interdependent state or navigation effects.
 
@@ -28,16 +28,16 @@ It creates `ui/profile/` (Route, ViewModel, Screen + Content) and a starter View
 tab), pass any navigation as callbacks, put text in `strings.xml`, and run the verify command. Details for agents:
 skill `new-feature`.
 
-## Add a wrapper endpoint
+## Add an API endpoint
 
-1. Add the DTO to `data/remote/dto` with `@Serializable`, matching the wrapper's Zod schema field for field; optional
+1. Add the DTO to `data/remote/dto` with `@Serializable`, matching `../contracts/openapi.json` field for field; optional
    fields get `= null`. Wire enums get an `UNKNOWN` entry and map through `toWireEnum`.
-2. Add a parse test against the wrapper's example in `../career-ops-wrapper/contracts/examples` (use
+2. Add a parse test against the contract's example in `../contracts/examples` (use
    `contractFixture(...)` from the test `testing` package). Never copy the JSON into Android.
-3. Declare the call in `CareerOpsApi` (path relative, e.g. `@GET("api/v1/cv")`).
+3. Declare the call in `JobFlowApi` (path relative, e.g. `@GET("api/v1/cv")`).
 4. Implement the domain port in `data/repository/impl` with
    `Either.catch(onError = Throwable::toApiError) { api.getCv() }.map { it.toDomain() }`.
-5. If a wrapper error code means something to this feature, intercept it in the repository: a normal branch goes into
+5. If an API error code means something to this feature, intercept it in the repository: a normal branch goes into
    the success type, a failure the UI shows becomes `AppError.Feature(<sealed FeatureError>)`. The screen maps its own
    `FeatureError` exhaustively and falls back to `AppError.toUiError()` for the rest.
 
@@ -50,7 +50,7 @@ several features live in `ui/components` or `ui/health`.
 ## Add local storage (Room)
 
 Room 3 (`androidx.room3`, [ADR 6](decisions/0006-use-room-3.md)) is not in the app yet; it comes back with Story 2.6 as
-a cache of wrapper data, not a source of truth.
+a cache of API data, not a source of truth.
 
 1. Add the room3 plugin, runtime and compiler from the version catalog, an entity and DAO in `data/local`, and a
    `DatabaseModule`.

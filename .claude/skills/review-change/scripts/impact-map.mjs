@@ -174,7 +174,7 @@ function buildReport(fileReports) {
   }
   const sharedChange = components.has("packages") || components.has("workspace");
   if (components.has("wrapper") || components.has("contracts") || sharedChange) gates.push("cd career-ops-wrapper && npm test && npm run build");
-  if (components.has("android") || components.has("contracts")) {
+  if (components.has("android") || components.has("hosted-contract")) {
     gates.push("cd android && ./gradlew testDevDebugUnitTest lintDevDebug detekt ktlintCheck");
   }
   const codePaths = changedPaths.filter((path) => !isDocumentation(path));

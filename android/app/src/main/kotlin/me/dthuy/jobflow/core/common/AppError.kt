@@ -7,16 +7,16 @@ package me.dthuy.jobflow.core.common
  * exception messages out of UI state.
  */
 sealed interface AppError {
-    /** No connection to the wrapper: IO failure, timeout, DNS. */
+    /** No connection to the API: IO failure, timeout, DNS. */
     data object Unreachable : AppError
 
-    /** The wrapper requires a valid pairing token. */
+    /** The API rejected the session (401): the user has to sign in again. */
     data object Unauthorized : AppError
 
-    /** The wrapper answered with one of its stable error codes (any 4xx, or a 5xx that carries a known code). */
+    /** The API answered with one of its stable error codes (any 4xx, or a 5xx that carries a known code). */
     data class Rejected(val code: ApiErrorCode) : AppError
 
-    /** The wrapper failed (5xx) without a known error code. */
+    /** The API failed (5xx) without a known error code. */
     data class ServerFailure(val status: Int) : AppError
 
     /** The response did not match the contract. */

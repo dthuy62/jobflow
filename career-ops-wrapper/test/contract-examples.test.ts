@@ -82,8 +82,7 @@ describe("contract examples", () => {
     expect(() => ScanReadinessDtoSchema.parse(example)).not.toThrow();
   });
 
-  // health.ready.json keeps scan/reports/artifacts false until Android's
-  // HealthDtoTest is updated alongside it; the live service now reports true.
+  // health.ready.json keeps scan/reports/artifacts false; the live service now reports true.
   it("documents local script readiness without requiring AI providers", async () => {
     const example = HealthDtoSchema.parse(
       await readJsonFixture<unknown>("contracts/examples/health.ready.json")

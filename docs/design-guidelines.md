@@ -38,14 +38,13 @@ existing neo-brutalist component fits.
 
 ## UX States
 
-Every wrapper-backed screen should consider:
+Every screen backed by the API should consider:
 
 - Loading.
 - Ready.
-- Not ready / setup required.
 - Validation error.
-- Unauthorized pairing token.
-- Workspace unhealthy.
+- Signed out, or sign-in required.
+- Service unavailable, which keeps the user signed in.
 - Last-known local data when available.
 
 ## Accessibility

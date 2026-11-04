@@ -6,39 +6,47 @@ import me.dthuy.jobflow.core.common.ApiErrorCode
 import me.dthuy.jobflow.core.common.AppError
 import me.dthuy.jobflow.core.common.Either
 import me.dthuy.jobflow.core.common.left
+import me.dthuy.jobflow.domain.model.DependencyStatus
+import me.dthuy.jobflow.domain.model.Health
 import me.dthuy.jobflow.domain.model.HealthSnapshot
+import me.dthuy.jobflow.domain.model.HealthStatus
 import me.dthuy.jobflow.testing.healthFixture
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
 
 class HealthUiMapperTest {
-    private val checkedAt = Instant.parse("2026-10-30T02:05:00Z")
     private val zone = ZoneId.of("Asia/Ho_Chi_Minh")
+    private val checkedAt = Instant.parse("2026-10-30T02:05:00Z")
 
     @Test
-    fun `no snapshot yet is loading`() {
+    fun `no snapshot is loading`() {
         assertEquals(HealthUiKind.LOADING, (null as HealthSnapshot?).toHealthUiState(zone).kind)
     }
 
     @Test
-    fun `ready health maps to ready`() {
-        val state = snapshotOf("health.ready.json").toHealthUiState(zone)
+    fun `ok maps to ready with the database status`() {
+        val state = snapshotOf("health.ok.json").toHealthUiState(zone)
 
         assertEquals(HealthUiKind.READY, state.kind)
-        assertEquals("Career Ops workspace is ready.", state.serverMessage)
-        assertEquals("ready", state.workspaceStatus)
-        assertEquals("ready", state.scannerStatus)
-        assertEquals("2026-06-15T10:30:00.000Z", state.serverTime)
+        assertEquals("ok", state.databaseStatus)
     }
 
     @Test
-    fun `not ready collects missing requirements then messages as guidance`() {
-        val state = snapshotOf("health.not-ready.json").toHealthUiState(zone)
+    fun `degraded maps to degraded with the database status`() {
+        val state = snapshotOf("health.degraded.json").toHealthUiState(zone)
 
-        assertEquals(HealthUiKind.NOT_READY, state.kind)
-        assertEquals("workspace", state.guidance.first())
-        assertEquals(listOf("workspace", "doctor-script", "scan-script", "portal-config"), state.guidance.take(4))
+        assertEquals(HealthUiKind.DEGRADED, state.kind)
+        assertEquals("failed", state.databaseStatus)
+    }
+
+    @Test
+    fun `a status this app does not know is not shown as ready`() {
+        val health = Health(HealthStatus.UNKNOWN, DependencyStatus.UNKNOWN)
+
+        val state = HealthSnapshot(Either.Right(health), checkedAt).toHealthUiState(zone)
+
+        assertEquals(HealthUiKind.DEGRADED, state.kind)
     }
 
     @Test
@@ -47,21 +55,27 @@ class HealthUiMapperTest {
     }
 
     @Test
-    fun `unauthorized maps to pairing required`() {
-        assertEquals(HealthUiKind.PAIRING_REQUIRED, failure(AppError.Unauthorized).toHealthUiState(zone).kind)
+    fun `unauthorized asks the user to sign in`() {
+        assertEquals(HealthUiKind.SIGN_IN_REQUIRED, failure(AppError.Unauthorized).toHealthUiState(zone).kind)
     }
 
     @Test
-    fun `rejected server failure invalid and unknown map to invalid response`() {
+    fun `a refusal or a server failure reads as unreachable, which can be retried`() {
         listOf(
-            AppError.Rejected(ApiErrorCode.WORKSPACE_UNHEALTHY),
+            AppError.Rejected(ApiErrorCode.RATE_LIMITED),
+            AppError.Rejected(ApiErrorCode.AUTH_UNAVAILABLE),
             AppError.ServerFailure(500),
-            AppError.InvalidResponse,
-            AppError.Unknown,
         ).forEach { error ->
+            assertEquals(error.toString(), HealthUiKind.UNREACHABLE, failure(error).toHealthUiState(zone).kind)
+        }
+    }
+
+    @Test
+    fun `invalid and unknown map to invalid response`() {
+        listOf(AppError.InvalidResponse, AppError.Unknown).forEach { error ->
             val state = failure(error).toHealthUiState(zone)
             assertEquals(error.toString(), HealthUiKind.INVALID_RESPONSE, state.kind)
-            assertNull(state.workspaceStatus)
+            assertNull(state.databaseStatus)
         }
     }
 

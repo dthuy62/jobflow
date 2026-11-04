@@ -36,7 +36,7 @@ The Android app is a single-module native app.
 | Build | `android/settings.gradle.kts`, `android/build.gradle.kts`, `android/app/build.gradle.kts`, `android/gradle/libs.versions.toml` |
 | App root | `MainApplication.kt` (Hilt), `MainActivity.kt` |
 | Core | `core/common/` (`Either`, `AppError`, `ApiErrorCode`), `core/mvi/` |
-| Data | `data/remote/` (`CareerOpsApi`, DTOs, `toApiError`), `data/repository/impl/` |
+| Data | `data/remote/` (`JobFlowApi`, DTOs, `toApiError`), `data/repository/impl/` |
 | Domain | `domain/model/`, `domain/repository/` |
 | UI | `ui/home/`, `ui/inputs/`, `ui/settings/`, shared `ui/components/`, `ui/health/`, `ui/theme/`; `navigation/` |
 | DI | `di/` Hilt modules |
@@ -48,8 +48,8 @@ Key implementation facts:
 - Compose + Material 3 UI with the JobFlow soft palette and a glass bottom bar.
 - Home is MVI; Settings is MVVM-lite; three Navigation 3 tabs keep Home at the
   bottom of the stack.
-- Retrofit/OkHttp/kotlinx.serialization call the wrapper; contract tests parse
-  `career-ops-wrapper/contracts/examples` and `career-ops-wrapper/contracts/error-codes.json`.
+- Retrofit/OkHttp/kotlinx.serialization call the hosted API; contract tests parse
+  `contracts/examples` and `contracts/error-codes.json`.
 - Errors: `Either<AppError, T>`, one mapper per data source, one UI mapper.
 - Konsist enforces layers; detekt and ktlint run in the verify command and CI.
 - `dev` and `prod` product flavors exist; `dev` allows cleartext access to

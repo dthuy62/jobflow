@@ -2,7 +2,7 @@
 
 JobFlow Android: one `:app` module, Jetpack Compose, Hilt, Retrofit + kotlinx.serialization, Navigation 3.
 Package root = `namespace` in `app/build.gradle.kts`. Layers: `ui/` → `domain/` ← `data/`, wired in `di/`.
-Flavors: `dev` (emulator wrapper at `http://10.0.2.2:3000`, cleartext allowed) and `prod`. Workspace rules: `../AGENTS.md`.
+Flavors: `dev` (the contract's mock at `http://10.0.2.2:4010`, cleartext allowed) and `prod`. Workspace rules: `../AGENTS.md`.
 
 ## Verify (run before saying a task is done)
 
@@ -14,7 +14,7 @@ Flavors: `dev` (emulator wrapper at `http://10.0.2.2:3000`, cleartext allowed) a
 
 ## Never
 
-- Read or write Career Ops workspace files: the app talks only to the wrapper API (`data/remote/CareerOpsApi.kt`).
+- Reach anything but the hosted API (`data/remote/JobFlowApi.kt`, contract in `../contracts/`).
 - Import `data/` from `ui/`, or Android, Room or DataStore types from `domain/`.
 - Import one `ui/<feature>` from another; navigation goes through callbacks in `navigation/NavGraph.kt`.
 - Catch exceptions outside `core/common` and data sources; map them with the source's mapper (`toApiError`).

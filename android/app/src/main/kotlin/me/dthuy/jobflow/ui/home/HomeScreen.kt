@@ -86,7 +86,7 @@ fun HomeContent(
 @Composable
 private fun HomeContentPreview() {
     HomeContent(
-        state = HomeState(health = HealthUiState(kind = HealthUiKind.READY, workspaceStatus = "ready")),
+        state = HomeState(health = HealthUiState(kind = HealthUiKind.READY, databaseStatus = "ok")),
         contentPadding = PaddingValues(),
         onIntent = {},
     )

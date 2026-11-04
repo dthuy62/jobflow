@@ -11,8 +11,8 @@ done with `mobile-app-config`.
 | `core/mvi`                  | `MviViewModel`, `CollectEffects`                                        | feature logic                          |
 | `domain/model`              | plain data classes and enums (`Health`, `HealthSnapshot`)               | annotations from Room or serialization |
 | `domain/repository`         | interfaces (ports): `HealthRepository`                                  | implementations                        |
-| `data/remote`               | `CareerOpsApi`, `ApiJson`, `toApiError`, `PairingTokenInterceptor`, `normalizeBaseUrl` | UI types              |
-| `data/remote/dto`           | `@Serializable` wrapper DTOs and their `toDomain()` mappers             | domain rules                           |
+| `data/remote`               | `JobFlowApi`, `ApiJson`, `toApiError`, `healthOrThrow`, `normalizeBaseUrl` | UI types              |
+| `data/remote/dto`           | `@Serializable` API DTOs and their `toDomain()` mappers             | domain rules                           |
 | `data/repository/impl`      | port implementations (`HealthRepositoryImpl`)                           | UI types                               |
 | `di`                        | Hilt modules: `NetworkModule`, `RepositoryModule`, `CoroutinesModule`, `TimeModule` | business logic             |
 | `navigation`                | `NavGraph.kt` (the only file that knows every feature), `TopLevelTab`, bottom bar | feature logic            |
@@ -37,7 +37,7 @@ There is no theme choice yet: the soft palette is light-only until a dark palett
 | `HomeViewModel`                                          | Home back stack entry, which is never popped | `hiltViewModel()` in `NavGraph.kt`       |
 | `SettingsViewModel`                                      | back stack entry; cleared when popped | `hiltViewModel()` in `NavGraph.kt`             |
 | `HealthRepositoryImpl`                                   | app singleton                         | `@Singleton`                                   |
-| `OkHttpClient`, `Retrofit`, `CareerOpsApi`               | app singleton                         | `NetworkModule`                                |
+| `OkHttpClient`, `Retrofit`, `JobFlowApi`                 | app singleton                         | `NetworkModule`                                |
 | `Clock`, `DispatcherProvider`                            | per injection / app singleton         | `TimeModule`, `CoroutinesModule`               |
 
 ## Generated and local files

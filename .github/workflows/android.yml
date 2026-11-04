@@ -5,12 +5,12 @@ on:
     branches: [main]
     paths:
       - "android/**"
-      - "career-ops-wrapper/contracts/**"
+      - "contracts/**"
       - ".github/workflows/android.yml"
   pull_request:
     paths:
       - "android/**"
-      - "career-ops-wrapper/contracts/**"
+      - "contracts/**"
       - ".github/workflows/android.yml"
 
 concurrency:

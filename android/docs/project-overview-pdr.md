@@ -2,19 +2,18 @@
 
 ## Product
 
-JobFlow Android is the mobile interface of JobFlow, a personal job-search assistant built on Career Ops. It checks the
-local wrapper and workspace, and grows into editing career inputs, running scans and reviewing offers, reports and
-artifacts. Product scope and boundaries for the whole workspace live in `../../docs/project-overview-pdr.md`; this file
+JobFlow Android is the mobile interface of JobFlow, a job-search assistant. It checks the hosted API today, and grows
+into preferences, a job feed, a tracker and AI evaluations. Product scope and boundaries for the whole workspace live in `../../docs/project-overview-pdr.md`; this file
 covers the Android app's engineering requirements.
 
 ## Goals
 
-- Keep the Android-wrapper boundary: the app only calls the wrapper API and never reads or writes workspace files.
+- Keep the app-API boundary: the app only calls the hosted API.
 - Keep layer boundaries testable and enforced: `ui/` does not import `data/`, `domain/` stays free of Android, features
   do not import each other, and only data sources catch exceptions.
 - Let each feature choose how much structure it needs without breaking the dependency direction
   ([ADR 5](decisions/0005-scale-structure-with-feature-complexity.md)).
-- Couple the app to the wrapper's contracts with tests, so a contract change cannot silently break the app.
+- Couple the app to the hosted contract with tests, so a contract change cannot silently break the app.
 - Keep files small and instructions short for precise human and agent edits.
 
 ## Requirements
@@ -24,7 +23,7 @@ covers the Android app's engineering requirements.
    ([ADR 2](decisions/0002-default-to-mvvm-lite-and-use-mvi-when-needed.md)).
 3. Expected failures are `Either<AppError, T>` values mapped at two boundaries, and cancellation is never swallowed
    ([ADR 10](decisions/0010-use-either-and-two-boundary-error-mapping.md)).
-4. Wrapper access goes through Retrofit and kotlinx.serialization with DTOs that mirror the wrapper's Zod contracts
+4. API access goes through Retrofit and kotlinx.serialization with DTOs that mirror the hosted contract
    ([ADR 9](decisions/0009-retrofit-kotlinx-serialization-network-layer.md)).
 5. App identity changes only through the `mobile-app-config` plugin
    ([ADR 4](decisions/0004-change-identity-via-mobile-app-config.md)).

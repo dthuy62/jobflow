@@ -88,8 +88,6 @@ when its imports, packaging or dependencies change.
 - LAN/private wrapper mode must require `X-Career-Ops-Token` for protected
   routes.
 - Logs and startup errors must redact sensitive text.
-- Android should store only endpoint/token configuration needed for local use,
-  not workspace paths or shell details.
 
 ## Testing Standards
 

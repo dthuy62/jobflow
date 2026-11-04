@@ -1,146 +1,134 @@
 package me.dthuy.jobflow.data.remote.dto
 
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.JsonElement
+
+// Mirrors of the hosted contract that no screen reads yet. Enums stay strings until a mapper needs them.
 
 @Serializable
 data class ErrorResponseDto(val error: ErrorDto)
 
 @Serializable
-data class ErrorDto(val code: String, val message: String, val details: Map<String, JsonElement>? = null)
+data class ErrorDto(val code: String, val message: String, val details: ErrorDetailsDto? = null)
 
 @Serializable
-data class ApiCollectionDto(val items: List<JsonElement>, val syncedAt: String, val sourceRevision: String? = null)
+data class ErrorDetailsDto(val fields: List<String>? = null, val retryAfterSeconds: Long? = null)
 
 @Serializable
-data class CvDto(
-    val markdown: String,
-    val sizeBytes: Int,
-    val updatedAt: String? = null,
-    val sourceRevision: String? = null,
+data class MeDto(val userId: String, val isAnonymous: Boolean, val createdAt: String)
+
+@Serializable
+data class PreferencesDto(
+    val roles: List<String>,
+    val keywordsInclude: List<String>,
+    val keywordsExclude: List<String>,
+    val locations: List<String>,
+    val remotePolicies: List<String>,
+    val countries: List<String>,
+    val minimumSalary: MinimumSalaryDto?,
+    val seniority: List<String>,
+    val aim: String?,
 )
 
 @Serializable
-data class ProfileDto(
-    val targetRoles: List<String>,
-    val seniorityLevel: String,
-    val preferredLocations: List<String>,
-    val remotePreference: String,
-    val salaryMin: Int? = null,
-    val salaryMax: Int? = null,
-    val salaryCurrency: String? = null,
-    val workAuthorizationNote: String? = null,
-    val mustHaveSkills: List<String>,
-    val niceToHaveSkills: List<String>,
-    val excludedKeywords: List<String>,
-    val positioningSummary: String? = null,
-    val sourceRevision: String? = null,
-    val updatedAt: String? = null,
-)
+data class MinimumSalaryDto(val amount: Double, val currency: String, val period: String)
 
 @Serializable
-data class PortalDto(
-    val titlePositiveKeywords: List<String>,
-    val titleNegativeKeywords: List<String>,
-    val locationAllowList: List<String>,
-    val locationBlockList: List<String>,
-    val salaryMin: Int? = null,
-    val salaryMax: Int? = null,
-    val salaryCurrency: String? = null,
-    val trackedCompanies: List<PortalCompanyDto>,
-    val searchQueries: List<PortalSearchQueryDto>,
-    val sourceRevision: String? = null,
-    val updatedAt: String? = null,
-)
+data class CvDto(val markdown: String, val updatedAt: String)
 
 @Serializable
-data class PortalCompanyDto(
-    val id: String? = null,
-    val name: String,
-    val careersUrl: String,
-    val provider: String? = null,
-    val enabled: Boolean,
-)
+data class CvImportDto(val importId: String, val markdown: String)
 
 @Serializable
-data class PortalSearchQueryDto(val id: String? = null, val label: String, val query: String, val enabled: Boolean)
+data class CvUpdateRequest(val importId: String? = null, val markdown: String)
 
 @Serializable
-data class OfferDto(
-    val id: String,
+data class SalaryDto(val min: Double?, val max: Double?, val currency: String?, val period: String?)
+
+@Serializable
+data class JobSummaryDto(
+    val jobId: String,
+    val title: String,
     val company: String,
+    val location: String?,
+    val remotePolicy: String,
+    val salary: SalaryDto?,
+    val url: String,
+    val firstSeenAt: String,
+    val closed: Boolean,
+)
+
+@Serializable
+data class JobDto(
+    val jobId: String,
     val title: String,
-    val url: String? = null,
-    val location: String? = null,
+    val company: String,
+    val location: String?,
+    val remotePolicy: String,
+    val salary: SalaryDto?,
+    val url: String,
+    val firstSeenAt: String,
+    val closed: Boolean,
     val source: String,
-    val status: String,
-    val firstSeenAt: String? = null,
-    val lastSeenAt: String? = null,
-    val scanRunId: String? = null,
-    val salaryMin: Int? = null,
-    val salaryMax: Int? = null,
-    val salaryCurrency: String? = null,
-    val workMode: String,
-    val score: Double? = null,
-    val reportId: String? = null,
-    val artifactIds: List<String> = emptyList(),
-    val rawSource: String? = null,
-    val notes: String? = null,
-    val warnings: List<String> = emptyList(),
+    val externalId: String?,
+    val acceptedCountries: List<String>,
+    val acceptedTimezones: List<String>,
+    val descriptionText: String,
+    val lastSeenAt: String,
 )
 
 @Serializable
-data class ScanRunDto(
-    val id: String,
-    val status: String,
+data class FeedItemDto(
+    val job: JobSummaryDto,
+    val reasons: List<String>,
+    val trackerStatus: String?,
+    val matchedAt: String,
+)
+
+@Serializable
+data class FeedPageDto(val items: List<FeedItemDto>, val nextCursor: String?)
+
+@Serializable
+data class TrackerEntryDto(val job: JobSummaryDto, val status: String, val updatedAt: String)
+
+@Serializable
+data class TrackerPageDto(val items: List<TrackerEntryDto>, val nextCursor: String?)
+
+@Serializable
+data class TrackerUpdateRequest(val status: String)
+
+@Serializable
+data class CompanyDto(val companyId: String, val name: String?, val careersUrl: String)
+
+@Serializable
+data class CompanyCreateRequest(val careersUrl: String)
+
+@Serializable
+data class DeviceUpdateRequest(val fcmToken: String)
+
+@Serializable
+data class EvaluationDto(
+    val evaluationId: String,
+    val jobId: String,
     val stage: String,
-    val startedAt: String? = null,
-    val finishedAt: String? = null,
-    val exitCode: Int? = null,
-    val active: Boolean,
-    val summary: ScanRunSummaryDto,
-    val failure: ScanRunFailureDto? = null,
-    val sourceRevision: String? = null,
+    val createdAt: String,
+    val updatedAt: String,
+    val result: EvaluationResultDto?,
+    val failureMessage: String?,
 )
 
 @Serializable
-data class ScanRunSummaryDto(val offersFound: Int, val offersProjected: Int, val warnings: List<String>)
-
-@Serializable
-data class ScanRunFailureDto(val code: String, val message: String)
-
-@Serializable
-data class ReportListItemDto(
-    val id: String,
-    val offerId: String? = null,
-    val title: String,
-    val kind: String,
-    val createdAt: String? = null,
-    val updatedAt: String? = null,
-    val sourceRevision: String? = null,
+data class EvaluationResultDto(
+    val score: Double,
+    val summary: String,
+    val reportMarkdown: String,
+    val aiGenerated: Boolean,
 )
 
 @Serializable
-data class ReportDetailDto(
-    val id: String,
-    val offerId: String? = null,
-    val title: String,
-    val kind: String,
-    val createdAt: String? = null,
-    val updatedAt: String? = null,
-    val sourceRevision: String? = null,
-    val markdown: String,
-)
+data class EntitlementDto(val plan: String, val features: List<String>, val quotas: List<QuotaDto>)
 
 @Serializable
-data class ArtifactDto(
-    val id: String,
-    val offerId: String? = null,
-    val reportId: String? = null,
-    val filename: String,
-    val contentType: String,
-    val sizeBytes: Int? = null,
-    val downloadUrl: String,
-    val createdAt: String? = null,
-    val sourceRevision: String? = null,
-)
+data class QuotaDto(val feature: String, val used: Long, val limit: Long, val resetsAt: String?)
+
+@Serializable
+data class PurchaseRequest(val productId: String, val purchaseToken: String)
