@@ -9,11 +9,13 @@ done with `mobile-app-config`.
 |-----------------------------|-------------------------------------------------------------------------|----------------------------------------|
 | `core/common`               | `Either`, `AppError`, `FeatureError`, `ApiErrorCode`, `unexpected`, `DispatcherProvider` | Android UI imports        |
 | `core/mvi`                  | `MviViewModel`, `CollectEffects`                                        | feature logic                          |
-| `domain/model`              | plain data classes and enums (`Health`, `HealthSnapshot`)               | annotations from Room or serialization |
+| `domain/model`              | plain data classes and enums (`Health`, `HealthSnapshot`, `Job`, `FeedItem`)               | annotations from Room or serialization |
 | `domain/repository`         | interfaces (ports): `HealthRepository`                                  | implementations                        |
 | `data/remote`               | `JobFlowApi`, `ApiJson`, `toApiError`, `healthOrThrow`, `normalizeBaseUrl` | UI types              |
 | `data/remote/dto`           | `@Serializable` API DTOs and their `toDomain()` mappers             | domain rules                           |
-| `data/local`                | Room 3: `JobFlowDatabase`, `ResponseCacheDao`, `toLocalError`            | UI types and domain rules |
+| `data/local`                | Room 3: `JobFlowDatabase`, `toLocalError`, `StringListConverter`         | UI types and domain rules |
+| `data/local/dao`            | `FeedDao`                                                                | UI types and domain rules |
+| `data/local/entity`         | `JobEntity`, `FeedItemEntity` and their `toEntity()`/`toDomain()` mappers | UI types and domain rules |
 | `data/repository/impl`      | port implementations (`HealthRepositoryImpl`)                           | UI types                               |
 | `di`                        | Hilt modules: `NetworkModule`, `DatabaseModule`, `RepositoryModule`, `CoroutinesModule`, `TimeModule` | business logic             |
 | `navigation`                | `NavGraph.kt` (the only file that knows every feature), `TopLevelTab`, bottom bar | feature logic            |

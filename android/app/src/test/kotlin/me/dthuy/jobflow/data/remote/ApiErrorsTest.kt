@@ -1,6 +1,8 @@
 package me.dthuy.jobflow.data.remote
 
 import java.io.IOException
+import java.time.Instant
+import java.time.format.DateTimeParseException
 import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.SerializationException
 import me.dthuy.jobflow.core.common.ApiErrorCode
@@ -63,6 +65,13 @@ class ApiErrorsTest {
             AppError.Rejected(ApiErrorCode.AUTH_UNAVAILABLE),
             httpError(503, contractFixture("errors/auth-unavailable.json")).toApiError(),
         )
+    }
+
+    @Test
+    fun `a timestamp the contract did not promise maps to InvalidResponse`() {
+        val malformed = assertThrows(DateTimeParseException::class.java) { Instant.parse("yesterday") }
+
+        assertEquals(AppError.InvalidResponse, malformed.toApiError())
     }
 
     @Test

@@ -9,7 +9,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import javax.inject.Singleton
 import me.dthuy.jobflow.data.local.JobFlowDatabase
-import me.dthuy.jobflow.data.local.ResponseCacheDao
+import me.dthuy.jobflow.data.local.dao.FeedDao
 
 @Module
 @InstallIn(SingletonComponent::class)
@@ -22,5 +22,5 @@ object DatabaseModule {
             .build()
 
     @Provides
-    fun provideResponseCache(database: JobFlowDatabase): ResponseCacheDao = database.responseCache()
+    fun provideFeedDao(database: JobFlowDatabase): FeedDao = database.feedDao()
 }

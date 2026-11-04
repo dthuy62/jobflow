@@ -50,22 +50,33 @@ several features live in `ui/components` or `ui/health`.
 ## Add local storage (Room)
 
 Room 3 (`androidx.room3`, [ADR 6](decisions/0006-use-room-3.md)) holds a cache of API data, not a source of truth, in
-`data/local`. No screen reads it yet: the first feature of phase 2 does.
+`data/local`. No screen reads it yet: the first feature of phase 2 does. Models and mappers follow
+[ADR 12](decisions/0012-one-model-per-layer-with-room.md):
 
-1. To keep a response for offline viewing, use `ResponseCacheDao`: it stores the API's JSON per user and per key, so a
-   contract change needs no migration. Add a new entity only for data that must be queried.
-2. Wrap suspend calls with `Either.catch(onError = Throwable::toLocalError) { ... }`. That does not cover `observe`, which
-   only builds a `Flow` and fails when collected: map it to `Either` and add
-   `.catch { emit(Either.Left(it.toLocalError())) }`.
-3. Because the database is a rebuildable cache, a destructive migration is acceptable, and `DatabaseModule` uses one.
-4. Expose cached data with its sync time and last refresh error instead of replacing data with an error.
-5. Decode the JSON outside `toLocalError`, and treat a row that fails to decode as a cache miss: it was written by an
-   older app.
-6. The auth layer must call `deleteForUser` on sign-out and in-app account deletion, and `deleteOtherUsers` whenever the
-   signed-in user changes.
+| Model | Example | Where | Maps with |
+|---|---|---|---|
+| DTO | `JobSummaryDto` | `data/remote/dto` | `toEntity()`, in the entity's file |
+| Entity | `JobEntity` | `data/local/entity` | `toDomain()`, in the entity's file |
+| Domain | `Job` | `domain/model` | nothing: it knows no other layer |
+| UI state | `HealthUiState` | `ui/<feature>` | `toUiState()`, in `ui/<feature>` |
 
-DAO tests run real SQL on the JVM (`ResponseCacheDaoTest`). `@Upsert` does not work there: it reads the error code from
-the message of `SQLException`, which the Android stub drops. Use `@Insert(onConflict = REPLACE)`.
+A cached feature reads `API -> DTO -> Entity -> Room -> Domain -> UI`: the screen observes Room, and a refresh only writes
+to Room. Data that is not cached, like health, goes straight from DTO to domain.
+
+1. Add an entity in `data/local/entity` and a DAO in `data/local/dao`, list the entity in `JobFlowDatabase`, and provide
+   the DAO in `DatabaseModule`. Per-user data has `ownerUserId` in its key; public data like a job does not.
+2. Keep wire enums as strings in the entity and parse them in `toDomain()`. Parse timestamps to epoch millis in
+   `toEntity()`, so a malformed one fails at the API boundary and reading a row cannot.
+3. Wrap suspend calls with `Either.catch(onError = Throwable::toLocalError) { ... }`. That does not cover a DAO's `Flow`,
+   which fails when collected: map it to `Either` and add `.catch { emit(Either.Left(it.toLocalError())) }`.
+4. Because the database is a rebuildable cache, a destructive migration is acceptable, and `DatabaseModule` uses one.
+5. Expose cached data with its sync time and last refresh error instead of replacing data with an error.
+6. The auth layer must call `deleteFeed` on sign-out and in-app account deletion, and `deleteFeedsExcept` whenever the
+   signed-in user changes. A later per-user table joins both, and `deleteUnusedJobs` must keep any job it references.
+
+DAO tests run real SQL on the JVM (`FeedDaoTest`). `@Upsert` does not work there: it reads the error code from the
+message of `SQLException`, which the Android stub drops. Use `@Insert(onConflict = REPLACE)`, and no foreign key to a
+table written that way, because a replace would cascade.
 
 ## Change the app identity
 

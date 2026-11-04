@@ -2,11 +2,90 @@
   "formatVersion": 1,
   "database": {
     "version": 1,
-    "identityHash": "645794736c62b75c52fabd24b436d54e",
+    "identityHash": "ee3e17bf5161eaf297cfd359d0a7c12d",
     "entities": [
       {
-        "tableName": "cached_response",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`ownerUserId` TEXT NOT NULL, `key` TEXT NOT NULL, `json` TEXT NOT NULL, `syncedAtEpochMillis` INTEGER NOT NULL, PRIMARY KEY(`ownerUserId`, `key`))",
+        "tableName": "job",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`jobId` TEXT NOT NULL, `title` TEXT NOT NULL, `company` TEXT NOT NULL, `location` TEXT, `remotePolicy` TEXT NOT NULL, `url` TEXT NOT NULL, `firstSeenAtEpochMillis` INTEGER NOT NULL, `closed` INTEGER NOT NULL, `salary_min` REAL, `salary_max` REAL, `salary_currency` TEXT, `salary_period` TEXT, PRIMARY KEY(`jobId`))",
+        "fields": [
+          {
+            "fieldPath": "jobId",
+            "columnName": "jobId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "title",
+            "columnName": "title",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "company",
+            "columnName": "company",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "location",
+            "columnName": "location",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "remotePolicy",
+            "columnName": "remotePolicy",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "url",
+            "columnName": "url",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "firstSeenAtEpochMillis",
+            "columnName": "firstSeenAtEpochMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "closed",
+            "columnName": "closed",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "salary.min",
+            "columnName": "salary_min",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "salary.max",
+            "columnName": "salary_max",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "salary.currency",
+            "columnName": "salary_currency",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "salary.period",
+            "columnName": "salary_period",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "jobId"
+          ]
+        }
+      },
+      {
+        "tableName": "feed_item",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`ownerUserId` TEXT NOT NULL, `jobId` TEXT NOT NULL, `position` INTEGER NOT NULL, `reasons` TEXT NOT NULL, `trackerStatus` TEXT, `matchedAtEpochMillis` INTEGER NOT NULL, PRIMARY KEY(`ownerUserId`, `jobId`))",
         "fields": [
           {
             "fieldPath": "ownerUserId",
@@ -15,20 +94,31 @@
             "notNull": true
           },
           {
-            "fieldPath": "key",
-            "columnName": "key",
+            "fieldPath": "jobId",
+            "columnName": "jobId",
             "affinity": "TEXT",
             "notNull": true
           },
           {
-            "fieldPath": "json",
-            "columnName": "json",
+            "fieldPath": "position",
+            "columnName": "position",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "reasons",
+            "columnName": "reasons",
             "affinity": "TEXT",
             "notNull": true
           },
           {
-            "fieldPath": "syncedAtEpochMillis",
-            "columnName": "syncedAtEpochMillis",
+            "fieldPath": "trackerStatus",
+            "columnName": "trackerStatus",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "matchedAtEpochMillis",
+            "columnName": "matchedAtEpochMillis",
             "affinity": "INTEGER",
             "notNull": true
           }
@@ -37,14 +127,25 @@
           "autoGenerate": false,
           "columnNames": [
             "ownerUserId",
-            "key"
+            "jobId"
           ]
-        }
+        },
+        "indices": [
+          {
+            "name": "index_feed_item_jobId",
+            "unique": false,
+            "columnNames": [
+              "jobId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_feed_item_jobId` ON `${TABLE_NAME}` (`jobId`)"
+          }
+        ]
       }
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '645794736c62b75c52fabd24b436d54e')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'ee3e17bf5161eaf297cfd359d0a7c12d')"
     ]
   }
 }

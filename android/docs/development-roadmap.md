@@ -17,7 +17,7 @@ tracks the Android engineering baseline only.
 ## Next
 
 - [ ] Story 2.5: CV and profile editing (first `FeatureError`, e.g. validation)
-- [x] Room 3 response cache and a `toLocalError()` mapper
+- [x] Room 3 feed cache (`JobEntity`, `FeedItemEntity`, `FeedDao`) and a `toLocalError()` mapper
 - [ ] Stale-while-error state on the first screen that reads the cache
 - [ ] Stories 3.3 and 3.5: portal editing and scan readiness
 - [ ] Install and smoke-test a minified release build (R8 is on, `proguard-rules.pro` is empty)
