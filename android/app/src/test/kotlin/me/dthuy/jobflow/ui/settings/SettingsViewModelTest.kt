@@ -1,5 +1,6 @@
 package me.dthuy.jobflow.ui.settings
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -221,6 +222,55 @@ class SettingsViewModelTest {
         auth.publish(Session.SignedOut(canStartGuest = false))
 
         assertEquals(AccountKind.SIGNED_OUT, vm.uiState.value.account.kind)
+    }
+
+    @Test
+    fun `closing the sheet keeps the sign-in prompt of a member the API rejected`() = runTest {
+        accounts.account = Either.Left(AppError.Unauthorized)
+        val vm = settings(FakeAuthRepository(session = MEMBER_SESSION))
+        backgroundScope.launch(dispatcher) { vm.uiState.collect {} }
+
+        vm.onSignIn { Either.Right(null) }
+
+        assertTrue(vm.uiState.value.account.canSignIn)
+        assertNotNull(vm.uiState.value.account.error)
+    }
+
+    @Test
+    fun `a member the API rejected can try signing in again after a failure`() = runTest {
+        accounts.account = Either.Left(AppError.Unauthorized)
+        val vm = settings(FakeAuthRepository(session = MEMBER_SESSION, signIn = Either.Left(AuthError.Network)))
+        backgroundScope.launch(dispatcher) { vm.uiState.collect {} }
+
+        vm.onSignIn { Either.Right(token) }
+
+        assertTrue(vm.uiState.value.account.canSignIn)
+    }
+
+    @Test
+    fun `a session that ends drops the failed account check`() = runTest {
+        accounts.account = Either.Left(AppError.Unreachable)
+        val auth = FakeAuthRepository(session = MEMBER_SESSION)
+        val vm = settings(auth)
+        backgroundScope.launch(dispatcher) { vm.uiState.collect {} }
+
+        auth.publish(Session.SignedOut(canStartGuest = false))
+
+        assertNull(vm.uiState.value.account.error)
+        assertFalse(vm.uiState.value.account.canRetry)
+    }
+
+    @Test
+    fun `an action cancelled from outside does not leave the card loading`() = runTest {
+        val auth = FakeAuthRepository()
+        val vm = settings(auth)
+        backgroundScope.launch(dispatcher) { vm.uiState.collect {} }
+
+        vm.onSignIn { throw CancellationException("Task was cancelled") }
+
+        assertEquals(AccountKind.GUEST, vm.uiState.value.account.kind)
+        vm.onSignOut()
+        assertEquals(1, auth.signOuts)
     }
 
     private fun settings(auth: FakeAuthRepository) = SettingsViewModel(FakeHealthRepository(), auth, accounts)

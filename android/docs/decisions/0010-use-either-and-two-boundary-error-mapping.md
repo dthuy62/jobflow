@@ -1,6 +1,8 @@
 # 10. Use Either and map errors at two boundaries
 
-Status: Accepted (2026-10-30); its `FeatureError` part is superseded by [ADR 14](0014-give-a-feature-its-own-error-type-when-it-has-its-own-failures.md)
+Status: Accepted (2026-10-30)
+
+Its `FeatureError` part is superseded by [ADR 14](0014-give-a-feature-its-own-error-type-when-it-has-its-own-failures.md).
 
 ## Context
 

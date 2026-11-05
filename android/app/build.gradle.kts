@@ -7,7 +7,7 @@ plugins {
     alias(libs.plugins.room3)
     alias(libs.plugins.detekt)
     alias(libs.plugins.ktlint)
-    id("com.google.gms.google-services")
+    alias(libs.plugins.google.services)
 }
 
 android {

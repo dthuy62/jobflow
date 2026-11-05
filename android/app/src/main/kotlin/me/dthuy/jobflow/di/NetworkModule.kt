@@ -15,6 +15,7 @@ import me.dthuy.jobflow.data.remote.isPublicRoute
 import me.dthuy.jobflow.data.remote.normalizeBaseUrl
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
+import okhttp3.Request
 import retrofit2.Retrofit
 import retrofit2.converter.kotlinx.serialization.asConverterFactory
 
@@ -24,8 +25,8 @@ object NetworkModule {
     @Provides
     @Singleton
     fun provideOkHttpClient(tokens: IdTokenSource): OkHttpClient = OkHttpClient.Builder()
-        .addInterceptor(BearerTokenInterceptor(tokens, isPublic = { it.isPublicRoute() }))
-        .authenticator(TokenAuthenticator(tokens))
+        .addInterceptor(BearerTokenInterceptor(tokens, isPublic = Request::isPublicRoute))
+        .authenticator(TokenAuthenticator(tokens, isPublic = Request::isPublicRoute))
         .build()
 
     @Provides

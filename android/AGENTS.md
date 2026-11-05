@@ -10,6 +10,7 @@ Flavors: `dev` (the contract's mock at `http://10.0.2.2:4010`, cleartext allowed
 ./gradlew assembleDevDebug testDevDebugUnitTest lintDevDebug detekt ktlintCheck
 ```
 
+A fresh clone needs `debug.keystore` and `app/google-services.json` first (`docs/quick-start-guide.md`).
 `ktlintFormat` fixes formatting. Konsist tests in `app/src/test/.../architecture/` enforce the layer rules below.
 
 ## Never

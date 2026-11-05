@@ -56,10 +56,16 @@ class FirebaseIdentityProvider @Inject constructor(
             val credential = GoogleAuthProvider.getCredential(idToken.value, null)
             val guest = auth.currentUser?.takeIf { it.isAnonymous }
             if (guest != null) linkOrSwitch(guest, credential) else auth.signInWithCredential(credential).await()
-            // The API reads anonymous or not from the token, so it needs one issued after this change.
-            auth.currentUser?.getIdToken(true)?.await()
-            Unit
+            refreshToken()
         }
+
+    // The API reads anonymous or not from the token, so it wants one issued after a sign-in. Best effort: the sign-in
+    // has already happened, so a failure here must not report it as failed. The SDK refreshes the token later.
+    private suspend fun refreshToken() {
+        Either.catch(onError = { Timber.w(it, "Could not refresh the token after signing in") }) {
+            auth.currentUser?.getIdToken(true)?.await()
+        }
+    }
 
     private suspend fun linkOrSwitch(guest: FirebaseUser, credential: AuthCredential) {
         try {

@@ -17,7 +17,6 @@ import kotlinx.coroutines.launch
 import me.dthuy.jobflow.core.common.AppError
 import me.dthuy.jobflow.core.common.Either
 import me.dthuy.jobflow.core.common.UiError
-import me.dthuy.jobflow.core.common.flatMap
 import me.dthuy.jobflow.core.common.fold
 import me.dthuy.jobflow.core.common.leftOrNull
 import me.dthuy.jobflow.core.common.mapLeft
@@ -65,61 +64,69 @@ class SettingsViewModel @Inject constructor(
     init {
         viewModelScope.launch {
             authRepository.session.collectLatest { session ->
-                if (session.isSignedIn) checkAccount()
+                if (session.isSignedIn) checkAccount() else clearFailedCheck()
             }
         }
     }
 
-    fun onRetryAccount() = runAction(toFailure = AccountActivity::CheckFailed) {
-        accountRepository.account().mapLeft(AppError::toUiError)
+    fun onRetryAccount() = runAction {
+        accountRepository.account().mapLeft(AppError::toUiError).toActivity(AccountActivity::CheckFailed)
     }
 
     /**
      * Runs [requestToken] here and not in a screen's scope: rotating the screen would cancel that scope and drop the
-     * result. A null token means the user closed Google's sheet, so nothing changes.
+     * result. A null token means the user closed Google's sheet, so everything stays as it was.
      */
-    fun onSignIn(requestToken: suspend () -> Either<AuthError, IdToken?>) = runAction {
-        requestToken()
-            .flatMap { token -> if (token == null) Either.Right(Unit) else authRepository.signInWithGoogle(token) }
-            .mapLeft(AuthError::toUiError)
+    fun onSignIn(requestToken: suspend () -> Either<AuthError, IdToken?>) {
+        val before = activity.value
+        runAction {
+            requestToken().fold(
+                onLeft = { AccountActivity.ActionFailed(it.toUiError()) },
+                onRight = { token ->
+                    if (token == null) {
+                        before
+                    } else {
+                        authRepository.signInWithGoogle(token).mapLeft(AuthError::toUiError).toActivity()
+                    }
+                },
+            )
+        }
     }
 
-    fun onContinueAsGuest() = runAction { authRepository.continueAsGuest().mapLeft(AuthError::toUiError) }
+    fun onContinueAsGuest() = runAction { authRepository.continueAsGuest().mapLeft(AuthError::toUiError).toActivity() }
 
     fun onSignOut() = runAction {
         authRepository.signOut()
-        Either.Right(Unit)
+        AccountActivity.Idle
     }
 
     // Set before the first suspension, so a second tap cannot start a second action.
-    private fun runAction(
-        toFailure: (UiError) -> AccountActivity = AccountActivity::ActionFailed,
-        action: suspend () -> Either<UiError, *>,
-    ) {
+    private fun runAction(action: suspend () -> AccountActivity) {
         if (activity.value == AccountActivity.Running) return
         activity.value = AccountActivity.Running
-        viewModelScope.launch {
-            activity.value = action().fold(onLeft = toFailure, onRight = { AccountActivity.Idle })
+        viewModelScope.launch { activity.value = action() }.invokeOnCompletion {
+            // A task cancelled from outside ends the action with no result, and Running would block all later ones.
+            activity.update { if (it == AccountActivity.Running) AccountActivity.Idle else it }
         }
     }
+
+    private fun Either<UiError, *>.toActivity(
+        toFailure: (UiError) -> AccountActivity = AccountActivity::ActionFailed,
+    ): AccountActivity = fold(onLeft = toFailure, onRight = { AccountActivity.Idle })
 
     // A running sign-in is about to change the token this depends on, and owns the activity until it ends.
     private suspend fun checkAccount() {
         activity.first { it != AccountActivity.Running }
         val failure = accountRepository.account().leftOrNull()?.toUiError()
-        activity.update { current ->
-            when {
-                failure != null -> if (current ==
-                    AccountActivity.Idle
-                ) {
-                    AccountActivity.CheckFailed(failure)
-                } else {
-                    current
-                }
-                current is AccountActivity.CheckFailed -> AccountActivity.Idle
-                else -> current
-            }
+        if (failure == null) {
+            clearFailedCheck()
+        } else {
+            activity.update { if (it == AccountActivity.Idle) AccountActivity.CheckFailed(failure) else it }
         }
+    }
+
+    private fun clearFailedCheck() {
+        activity.update { if (it is AccountActivity.CheckFailed) AccountActivity.Idle else it }
     }
 
     fun onCheckAgain() {

@@ -19,6 +19,12 @@ Android tests read `contracts/`, so a contract change also runs `android.yml` an
 - `versionName` is set in `app/build.gradle.kts`.
 - `versionCode` comes from the Gradle property `versionCode` (default 1): `./gradlew assembleProdRelease -PversionCode=7`.
 
+## Firebase config
+
+`app/google-services.json` is git-ignored. CI only compiles and runs unit tests, so it copies the placeholder
+`ci/google-services.json`, which holds no real values. It also compiles the instrumented tests, but does not run them:
+they need a device and the Auth emulator ([module guides](module-guides.md#authentication)).
+
 ## Signing
 
 - Debug builds use the shared debug key: decode `debug.keystore.base64` into `debug.keystore` once per machine so debug

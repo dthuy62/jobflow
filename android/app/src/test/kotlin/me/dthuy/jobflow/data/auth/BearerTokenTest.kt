@@ -17,6 +17,7 @@ import org.junit.Test
 class BearerTokenTest {
     private val tokens = FakeTokens()
     private val server = FakeServer()
+    private val authenticator = TokenAuthenticator(tokens, isPublic = { it.isPublicRoute() })
     private val client = OkHttpClient.Builder()
         .addInterceptor(BearerTokenInterceptor(tokens, isPublic = { it.isPublicRoute() }))
         .addInterceptor(server)
@@ -39,17 +40,23 @@ class BearerTokenTest {
 
     @Test
     fun `a 401 asks for a fresh token and retries with it`() {
-        val retry = TokenAuthenticator(tokens).authenticate(null, unauthorized())
+        val retry = authenticator.authenticate(null, unauthorized())
 
         assertEquals("Bearer token-0", retry?.header("Authorization"))
         assertEquals(listOf(true), tokens.forceRefreshes)
     }
 
     @Test
+    fun `a 401 on a public route neither asks for a token nor sends one`() {
+        assertNull(authenticator.authenticate(null, unauthorized("api/v1/health")))
+        assertEquals(0, tokens.calls)
+    }
+
+    @Test
     fun `a second 401 gives up, so the app can ask the user to sign in`() {
         val second = unauthorized().newBuilder().priorResponse(unauthorized()).build()
 
-        assertNull(TokenAuthenticator(tokens).authenticate(null, second))
+        assertNull(authenticator.authenticate(null, second))
         assertEquals(0, tokens.calls)
     }
 
@@ -57,7 +64,7 @@ class BearerTokenTest {
     fun `a 401 with no fresh token to try comes back to the app`() {
         tokens.available = false
 
-        assertNull(TokenAuthenticator(tokens).authenticate(null, unauthorized()))
+        assertNull(authenticator.authenticate(null, unauthorized()))
     }
 
     @Test
@@ -81,8 +88,8 @@ class BearerTokenTest {
 
     private fun request(path: String) = Request.Builder().url("http://10.0.2.2:4010/$path").build()
 
-    private fun unauthorized() = Response.Builder()
-        .request(request("api/v1/me"))
+    private fun unauthorized(path: String = "api/v1/me") = Response.Builder()
+        .request(request(path))
         .protocol(Protocol.HTTP_1_1)
         .code(401)
         .message("x")

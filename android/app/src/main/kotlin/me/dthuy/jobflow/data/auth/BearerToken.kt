@@ -24,9 +24,10 @@ class BearerTokenInterceptor(private val tokens: IdTokenSource, private val isPu
 }
 
 /** A token can expire or be revoked early, so a 401 earns one retry with a fresh token before it reaches the app. */
-class TokenAuthenticator(private val tokens: IdTokenSource) : Authenticator {
+class TokenAuthenticator(private val tokens: IdTokenSource, private val isPublic: (Request) -> Boolean) :
+    Authenticator {
     override fun authenticate(route: Route?, response: Response): Request? {
-        if (response.priorResponse != null) return null
+        if (response.priorResponse != null || isPublic(response.request)) return null
         return tokens.idToken(forceRefresh = true)?.let(response.request::withBearer)
     }
 }

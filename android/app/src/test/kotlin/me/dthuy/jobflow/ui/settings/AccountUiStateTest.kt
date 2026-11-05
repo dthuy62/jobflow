@@ -77,6 +77,14 @@ class AccountUiStateTest {
     }
 
     @Test
+    fun `a failed sign-in of a member can be tried again`() {
+        val state = accountUiState(member, AccountActivity.ActionFailed(AuthError.Network.toUiError()))
+
+        assertEquals(AccountKind.GOOGLE, state.kind)
+        assertTrue(state.canSignIn)
+    }
+
+    @Test
     fun `an offline account check keeps who the user is and offers retry`() {
         val state = accountUiState(member, AccountActivity.CheckFailed(AppError.Unreachable.toUiError()))
 
