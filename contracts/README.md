@@ -69,11 +69,17 @@ checked. So scan and evaluator workers normalize each value and validate against
 - Errors are `{ "error": { "code", "message", "details"? } }`. Branch on `code`, not `message`.
 - `401 UNAUTHORIZED` means sign in again. `503 AUTH_UNAVAILABLE` means the check could not
   run: retry and keep the user signed in.
+- Sign-in: Firebase signs in and links on the device, then the app calls `POST /auth/guest` or
+  `POST /auth/sso`. Retry them after a network error or a 5xx: they are idempotent. Every other
+  route still creates a missing user, so a failed call here does not lock the app out.
+- `POST /auth/sso` keeps the app signed in when a merge is not possible: `guestMerged` is
+  false. A 503 there means the merge could not be tried yet, so retry with the same `guestToken`.
+- A closed guest gets 401 like any invalid token, including on `POST /auth/logout`.
 - Lists are `{ "items", "nextCursor" }`. `nextCursor` is opaque and null on the last page.
 - Ids and cursors are opaque strings of letters, digits, `.`, `_` and `-`, starting with a
   letter or digit. A backend that encodes a cursor must keep to this, for example with hex.
-- A field with no value is an explicit `null`, not absent. Only `importId` in `PUT /me/cv`
-  and `details` in an error may be absent. Send `null` to clear `aim`; an empty string is a
-  400.
+- A field with no value is an explicit `null`, not absent. Only `importId` in `PUT /me/cv`,
+  `guestToken` in `POST /auth/sso` and `details` in an error may be absent. Send `null` to
+  clear `aim`; an empty string is a 400. `"guestToken": null` is a 400: leave it out.
 - Links are `http` or `https` with no user info. Still open them as untrusted, because job
   sources supply them.
