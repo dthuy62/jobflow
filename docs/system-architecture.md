@@ -32,7 +32,8 @@ Main rules:
 
 ### Sign-in
 
-Firebase signs in and links on the device; the backend only verifies Firebase ID tokens.
+Firebase signs in and links on the device. The backend verifies Firebase ID tokens, and asks
+Firebase about a guest before a merge.
 Nothing here is public, and a wrong kind of token gets 403 or 409, never the 401 that makes
 the app sign out.
 
@@ -54,7 +55,13 @@ call gets 503, not `guestMerged: false`, so the app retries instead of giving up
 
 A merge then runs in one transaction in `pg-user-repository.ts`: it locks the guest row, runs
 `GUEST_MERGE_STEPS` (one step per table with user data), then sets `deleted_at` and `merged_into`.
-`merged_into` gives a retry the same answer, and stops a guest merging twice.
+`merged_into` gives a retry the same answer, and stops a guest merging twice. A guest the server
+never saw has no data, but closes the same way, so its token stops working too.
+
+Known limit: a link that lands in the moment between the lookup and the merge can still close that
+account. It takes the link and another user's call with the old token within milliseconds, so it is
+accepted. Dropping `linked_at` in `0003` also breaks a running older release until the new one is
+up, which is fine because nothing is deployed yet.
 
 ## Wrapper (frozen)
 

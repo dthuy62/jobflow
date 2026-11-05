@@ -23,7 +23,7 @@ npm test -w @jobflow/backend
 ```
 
 Each test file creates its own database. Without the owner's Firebase project, real tokens
-cannot be tried yet; set `FIREBASE_PROJECT_ID` to it when it exists.
+cannot be tried yet; set `FIREBASE_PROJECT_ID` and `FIREBASE_API_KEY` to it when it exists.
 
 To run the API outside Docker, with PostgreSQL still in Compose:
 

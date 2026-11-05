@@ -6,7 +6,7 @@ import { ApiError } from "./errors.js";
 declare module "fastify" {
   interface FastifyRequest {
     /** Set by the auth hook on every route that is not public. The only source of a user id. */
-    auth: { readonly userId: UserId; readonly isAnonymous: boolean; readonly createdAt: Date };
+    auth: { readonly userId: UserId; readonly subject: string; readonly isAnonymous: boolean; readonly createdAt: Date };
   }
   interface FastifyContextConfig {
     /** A route is public only by saying so. */
@@ -37,7 +37,7 @@ export function registerAuth(server: FastifyInstance, { authVerifier, users, obs
       const identity = await authVerifier.verify(token);
       const user = await resolveUser(request, identity.subject);
       if (user.deleted) throw new InvalidTokenError();
-      request.auth = { userId: user.id, isAnonymous: identity.isAnonymous, createdAt: user.createdAt };
+      request.auth = { userId: user.id, subject: identity.subject, isAnonymous: identity.isAnonymous, createdAt: user.createdAt };
     } catch (error) {
       if (error instanceof InvalidTokenError) {
         void reply.header("www-authenticate", "Bearer");

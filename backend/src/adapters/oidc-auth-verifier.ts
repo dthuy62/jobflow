@@ -17,8 +17,12 @@ const KEY_CACHE_MS = 60 * 60 * 1000;
 
 const FIREBASE_LOOKUP_URL = "https://identitytoolkit.googleapis.com/v1/accounts:lookup";
 const LOOKUP_TIMEOUT_MS = 5_000;
-/** What Firebase answers about a token or its user. Any other failure says nothing about them. */
-const LOOKUP_BAD_TOKEN = new Set(["INVALID_ID_TOKEN", "USER_NOT_FOUND", "TOKEN_EXPIRED", "USER_DISABLED"]);
+/**
+ * What Firebase answers about a token or its user. Any other failure says nothing about them. That
+ * includes INVALID_ID_TOKEN: this token has just passed the signature check, so it suggests a key
+ * from another project, which must not pass silently as "no merge".
+ */
+const LOOKUP_BAD_TOKEN = new Set(["USER_NOT_FOUND", "TOKEN_EXPIRED", "USER_DISABLED"]);
 const LookupAnswerSchema = z.object({ users: z.array(z.object({ providerUserInfo: z.array(z.unknown()).optional() })).min(1) });
 const LookupFailureSchema = z.object({ error: z.object({ message: z.string() }) });
 

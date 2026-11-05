@@ -19,7 +19,9 @@ export interface AuthRouteDeps {
 async function verifyGuest(request: FastifyRequest, authVerifier: AuthVerifier, token: string): Promise<VerifiedIdentity | undefined> {
   try {
     const identity = await authVerifier.verify(token);
-    return identity.isAnonymous && (await authVerifier.stillAnonymous(token)) ? identity : undefined;
+    // The same user has nothing to merge, so no outage should stand in its way.
+    if (!identity.isAnonymous || identity.subject === request.auth.subject) return undefined;
+    return (await authVerifier.stillAnonymous(token)) ? identity : undefined;
   } catch (error) {
     if (error instanceof InvalidTokenError) return undefined;
     if (error instanceof AuthUnavailableError) {

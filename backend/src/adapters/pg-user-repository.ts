@@ -70,6 +70,12 @@ export function createPgUserRepository(pool: Pick<Pool, "query" | "connect">, gu
           await client.query("ROLLBACK");
           return guest.merged_into === memberId;
         }
+        // Waits for any merge closing this member. A closed member must not take the guest's data.
+        const member = await client.query<{ deleted_at: Date | null }>("SELECT deleted_at FROM users WHERE id = $1 FOR SHARE", [memberId]);
+        if (member.rows[0]?.deleted_at !== null) {
+          await client.query("ROLLBACK");
+          return false;
+        }
         for (const step of guestMergeSteps) await step(client, guest.id, memberId);
         await client.query("UPDATE users SET deleted_at = now(), merged_into = $2 WHERE id = $1", [guest.id, memberId]);
         await client.query("COMMIT");

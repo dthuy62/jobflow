@@ -216,6 +216,47 @@ describe("the auth routes, with real PostgreSQL and the app role", () => {
       expect((await userRow("self-race")).deleted_at).toBeNull();
     });
 
+    it("does not ask Firebase when the guest token is this same user, so an outage cannot get in the way", async () => {
+      await me("same-uid");
+      expect(merged(await sso("same-uid", { guestToken: "no-lookup-same-uid" }))).toBe(false);
+    });
+
+    it("does not merge into a member that is already closed", async () => {
+      await me("closed-member");
+      await me("anon-for-closed");
+      await pool.query("update users set deleted_at = now() where auth_subject = 'test-closed-member'");
+      const { id } = await userRow("closed-member");
+      await expect(createPgUserRepository(pool).mergeGuest("test-anon-for-closed", id)).resolves.toBe(false);
+      expect((await userRow("anon-for-closed")).deleted_at).toBeNull();
+    });
+
+    it("waits for a merge closing the member, and then merges nothing into it", async () => {
+      await pool.query("insert into users (auth_subject) values ('test-closing'), ('test-closer'), ('test-anon-second')");
+      let release = () => {};
+      const gate = new Promise<void>((resolve) => (release = resolve));
+      let locked = () => {};
+      const holdingLock = new Promise<void>((resolve) => (locked = resolve));
+      const slow = createPgUserRepository(pool, [
+        async () => {
+          locked();
+          await gate;
+        }
+      ]);
+      const { id: closingId } = await userRow("closing");
+      const closing = slow.mergeGuest("test-closing", (await userRow("closer")).id);
+      await holdingLock;
+
+      const second = createPgUserRepository(pool).mergeGuest("test-anon-second", closingId);
+      await expect
+        .poll(async () => (await pool.query("select 1 from pg_stat_activity where wait_event_type = 'Lock' and query like '%FOR SHARE%' and pid <> pg_backend_pid()")).rowCount)
+        .toBe(1);
+      release();
+
+      await expect(closing).resolves.toBe(true);
+      await expect(second).resolves.toBe(false);
+      expect((await userRow("anon-second")).deleted_at).toBeNull();
+    });
+
     it("does not close a member through an anonymous token from before Firebase linked it", async () => {
       await sso("real-account");
       expect(merged(await sso("thief", { guestToken: "stale-real-account" }))).toBe(false);

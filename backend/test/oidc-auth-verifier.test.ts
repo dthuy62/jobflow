@@ -288,7 +288,22 @@ describe("the Firebase lookup of whether a user is still anonymous", () => {
     expect(init.method).toBe("POST");
     expect(JSON.parse(String(init.body))).toEqual({ idToken: "guest-token" });
     expect(new Headers(init.headers).get("x-goog-api-key")).toBe("api-key");
-    expect(init.signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it("gives up when Firebase does not answer in time", async () => {
+    const realTimeout = AbortSignal.timeout.bind(AbortSignal);
+    const timeout = vi.spyOn(AbortSignal, "timeout").mockImplementation(() => realTimeout(10));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        (_url: string, init: RequestInit) =>
+          new Promise((_resolve, reject) => {
+            init.signal?.addEventListener("abort", () => reject(init.signal?.reason));
+          })
+      )
+    );
+    await expect(verifier.stillAnonymous("t")).rejects.toBeInstanceOf(AuthUnavailableError);
+    timeout.mockRestore();
   });
 
   it.each([
@@ -300,13 +315,14 @@ describe("the Firebase lookup of whether a user is still anonymous", () => {
     await expect(verifier.stillAnonymous("t")).resolves.toBe(expected);
   });
 
-  it.each(["INVALID_ID_TOKEN", "USER_NOT_FOUND", "TOKEN_EXPIRED", "USER_DISABLED"])("treats %s as a bad token", async (message) => {
+  it.each(["USER_NOT_FOUND", "TOKEN_EXPIRED", "USER_DISABLED"])("treats %s as a bad token", async (message) => {
     answer(400, failure(message));
     await expect(verifier.stillAnonymous("t")).rejects.toBeInstanceOf(InvalidTokenError);
   });
 
   // Each of these says nothing about the user, so no account may close on it.
   it.each([
+    ["INVALID_ID_TOKEN for a token the signature check just passed, which suggests a key from another project", 400, failure("INVALID_ID_TOKEN")],
     ["a bad API key", 400, failure("API key not valid. Please pass a valid API key.")],
     ["a key that may not call this API", 403, failure("PERMISSION_DENIED")],
     ["a rate limit", 429, failure("QUOTA_EXCEEDED")],
