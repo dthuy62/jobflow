@@ -6,7 +6,7 @@ import { ErrorResponseDtoSchema } from "./errors.js";
 import { EntitlementDtoSchema, PurchaseRequestSchema } from "./billing.js";
 import { EvaluationDtoSchema } from "./evaluations.js";
 import { FeedPageDtoSchema } from "./feed.js";
-import { HealthDtoSchema, MeDtoSchema } from "./identity.js";
+import { HealthDtoSchema, LogoutRequestSchema, MeDtoSchema, SsoRequestSchema, SsoResponseDtoSchema } from "./identity.js";
 import { CompanyCreateRequestSchema, CompanyDtoSchema, JobDtoSchema } from "./jobs.js";
 import { PreferencesDtoSchema } from "./preferences.js";
 import { TrackerEntryDtoSchema, TrackerPageDtoSchema, TrackerUpdateRequestSchema } from "./tracker.js";
@@ -107,6 +107,46 @@ export const operations: readonly Operation[] = [
       503: body("A dependency is down.", HealthDtoSchema, "health.degraded")
     }
   },
+  authed({
+    method: "POST",
+    path: "/api/v1/auth/guest",
+    operationId: "signInGuest",
+    summary: "Start or resume a guest account. Needs an anonymous token. Safe to retry.",
+    phase: 1,
+    responses: {
+      200: body("The guest account, created on the first call.", MeDtoSchema, "me.guest"),
+      409: error("The token is not anonymous: this user is already signed in.", "errors/conflict")
+    }
+  }),
+  authed({
+    method: "POST",
+    path: "/api/v1/auth/sso",
+    operationId: "signInSso",
+    summary:
+      "Finish a sign-in. Needs a token that is not anonymous, and the account always comes from that token. With guestToken, moves that guest's data to this account and closes the guest, whose token then gets 401. Linking happens in Firebase on the device: never send a Google ID token. Safe to retry.",
+    phase: 1,
+    request: { kind: "json", schema: SsoRequestSchema, example: "requests/auth-sso" },
+    responses: {
+      200: body(
+        "Signed in. guestMerged is false when no merge can be reported: no guestToken, a token that is expired, invalid or not anonymous (an expired token says nothing about an earlier merge), the same user as this account (Firebase linked it, so the data is already here), a user linked to a real account, a guest the server never saw (it has no data), or a guest already merged elsewhere or deleted.",
+        SsoResponseDtoSchema,
+        "auth-sso.merged",
+        "auth-sso.not-merged"
+      ),
+      400: badRequest,
+      403: error("The token is anonymous.", "errors/sign-in-required")
+    }
+  }),
+  authed({
+    method: "POST",
+    path: "/api/v1/auth/logout",
+    operationId: "logOut",
+    summary:
+      "Stop sending push to this installation for the caller, and forget its FCM token. Other installations stay signed in, so this revokes no token. Safe to retry. installationId is opaque to the server.",
+    phase: 1,
+    request: { kind: "json", schema: LogoutRequestSchema, example: "requests/auth-logout" },
+    responses: { 204: empty("Removed, or was not registered."), 400: badRequest }
+  }),
   authed({
     method: "GET",
     path: "/api/v1/me",

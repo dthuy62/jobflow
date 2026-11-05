@@ -2,10 +2,11 @@ import type { Writable } from "node:stream";
 import Fastify, { LogController, type FastifyInstance, type RouteOptions } from "fastify";
 import type { Pool } from "pg";
 import type { Config } from "./config.js";
-import type { AuthVerifier, UserRepository } from "./core/ports.js";
+import type { AuthVerifier, DeviceRepository, UserRepository } from "./core/ports.js";
 import { registerAuth } from "./http/auth-plugin.js";
 import { clientErrorHandler, frameworkErrorHandler, registerErrorHandlers } from "./http/error-handler.js";
 import { registerIpLimit, registerUserLimit } from "./http/rate-limits.js";
+import { registerAuthRoutes } from "./http/routes/auth.js";
 import { registerHealthRoutes } from "./http/routes/health.js";
 import { registerMeRoutes } from "./http/routes/me.js";
 import { serializeError } from "./logging.js";
@@ -18,6 +19,7 @@ export interface ServerDeps {
   readonly pool: Pick<Pool, "query">;
   readonly authVerifier: AuthVerifier;
   readonly users: UserRepository;
+  readonly devices: DeviceRepository;
   /** Where logs go. Defaults to stdout; tests read them from here. */
   readonly logStream?: Writable;
   readonly registerTestRoutes?: (scope: FastifyInstance) => void;
@@ -26,7 +28,7 @@ export interface ServerDeps {
 }
 
 export async function createServer(deps: ServerDeps): Promise<FastifyInstance> {
-  const { config, pool, authVerifier, users, logStream, registerTestRoutes, observeRoute } = deps;
+  const { config, pool, authVerifier, users, devices, logStream, registerTestRoutes, observeRoute } = deps;
   const server = Fastify({
     logger: {
       level: config.env === "test" && !logStream ? "silent" : "info",
@@ -74,6 +76,7 @@ export async function createServer(deps: ServerDeps): Promise<FastifyInstance> {
     async (scope) => {
       registerHealthRoutes(scope, pool);
       registerMeRoutes(scope);
+      registerAuthRoutes(scope, { authVerifier, users, devices });
       registerTestRoutes?.(scope);
     },
     { prefix: "/api/v1" }

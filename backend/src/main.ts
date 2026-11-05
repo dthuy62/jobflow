@@ -1,4 +1,5 @@
 import { createFirebaseAuthVerifier } from "./adapters/oidc-auth-verifier.js";
+import { createPgDeviceRepository } from "./adapters/pg-device-repository.js";
 import { createPgUserRepository } from "./adapters/pg-user-repository.js";
 import { loadConfig } from "./config.js";
 import { createPool } from "./db/pool.js";
@@ -12,7 +13,8 @@ async function main(): Promise<void> {
     config,
     pool,
     authVerifier: createFirebaseAuthVerifier(config.firebaseProjectId),
-    users: createPgUserRepository(pool)
+    users: createPgUserRepository(pool),
+    devices: createPgDeviceRepository(pool)
   });
 
   for (const signal of ["SIGINT", "SIGTERM"] as const) {

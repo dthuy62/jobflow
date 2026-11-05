@@ -169,7 +169,7 @@ Android app ──HTTPS + Firebase ID token + Play Integrity──► API servic
 
 | Data | Where | Protection |
 | --- | --- | --- |
-| User (Firebase uid, created, deleted) | PostgreSQL | no email or name stored unless needed for support |
+| User (Firebase uid, created, linked, deleted, merged into) | PostgreSQL | no email or name stored unless needed for support |
 | Preferences, tracker states, FCM tokens | PostgreSQL | per-user rows |
 | CV text (Markdown) | PostgreSQL, encrypted column | envelope encryption, per-user data key wrapped by a KMS key |
 | CV original file (PDF/DOCX) | object storage | encrypted with the same per-user key |
@@ -223,6 +223,27 @@ never contain CV text, prompts or AI output.
 - **Firebase Auth** (anonymous first, then Google; Apple later). The backend
   verifies ID tokens behind `AuthVerifier`, so another OIDC provider can
   replace Firebase.
+- **Sign-in API.** Firebase signs in and links on the device; the app never sends
+  a Google ID token. Then, each with a Firebase ID token as Bearer and none public:
+  - `POST /auth/guest` needs an anonymous token and returns the account. Limits on
+    guests belong here later.
+  - `POST /auth/sso`, with an optional `guestToken`, needs a token that is not
+    anonymous. The account comes only from the Bearer token. A valid anonymous
+    `guestToken` of another, unmerged user has its data moved in one transaction,
+    and that guest closes, so its token gets 401. A guest the server never saw has no
+    data, so nothing happens to it and its token works until it expires. An expired or invalid
+    `guestToken` never fails the sign-in: `guestMerged` is false. One that cannot be
+    checked because of an outage gets a 503 the app retries, so it does not give up on
+    the guest's data. Rules per table:
+    preferences keep the member's and the guest's only fill gaps; tracker entries
+    combine and the newer wins for the same job; a CV moves only if the member has
+    none, encrypted again with the member's key; the guest's FCM tokens are dropped.
+  - `POST /auth/logout` removes the caller's device row and FCM token for one
+    `installationId`. It revokes no token, because that would sign out every device.
+
+  Firebase and the backend share no transaction, so the calls are idempotent and the
+  app retries them. Any route still creates a missing user, as a safety net for when
+  the app is signed in to Firebase but the call failed.
 - **Google Play Billing** on the device, with the hashed user id as
   `obfuscatedAccountId`. The app sends the purchase token to the server, which
   verifies it with the Google Play Developer API and stores the entitlement.

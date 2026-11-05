@@ -79,6 +79,499 @@
         }
       }
     },
+    "/api/v1/auth/guest": {
+      "post": {
+        "operationId": "signInGuest",
+        "summary": "Start or resume a guest account. Needs an anonymous token. Safe to retry.",
+        "x-phase": 1,
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The guest account, created on the first call.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MeDto"
+                },
+                "examples": {
+                  "me.guest": {
+                    "value": {
+                      "userId": "user_02",
+                      "isAnonymous": true,
+                      "createdAt": "2026-11-02T08:00:00.000Z"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The token is missing or not valid. The app signs in again.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.unauthorized": {
+                    "value": {
+                      "error": {
+                        "code": "UNAUTHORIZED",
+                        "message": "Sign in again."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The token is not anonymous: this user is already signed in.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.conflict": {
+                    "value": {
+                      "error": {
+                        "code": "CONFLICT",
+                        "message": "This conflicts with the current state."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.rate-limited": {
+                    "value": {
+                      "error": {
+                        "code": "RATE_LIMITED",
+                        "message": "Too many requests. Try again soon.",
+                        "details": {
+                          "retryAfterSeconds": 30
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "An unexpected error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.unexpected-error": {
+                    "value": {
+                      "error": {
+                        "code": "UNEXPECTED_ERROR",
+                        "message": "Something went wrong."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "A dependency is down. This is not a sign-in problem; the app retries and keeps the user signed in.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.auth-unavailable": {
+                    "value": {
+                      "error": {
+                        "code": "AUTH_UNAVAILABLE",
+                        "message": "Sign-in could not be checked right now."
+                      }
+                    }
+                  },
+                  "errors.unavailable": {
+                    "value": {
+                      "error": {
+                        "code": "UNAVAILABLE",
+                        "message": "The service is temporarily unavailable."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/sso": {
+      "post": {
+        "operationId": "signInSso",
+        "summary": "Finish a sign-in. Needs a token that is not anonymous, and the account always comes from that token. With guestToken, moves that guest's data to this account and closes the guest, whose token then gets 401. Linking happens in Firebase on the device: never send a Google ID token. Safe to retry.",
+        "x-phase": 1,
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SsoRequest"
+              },
+              "examples": {
+                "requests.auth-sso": {
+                  "value": {
+                    "guestToken": "synthetic-guest-token"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Signed in. guestMerged is false when no merge can be reported: no guestToken, a token that is expired, invalid or not anonymous (an expired token says nothing about an earlier merge), the same user as this account (Firebase linked it, so the data is already here), a user linked to a real account, a guest the server never saw (it has no data), or a guest already merged elsewhere or deleted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SsoResponseDto"
+                },
+                "examples": {
+                  "auth-sso.merged": {
+                    "value": {
+                      "account": {
+                        "userId": "user_01",
+                        "isAnonymous": false,
+                        "createdAt": "2026-11-02T08:00:00.000Z"
+                      },
+                      "guestMerged": true
+                    }
+                  },
+                  "auth-sso.not-merged": {
+                    "value": {
+                      "account": {
+                        "userId": "user_01",
+                        "isAnonymous": false,
+                        "createdAt": "2026-11-02T08:00:00.000Z"
+                      },
+                      "guestMerged": false
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request is not valid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.validation-error": {
+                    "value": {
+                      "error": {
+                        "code": "VALIDATION_ERROR",
+                        "message": "The request is not valid.",
+                        "details": {
+                          "fields": [
+                            "roles"
+                          ]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The token is missing or not valid. The app signs in again.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.unauthorized": {
+                    "value": {
+                      "error": {
+                        "code": "UNAUTHORIZED",
+                        "message": "Sign in again."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token is anonymous.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.sign-in-required": {
+                    "value": {
+                      "error": {
+                        "code": "SIGN_IN_REQUIRED",
+                        "message": "Sign in with Google to use this."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.rate-limited": {
+                    "value": {
+                      "error": {
+                        "code": "RATE_LIMITED",
+                        "message": "Too many requests. Try again soon.",
+                        "details": {
+                          "retryAfterSeconds": 30
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "An unexpected error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.unexpected-error": {
+                    "value": {
+                      "error": {
+                        "code": "UNEXPECTED_ERROR",
+                        "message": "Something went wrong."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "A dependency is down. This is not a sign-in problem; the app retries and keeps the user signed in.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.auth-unavailable": {
+                    "value": {
+                      "error": {
+                        "code": "AUTH_UNAVAILABLE",
+                        "message": "Sign-in could not be checked right now."
+                      }
+                    }
+                  },
+                  "errors.unavailable": {
+                    "value": {
+                      "error": {
+                        "code": "UNAVAILABLE",
+                        "message": "The service is temporarily unavailable."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/logout": {
+      "post": {
+        "operationId": "logOut",
+        "summary": "Stop sending push to this installation for the caller, and forget its FCM token. Other installations stay signed in, so this revokes no token. Safe to retry. installationId is opaque to the server.",
+        "x-phase": 1,
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LogoutRequest"
+              },
+              "examples": {
+                "requests.auth-logout": {
+                  "value": {
+                    "installationId": "installation_01"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Removed, or was not registered."
+          },
+          "400": {
+            "description": "The request is not valid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.validation-error": {
+                    "value": {
+                      "error": {
+                        "code": "VALIDATION_ERROR",
+                        "message": "The request is not valid.",
+                        "details": {
+                          "fields": [
+                            "roles"
+                          ]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The token is missing or not valid. The app signs in again.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.unauthorized": {
+                    "value": {
+                      "error": {
+                        "code": "UNAUTHORIZED",
+                        "message": "Sign in again."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.rate-limited": {
+                    "value": {
+                      "error": {
+                        "code": "RATE_LIMITED",
+                        "message": "Too many requests. Try again soon.",
+                        "details": {
+                          "retryAfterSeconds": 30
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "An unexpected error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.unexpected-error": {
+                    "value": {
+                      "error": {
+                        "code": "UNEXPECTED_ERROR",
+                        "message": "Something went wrong."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "A dependency is down. This is not a sign-in problem; the app retries and keeps the user signed in.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.auth-unavailable": {
+                    "value": {
+                      "error": {
+                        "code": "AUTH_UNAVAILABLE",
+                        "message": "Sign-in could not be checked right now."
+                      }
+                    }
+                  },
+                  "errors.unavailable": {
+                    "value": {
+                      "error": {
+                        "code": "UNAVAILABLE",
+                        "message": "The service is temporarily unavailable."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/me": {
       "get": {
         "operationId": "getMe",
@@ -4423,6 +4916,19 @@
         ],
         "additionalProperties": false
       },
+      "LogoutRequest": {
+        "type": "object",
+        "properties": {
+          "installationId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,199}$"
+          }
+        },
+        "required": [
+          "installationId"
+        ],
+        "additionalProperties": false
+      },
       "MeDto": {
         "type": "object",
         "properties": {
@@ -4614,6 +5120,31 @@
           "lead",
           "executive"
         ]
+      },
+      "SsoRequest": {
+        "type": "object",
+        "properties": {
+          "guestToken": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "SsoResponseDto": {
+        "type": "object",
+        "properties": {
+          "account": {
+            "$ref": "#/components/schemas/MeDto"
+          },
+          "guestMerged": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "account",
+          "guestMerged"
+        ],
+        "additionalProperties": false
       },
       "TrackerEntryDto": {
         "type": "object",
