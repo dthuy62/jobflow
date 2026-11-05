@@ -47,6 +47,17 @@
     <string name="error_code_unavailable">JobFlow is unavailable right now. Try again in a moment.</string>
     <string name="error_code_unknown">JobFlow refused the request.</string>
 
+    <!-- Account -->
+    <string name="account_section">ACCOUNT</string>
+    <string name="account_loading">Checking your account.</string>
+    <string name="account_guest">You are using JobFlow as a guest.</string>
+    <string name="account_google">Signed in with Google.</string>
+    <string name="account_signed_out">You are not signed in.</string>
+    <string name="account_continue_as_guest">CONTINUE AS GUEST</string>
+    <string name="account_sign_in">SIGN IN WITH GOOGLE</string>
+    <string name="account_sign_out">SIGN OUT</string>
+    <string name="account_retry">TRY AGAIN</string>
+
     <!-- Health -->
     <string name="health_section_system">SYSTEM HEALTH</string>
     <string name="health_section_readiness">READINESS SNAPSHOT</string>

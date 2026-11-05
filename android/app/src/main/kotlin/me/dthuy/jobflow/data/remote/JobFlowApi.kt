@@ -1,6 +1,7 @@
 package me.dthuy.jobflow.data.remote
 
 import me.dthuy.jobflow.data.remote.dto.HealthDto
+import me.dthuy.jobflow.data.remote.dto.MeDto
 import retrofit2.Response
 import retrofit2.http.GET
 
@@ -12,4 +13,7 @@ interface JobFlowApi {
     /** A [Response], because health answers 503 with a normal body when a dependency is down: see [healthOrThrow]. */
     @GET("api/v1/health")
     suspend fun getHealth(): Response<HealthDto>
+
+    @GET("api/v1/me")
+    suspend fun getMe(): MeDto
 }

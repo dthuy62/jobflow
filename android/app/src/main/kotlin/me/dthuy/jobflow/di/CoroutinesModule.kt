@@ -6,7 +6,10 @@ import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import javax.inject.Singleton
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import me.dthuy.jobflow.core.common.ApplicationScope
 import me.dthuy.jobflow.core.common.DispatcherProvider
 
 @Module
@@ -19,4 +22,10 @@ object CoroutinesModule {
         override val default: CoroutineDispatcher = Dispatchers.Default
         override val io: CoroutineDispatcher = Dispatchers.IO
     }
+
+    @Provides
+    @Singleton
+    @ApplicationScope
+    fun provideApplicationScope(dispatchers: DispatcherProvider): CoroutineScope =
+        CoroutineScope(SupervisorJob() + dispatchers.default)
 }

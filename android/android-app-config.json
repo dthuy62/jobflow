@@ -28,10 +28,10 @@
     "syncSourcePackages": true
   },
   "firebase": {
-    "enabled": false,
+    "enabled": true,
     "mode": "single",
-    "project": "",
-    "createApps": false,
+    "project": "jobflow-app-dev",
+    "createApps": true,
     "flavors": {
       "dev": {
         "project": ""

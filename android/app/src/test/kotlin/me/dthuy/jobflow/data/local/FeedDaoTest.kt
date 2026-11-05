@@ -127,20 +127,20 @@ class FeedDaoTest {
     }
 
     @Test
-    fun `deleting a feed removes that user's rows and the jobs nobody else needs`() = runTest {
-        dao.replaceFeed("user_a", listOf(entry("user_a", "job_1", 0), entry("user_a", "job_2", 1)))
+    fun `ending the session removes every feed and their jobs`() = runTest {
+        dao.replaceFeed("user_a", listOf(entry("user_a", "job_1", 0)))
         dao.replaceFeed("user_b", listOf(entry("user_b", "job_2", 0)))
 
-        dao.deleteFeed("user_a")
+        dao.deleteAllFeeds()
 
         assertTrue(dao.observeFeed("user_a").first().isEmpty())
-        assertEquals(listOf("job_2"), dao.observeFeed("user_b").first().map { it.item.jobId })
-        assertEquals(listOf("job_2"), jobIds())
+        assertTrue(dao.observeFeed("user_b").first().isEmpty())
+        assertTrue(jobIds().isEmpty())
     }
 
     @Test
-    fun `a change of account removes every other user's feed`() = runTest {
-        dao.replaceFeed("user_a", listOf(entry("user_a", "job_1", 0)))
+    fun `a change of account removes every other user's feed and the jobs nobody else needs`() = runTest {
+        dao.replaceFeed("user_a", listOf(entry("user_a", "job_1", 0), entry("user_a", "job_2", 1)))
         dao.replaceFeed("user_b", listOf(entry("user_b", "job_2", 0)))
 
         dao.deleteFeedsExcept("user_b")

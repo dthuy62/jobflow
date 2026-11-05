@@ -34,6 +34,5 @@ private fun AppError.toHealthUiKind(): HealthUiKind = when (this) {
     AppError.InvalidResponse,
     AppError.StorageFailure,
     AppError.Unknown,
-    is AppError.Feature,
     -> HealthUiKind.INVALID_RESPONSE
 }

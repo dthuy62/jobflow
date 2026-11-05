@@ -7,6 +7,7 @@ plugins {
     alias(libs.plugins.room3)
     alias(libs.plugins.detekt)
     alias(libs.plugins.ktlint)
+    id("com.google.gms.google-services")
 }
 
 android {
@@ -19,6 +20,7 @@ android {
         targetSdk = 37
         versionCode = providers.gradleProperty("versionCode").map(String::toInt).orElse(1).get()
         versionName = "0.1.0"
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     flavorDimensions += "environment"
@@ -137,6 +139,13 @@ dependencies {
     implementation(libs.hilt.navigation.compose)
     ksp(libs.hilt.compiler)
 
+    implementation(platform(libs.firebase.bom))
+    implementation(libs.firebase.auth)
+    implementation(libs.kotlinx.coroutines.play.services)
+    implementation(libs.androidx.credentials)
+    implementation(libs.androidx.credentials.play.services.auth)
+    implementation(libs.googleid)
+
     implementation(libs.androidx.room3.runtime)
     ksp(libs.androidx.room3.compiler)
 
@@ -147,4 +156,7 @@ dependencies {
     testImplementation(libs.konsist)
     // The JVM build of SQLite, so DAO tests run real SQL without a device.
     testImplementation(libs.androidx.sqlite.bundled.jvm)
+
+    androidTestImplementation(libs.androidx.test.runner)
+    androidTestImplementation(libs.androidx.test.ext.junit)
 }

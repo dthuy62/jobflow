@@ -14,9 +14,6 @@ data class ErrorDto(val code: String, val message: String, val details: ErrorDet
 data class ErrorDetailsDto(val fields: List<String>? = null, val retryAfterSeconds: Long? = null)
 
 @Serializable
-data class MeDto(val userId: String, val isAnonymous: Boolean, val createdAt: String)
-
-@Serializable
 data class PreferencesDto(
     val roles: List<String>,
     val keywordsInclude: List<String>,

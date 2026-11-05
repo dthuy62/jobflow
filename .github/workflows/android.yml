@@ -36,6 +36,9 @@ jobs:
           java-version: 21
       - uses: gradle/actions/setup-gradle@v6
       # Debug builds sign with the shared key that the repository keeps base64-encoded.
+      # CI only compiles and runs unit tests, so a placeholder stands in for the real, ignored config.
+      - name: Use the placeholder Firebase config
+        run: cp ci/google-services.json app/google-services.json
       - name: Decode debug keystore
         run: base64 --decode debug.keystore.base64 > debug.keystore
       - name: Verify
@@ -61,6 +64,8 @@ jobs:
           distribution: temurin
           java-version: 21
       - uses: gradle/actions/setup-gradle@v6
+      - name: Use the placeholder Firebase config
+        run: cp ci/google-services.json app/google-services.json
       - name: Build unsigned prod release APK (R8)
         run: |
           chmod +x gradlew

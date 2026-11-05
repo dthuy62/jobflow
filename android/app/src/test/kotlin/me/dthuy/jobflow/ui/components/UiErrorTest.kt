@@ -2,7 +2,7 @@ package me.dthuy.jobflow.ui.components
 
 import me.dthuy.jobflow.core.common.ApiErrorCode
 import me.dthuy.jobflow.core.common.AppError
-import me.dthuy.jobflow.core.common.FeatureError
+import me.dthuy.jobflow.core.common.ErrorAction
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -57,12 +57,5 @@ class UiErrorTest {
         )
 
         assertEquals(expected, ApiErrorCode.entries.associateWith { AppError.Rejected(it).toUiError().action })
-    }
-
-    @Test
-    fun `an unhandled feature error falls back to the generic message`() {
-        val unhandled = object : FeatureError {}
-
-        assertEquals(AppError.Unknown.toUiError(), AppError.Feature(unhandled).toUiError())
     }
 }

@@ -27,10 +27,4 @@ sealed interface AppError {
 
     /** Something unexpected, already logged. Debug builds rethrow instead (see [unexpected]). */
     data object Unknown : AppError
-
-    /** A failure only one feature gives meaning to; the feature's screen maps its own [FeatureError] subtypes. */
-    data class Feature(val reason: FeatureError) : AppError
 }
-
-/** Each feature declares a sealed hierarchy implementing this in `domain/model/`. */
-interface FeatureError

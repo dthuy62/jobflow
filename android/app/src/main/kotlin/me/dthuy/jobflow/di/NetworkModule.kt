@@ -6,8 +6,12 @@ import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import javax.inject.Singleton
 import me.dthuy.jobflow.BuildConfig
+import me.dthuy.jobflow.data.auth.BearerTokenInterceptor
+import me.dthuy.jobflow.data.auth.IdTokenSource
+import me.dthuy.jobflow.data.auth.TokenAuthenticator
 import me.dthuy.jobflow.data.remote.ApiJson
 import me.dthuy.jobflow.data.remote.JobFlowApi
+import me.dthuy.jobflow.data.remote.isPublicRoute
 import me.dthuy.jobflow.data.remote.normalizeBaseUrl
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -19,7 +23,10 @@ import retrofit2.converter.kotlinx.serialization.asConverterFactory
 object NetworkModule {
     @Provides
     @Singleton
-    fun provideOkHttpClient(): OkHttpClient = OkHttpClient.Builder().build()
+    fun provideOkHttpClient(tokens: IdTokenSource): OkHttpClient = OkHttpClient.Builder()
+        .addInterceptor(BearerTokenInterceptor(tokens, isPublic = { it.isPublicRoute() }))
+        .authenticator(TokenAuthenticator(tokens))
+        .build()
 
     @Provides
     @Singleton
