@@ -344,5 +344,35 @@ class SettingsViewModelTest {
         assertNotNull(vm.uiState.value.account.error)
     }
 
+    @Test
+    fun `a good sign-in after a failed one still asks the API again`() = runTest {
+        accounts.account = Either.Left(AppError.Unauthorized)
+        val auth = FakeAuthRepository(session = MEMBER_SESSION, signIn = Either.Left(AuthError.Network))
+        val vm = settings(auth)
+        backgroundScope.launch(dispatcher) { vm.uiState.collect {} }
+        vm.onSignIn { Either.Right(token) }
+        val checksBefore = accounts.calls
+        auth.signIn = Either.Right(Unit)
+
+        vm.onSignIn { Either.Right(token) }
+
+        assertEquals(checksBefore + 1, accounts.calls)
+        assertTrue(vm.uiState.value.account.canSignIn)
+        assertNotNull(vm.uiState.value.account.error)
+    }
+
+    @Test
+    fun `a guest's sign-in asks the API once, through the session change`() = runTest {
+        accounts.account = Either.Left(AppError.Unreachable)
+        val auth = FakeAuthRepository()
+        val vm = settings(auth)
+        backgroundScope.launch(dispatcher) { vm.uiState.collect {} }
+        val checksBefore = accounts.calls
+
+        vm.onSignIn { Either.Right(token) }
+
+        assertEquals(checksBefore + 1, accounts.calls)
+    }
+
     private fun settings(auth: FakeAuthRepository) = SettingsViewModel(FakeHealthRepository(), auth, accounts)
 }

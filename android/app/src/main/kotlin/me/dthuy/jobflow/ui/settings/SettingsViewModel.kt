@@ -23,6 +23,7 @@ import me.dthuy.jobflow.core.common.mapLeft
 import me.dthuy.jobflow.domain.auth.AuthError
 import me.dthuy.jobflow.domain.auth.AuthRepository
 import me.dthuy.jobflow.domain.auth.IdToken
+import me.dthuy.jobflow.domain.auth.Session
 import me.dthuy.jobflow.domain.repository.AccountRepository
 import me.dthuy.jobflow.domain.repository.HealthRepository
 import me.dthuy.jobflow.ui.auth.toUiError
@@ -78,7 +79,7 @@ class SettingsViewModel @Inject constructor(
     fun onSignIn(requestToken: suspend () -> Either<AuthError, IdToken?>) = runAction { before ->
         requestToken().fold(
             onLeft = { AccountActivity.ActionFailed(it.toUiError()) },
-            onRight = { token -> if (token == null) before else signIn(token, before) },
+            onRight = { token -> if (token == null) before else signIn(token) },
         )
     }
 
@@ -89,12 +90,14 @@ class SettingsViewModel @Inject constructor(
         AccountActivity.Idle
     }
 
-    // Signing in as the same user changes no session, so nothing else would ask the API again after it rejected them.
-    private suspend fun signIn(token: IdToken, before: AccountActivity): AccountActivity =
-        authRepository.signInWithGoogle(token).fold(
+    // A member signing in again can stay the same user, which changes no session, so nothing else would ask the API.
+    private suspend fun signIn(token: IdToken): AccountActivity {
+        val wasMember = authRepository.session.value is Session.Member
+        return authRepository.signInWithGoogle(token).fold(
             onLeft = { AccountActivity.ActionFailed(it.toUiError()) },
-            onRight = { if (before is AccountActivity.CheckFailed) recheckAccount() else AccountActivity.Idle },
+            onRight = { if (wasMember) recheckAccount() else AccountActivity.Idle },
         )
+    }
 
     private suspend fun recheckAccount(): AccountActivity =
         accountRepository.account().mapLeft(AppError::toUiError).toActivity(AccountActivity::CheckFailed)
