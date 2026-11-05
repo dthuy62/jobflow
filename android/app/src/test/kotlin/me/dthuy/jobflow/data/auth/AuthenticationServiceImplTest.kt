@@ -1,6 +1,7 @@
 package me.dthuy.jobflow.data.auth
 
 import java.io.IOException
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -113,7 +114,7 @@ class AuthenticationServiceImplTest {
         assertEquals(signedOutFresh, whileConfirming)
         assertEquals(guestSession, service.session.value)
         assertEquals(1, api.guestCalls)
-        assertFalse(pending.isRunning())
+        assertNull(pending.running())
     }
 
     @Test
@@ -231,7 +232,7 @@ class AuthenticationServiceImplTest {
         assertEquals(1, identity.signOuts)
         assertEquals(Session.SignedOut(canStartGuest = false), service.session.value)
         assertTrue(api.logouts.isEmpty())
-        assertFalse(pending.isRunning())
+        assertNull(pending.running())
     }
 
     @Test
@@ -252,25 +253,62 @@ class AuthenticationServiceImplTest {
     fun `the mark is down before the provider is touched`() = test {
         val service = service()
         identity.publish(GUEST_USER)
-        var markedInTime = false
-        identity.onSignInStart = { markedInTime = pending.isRunning() }
+        var mark: PendingSignIn? = null
+        identity.onSignInStart = { mark = pending.running() }
 
         service.signIn(google)
 
-        assertTrue(markedInTime)
+        assertEquals(PendingSignIn.GOOGLE, mark)
     }
 
     @Test
-    fun `a sign-in interrupted by the app dying is rolled back before any session shows`() = test {
-        pending.begin()
+    fun `a sign-in cut off after the provider moved is rolled back before any session shows`() = test {
+        pending.begin(PendingSignIn.GOOGLE)
         identity.currentUser = OTHER_USER
 
         val service = service()
 
         assertEquals(1, identity.signOuts)
-        assertFalse(pending.isRunning())
+        assertNull(pending.running())
         assertEquals(signedOutFresh, service.session.value)
         assertFalse(seen.contains(OTHER_USER.uid))
+    }
+
+    @Test
+    fun `a Google sign-in cut off before the provider moved keeps the guest`() = test {
+        guests.markUsed()
+        pending.begin(PendingSignIn.GOOGLE)
+        identity.currentUser = GUEST_USER
+
+        val service = service()
+        identity.publish(GUEST_USER)
+
+        assertEquals(0, identity.signOuts)
+        assertNull(pending.running())
+        assertEquals(guestSession, service.session.value)
+    }
+
+    @Test
+    fun `a guest sign-in cut off before the backend confirmed is rolled back`() = test {
+        pending.begin(PendingSignIn.GUEST)
+        identity.currentUser = GUEST_USER
+
+        val service = service()
+
+        assertEquals(1, identity.signOuts)
+        assertEquals(signedOutFresh, service.session.value)
+    }
+
+    @Test
+    fun `a cancelled provider task leaves no mark, so the next launch signs nobody out`() = test {
+        val service = service()
+        identity.publish(GUEST_USER)
+        identity.onSignInStart = { throw CancellationException("Task was cancelled") }
+
+        launch { runCatching { service.signIn(google) } }
+
+        assertNull(pending.running())
+        assertEquals(guestSession, service.session.value)
     }
 
     // Running commands
@@ -300,7 +338,7 @@ class AuthenticationServiceImplTest {
         api.gate?.complete(Unit)
 
         assertEquals(Session.Member(OTHER_USER.uid), service.session.value)
-        assertFalse(pending.isRunning())
+        assertNull(pending.running())
     }
 
     @Test
@@ -311,9 +349,11 @@ class AuthenticationServiceImplTest {
 
         launch { service.signIn(google) }
         launch { service.signOut() }
+        val logoutsWhileSigningIn = api.logouts.size
         val signOutsWhileSigningIn = identity.signOuts
         api.gate?.complete(Unit)
 
+        assertEquals(0, logoutsWhileSigningIn)
         assertEquals(0, signOutsWhileSigningIn)
         assertEquals(1, identity.signOuts)
     }
@@ -324,13 +364,28 @@ class AuthenticationServiceImplTest {
     fun `signing out tells the backend, then ends the session, and starts no guest`() = test {
         val service = service()
         identity.publish(OTHER_USER)
+        var signOutsAtLogout = -1
+        api.onLogout = { signOutsAtLogout = identity.signOuts }
 
         service.signOut()
 
+        // The call needs the token, so it must go first.
+        assertEquals(0, signOutsAtLogout)
         assertEquals(listOf("install_1"), api.logouts)
         assertEquals(1, identity.signOuts)
         assertEquals(signedOutFresh, service.session.value)
         assertEquals(0, api.guestCalls)
+    }
+
+    @Test
+    fun `signing out forgets a kept guest token, so the next person cannot merge it`() = test {
+        val service = service()
+        identity.publish(OTHER_USER)
+        pending.keepGuestToken("guest_token")
+
+        service.signOut()
+
+        assertNull(pending.guestToken())
     }
 
     @Test

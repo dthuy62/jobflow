@@ -58,7 +58,7 @@ class AuthenticationServiceImpl @Inject constructor(
     override suspend fun signIn(method: SignInMethod): Either<AuthError, Unit> = command {
         when (method) {
             SignInMethod.Guest -> startGuest()
-            is SignInMethod.Google -> saga { googleSignIn.signIn(method.idToken) }
+            is SignInMethod.Google -> saga(PendingSignIn.GOOGLE) { googleSignIn.signIn(method.idToken) }
         }
     }
 
@@ -72,15 +72,22 @@ class AuthenticationServiceImpl @Inject constructor(
     private suspend fun startGuest(): Either<AuthError, Unit> = when {
         identity.currentUser != null -> Either.Right(Unit)
         guests.isUsed() -> Either.Left(AuthError.GuestAlreadyUsed)
-        else -> saga { guestSignIn.signIn() }
+        else -> saga(PendingSignIn.GUEST) { guestSignIn.signIn() }
     }
 
     // The session only moves at the end, so nobody ever sees a user the backend has not confirmed.
-    private suspend fun saga(signIn: suspend () -> Either<AuthError, Unit>): Either<AuthError, Unit> {
-        pending.begin()
-        val result = signIn()
-        pending.finish()
-        publish()
+    private suspend fun saga(
+        kind: PendingSignIn,
+        signIn: suspend () -> Either<AuthError, Unit>,
+    ): Either<AuthError, Unit> {
+        pending.begin(kind)
+        // Finally skips a dead process, which is what the mark is for. A cancelled task must not leave the mark behind.
+        val result = try {
+            signIn()
+        } finally {
+            pending.finish()
+            publish()
+        }
         return result
     }
 
@@ -97,10 +104,12 @@ class AuthenticationServiceImpl @Inject constructor(
     }.await()
 
     private suspend fun rollBackInterruptedSignIn() {
-        if (pending.isRunning()) {
-            identity.signOut()
-            pending.finish()
-        }
+        val interrupted = pending.running() ?: return
+        // Still anonymous during a Google sign-in means the provider never moved. Signing out would lose this guest for
+        // good, with no token kept and no new guest allowed, so there is nothing to undo.
+        val providerNeverMoved = interrupted == PendingSignIn.GOOGLE && identity.currentUser?.isAnonymous == true
+        if (!providerNeverMoved) identity.signOut()
+        pending.finish()
     }
 
     private suspend fun endRejected(uid: Uid) = commands.withLock {

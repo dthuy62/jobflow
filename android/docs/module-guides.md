@@ -49,6 +49,7 @@ Gradle runs these on every connected device, and uninstalls the app from each af
 | Provider fails | Session unchanged, backend not called | Unit |
 | Backend fails after the provider | Signed out on the device, `/auth/logout` not called, can try again | Unit |
 | App dies between the two | Rolled back on the next launch, before any session shows | Unit |
+| App dies during Google sign-in, provider never moved | The guest stays | Unit |
 | Caller leaves the screen during a sign-in | The sign-in finishes | Unit |
 | Guest links Google | Same uid, `Member`, observers not run | Auth emulator, unit |
 | Guest picks a Google account already used here | New uid, guest token sent, observers run | Auth emulator, unit |

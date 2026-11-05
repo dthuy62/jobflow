@@ -6,11 +6,15 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
 
+/** Which sign-in was running, because what an interruption means depends on it. */
+enum class PendingSignIn { GUEST, GOOGLE }
+
 /** What a sign-in must not lose if the app dies or the backend fails halfway. */
 interface PendingLogin {
-    fun isRunning(): Boolean
+    /** The sign-in that began and did not finish, if any. */
+    fun running(): PendingSignIn?
 
-    fun begin()
+    fun begin(signIn: PendingSignIn)
 
     fun finish()
 
@@ -27,10 +31,11 @@ interface PendingLogin {
 class PreferencesPendingLogin @Inject constructor(@ApplicationContext context: Context) : PendingLogin {
     private val preferences = context.getSharedPreferences(FILE, Context.MODE_PRIVATE)
 
-    override fun isRunning(): Boolean = preferences.getBoolean(KEY_RUNNING, false)
+    override fun running(): PendingSignIn? =
+        preferences.getString(KEY_RUNNING, null)?.let { name -> PendingSignIn.entries.find { it.name == name } }
 
     // Written to disk before the provider is touched: the mark is useless if the app can die before it lands.
-    override fun begin() = preferences.edit(commit = true) { putBoolean(KEY_RUNNING, true) }
+    override fun begin(signIn: PendingSignIn) = preferences.edit(commit = true) { putString(KEY_RUNNING, signIn.name) }
 
     override fun finish() = preferences.edit(commit = true) { remove(KEY_RUNNING) }
 

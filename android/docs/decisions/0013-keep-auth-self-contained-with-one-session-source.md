@@ -23,7 +23,8 @@ changing the adapter, and changing vendor means another adapter and, on the back
 **A session means the backend confirmed it.** A sign-in is a saga: provider, then the auth API. If the API fails after the
 provider succeeded, the app signs out with the provider on the device only, without calling `/auth/logout`, and the user tries
 again. The session is held back until the end, so nobody sees an unconfirmed user. `PendingLogin` marks the sign-in on disk, so
-one cut off by the app dying is rolled back on the next launch, and keeps the guest token, because after a switch there is no
+one cut off by the app dying is rolled back on the next launch, unless it was a Google sign-in and the user is still anonymous:
+the provider never moved, and signing out would lose that guest for good. It also keeps the guest token, because after a switch there is no
 way back to the guest. This applies only to signing in: a signed-in user is never signed out for a network failure or a 5xx.
 Only an account the vendor no longer accepts ends a session, and the service does that.
 

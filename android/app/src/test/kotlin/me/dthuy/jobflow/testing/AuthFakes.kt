@@ -14,6 +14,7 @@ import me.dthuy.jobflow.data.auth.IdentityUser
 import me.dthuy.jobflow.data.auth.LogoutRequest
 import me.dthuy.jobflow.data.auth.MeDto
 import me.dthuy.jobflow.data.auth.PendingLogin
+import me.dthuy.jobflow.data.auth.PendingSignIn
 import me.dthuy.jobflow.data.auth.SsoRequest
 import me.dthuy.jobflow.data.auth.SsoResponseDto
 import me.dthuy.jobflow.domain.auth.AuthError
@@ -77,7 +78,7 @@ class FakeAuthApi : AuthApi {
     var guestCalls = 0
     val ssoRequests = mutableListOf<SsoRequest>()
     val logouts = mutableListOf<String>()
-    val events = mutableListOf<String>()
+    var onLogout: () -> Unit = {}
 
     private val me = MeDto("user_1", isAnonymous = false, createdAt = "2026-11-05T00:00:00Z")
 
@@ -96,7 +97,7 @@ class FakeAuthApi : AuthApi {
     }
 
     override suspend fun logout(request: LogoutRequest) {
-        events += "logout"
+        onLogout()
         logouts += request.installationId
         gate?.await()
         failure?.let { throw it }
@@ -114,17 +115,17 @@ class FakeGuestLedger : GuestLedger {
 }
 
 class FakePendingLogin : PendingLogin {
-    private var running = false
+    private var running: PendingSignIn? = null
     private var token: String? = null
 
-    override fun isRunning() = running
+    override fun running() = running
 
-    override fun begin() {
-        running = true
+    override fun begin(signIn: PendingSignIn) {
+        running = signIn
     }
 
     override fun finish() {
-        running = false
+        running = null
     }
 
     override fun guestToken() = token
