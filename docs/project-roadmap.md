@@ -20,8 +20,8 @@ Status: in progress. Plan: `docs/superpowers/plans/2026-11-02-hosted-backend-pha
 ### Phase 2: Core Loop Without AI
 
 Status: planned. Preferences, CV import and encrypted storage, job index with
-scheduled scans, stage-1 matcher, feed, tracker sync, new-job push. Android:
-onboarding, feed, job detail, tracker.
+scheduled scans, stage-1 matcher, feed, tracker sync, new-job push, guest merge
+and clean-up of inactive guests. Android: onboarding, feed, job detail, tracker.
 
 ### Phase 3: AI Evaluation And Payment
 

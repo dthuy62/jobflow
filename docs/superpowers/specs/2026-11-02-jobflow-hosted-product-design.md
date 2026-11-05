@@ -223,6 +223,21 @@ never contain CV text, prompts or AI output.
 - **Firebase Auth** (anonymous first, then Google; Apple later). The backend
   verifies ID tokens behind `AuthVerifier`, so another OIDC provider can
   replace Firebase.
+- **Guests.** The app starts one guest per install: reinstalling is the only way to get another. This is a product rule,
+  not abuse protection. Firebase's automatic clean-up of anonymous accounts stays off, because it goes by account age and
+  would delete a guest who is still active. The backend removes guests by last activity instead.
+- **Guest merge (phase 2, with the first per-user table).** Linking Google to a guest keeps the uid, so nothing moves. When
+  the Google account already exists, the backend merges, because the data is there:
+  1. The app gets a fresh guest token before switching, and keeps it until step 4 succeeds, so it can retry. A token lasts
+     an hour; after that the guest's data is left to the clean-up.
+  2. The app signs in with Google and calls `POST /me/merge-guest` with the guest token in the body and the member's token
+     as the bearer. The target only ever comes from the bearer.
+  3. The backend checks that the guest token is valid and anonymous, that the two users differ, and that the guest was not
+     merged already. A repeat answers the same way. In one transaction it applies the rules below and marks the guest
+     deleted, which already makes their token get a 401.
+  4. Rules: preferences keep the member's and take the guest's only where empty; tracker states are combined, newest
+     wins per job; a CV moves only if the member has none, re-encrypted with the member's data key; FCM tokens of the guest
+     are dropped. Guests have no evaluations, entitlements or trial, so nothing to merge there.
 - **Google Play Billing** on the device, with the hashed user id as
   `obfuscatedAccountId`. The app sends the purchase token to the server, which
   verifies it with the Google Play Developer API and stores the entitlement.

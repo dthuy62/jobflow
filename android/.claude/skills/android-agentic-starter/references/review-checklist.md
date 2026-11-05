@@ -2,7 +2,7 @@
 
 - Does `ui/` import from `data/`, or `domain/` import Android, Room or DataStore types?
 - Does one feature import another instead of going through `NavGraph.kt`?
-- Does anything reach something other than the hosted API?
+- Does product data come from anything but the hosted API, or a platform SDK get called outside its adapter?
 - Is each screen MVVM-lite or MVI, not both, and would MVVM-lite have been enough?
 - Is every layer (use case, mapper, separate model) justified by a concrete need, not by habit?
 - Is UI state one immutable value with explicit exclusive states?

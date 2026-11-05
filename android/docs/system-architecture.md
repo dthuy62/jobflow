@@ -15,8 +15,9 @@ flowchart LR
 - `ui/` depends on `domain/`. `domain/` depends on Kotlin only. `data/` depends on `domain/`.
 - The domain defines ports (`HealthRepository`); `data/` implements them; `di/RepositoryModule`
   binds them. Replacing Retrofit or adding a cache touches `data/` plus one binding.
-- The app reaches nothing but the hosted API; the backend owns authorization, user data and job sources
-  (`../../docs/system-architecture.md`).
+- Product data comes only from the hosted API; the backend owns authorization, user data and job sources
+  (`../../docs/system-architecture.md`). Firebase Auth is the one other service: it says who the user is
+  ([Authentication](#authentication)).
 - It is one Gradle module on purpose ([ADR 1](decisions/0001-use-a-single-app-module.md)). The compiler cannot stop
   `ui/` from importing `data/`, so Konsist tests do (see [code standards](code-standards.md#automated-checks)).
 - How many layers a feature really needs is a per-feature decision
@@ -82,12 +83,48 @@ recovers at once.
 
 - `data/remote/JobFlowApi.kt` declares the endpoints under `api/v1/`. Calls are `suspend` and throw on failure. Health
   returns a `Response`, because `healthOrThrow` treats its 503 with a health body as an answer.
-- `di/NetworkModule.kt` builds one `OkHttpClient` (the bearer token interceptor arrives with the auth layer; health needs
-  no token) and one `Retrofit` using `ApiJson` (`ignoreUnknownKeys = true`).
+- `di/NetworkModule.kt` builds one `OkHttpClient` with the bearer token interceptor and authenticator (health needs no
+  token) and one `Retrofit` using `ApiJson` (`ignoreUnknownKeys = true`).
 - The base URL comes from the flavor: `BuildConfig.API_BASE_URL`. Only `dev` allows cleartext, and only to
   `10.0.2.2` and `localhost` (`app/src/dev/res/xml/network_security_config.xml`).
 - DTOs in `data/remote/dto` mirror the hosted contract. Wire enums map unknown values to `UNKNOWN` instead of
   failing. `ApiContractCompatibilityTest` parses every example in `../contracts/examples`.
+
+## Authentication
+
+Firebase says who the user is; the API decides what they may do and creates their row on their first authenticated call.
+The app only displays `isAnonymous`, it never authorizes with it.
+
+| Piece | Job | Never |
+|---|---|---|
+| `ui/auth/GoogleCredentials.kt` | Shows Google's sheet, which needs an Activity, and returns an ID token | Holds session logic |
+| `domain/auth` | `Session`, `AuthError`, `GuestPolicy`, and the `AuthRepository` and `SessionObserver` ports | Knows Firebase or Android |
+| `data/auth/AuthRepositoryImpl.kt` | The one source of who is signed in; runs observers before publishing a change | Knows Firebase, or what the app stores |
+| `data/auth/FirebaseIdentityProvider.kt` | The only class that calls Firebase Auth | Holds product rules |
+| `data/auth/BearerToken.kt` | Adds the token, and retries a 401 once with a fresh one | Creates a user |
+
+Auth imports only itself and `core/common`, which Konsist enforces, so it can move to another project
+([ADR 13](decisions/0013-keep-auth-self-contained-with-one-session-source.md)). The app plugs in through `SessionObserver`:
+`FeedSessionCleanup` removes other users' feeds. `AccountRepository`, which is not part of auth, is what the API knows about
+the user.
+
+- `Session` is `Unknown` (Firebase has not answered), `SignedOut`, `Guest` or `Member`. It is known offline, so navigation
+  must read it and not `GET /me`.
+- A guest starts only through `continueAsGuest()`, once per install (`GuestLedger`). Signing out does not start one, and
+  after the install's guest only Google is left. Uninstalling resets it. This is a product rule, not abuse protection:
+  the API's limits and, from phase 3, Play Integrity are what stop scripts.
+- When a guest picks a Google account already used here, the backend merges their data (planned for phase 2, see the
+  product design). Until then it stays behind on the server.
+- **Two channels.** A command that fails returns `Either.Left` and the session stays as it was. A session that changes for
+  any other reason (an account deleted on the web) is only a new `session` value, so screens need no code for it.
+- **Only an account Firebase no longer accepts ends a session** (`FirebaseAuthInvalidUserException`). A network failure, a
+  5xx, `AUTH_UNAVAILABLE` or a 401 from the API keeps it: signing a guest out loses their identity for good.
+
+| Change | Session | Cached feed |
+|---|---|---|
+| A guest links Google (same uid) | `Member` | Kept |
+| A guest picks a Google account already used here (new uid) | `Member` | Guest's removed; their server data stays behind |
+| Sign-out, or the account is deleted or disabled | `SignedOut` | Removed |
 
 ## Errors
 
@@ -106,8 +143,9 @@ flowchart LR
   exceptions go to `unexpected()`: rethrown in debug, logged and mapped to `AppError.Unknown` in release.
 - `AppError` holds no `Throwable`, so states compare equal and exception text never reaches the UI.
 - An API error code (`ApiErrorCode`, mirrored from `contracts/error-codes.json` and checked by `ApiErrorCodeContractTest`) that
-  is a normal branch of a flow becomes part of the success type; one a feature shows as an error becomes
-  `AppError.Feature(<its sealed FeatureError>)`.
+  is a normal branch of a flow becomes part of the success type.
+- A feature with failures of its own has its own sealed error type and mappers instead of `AppError`
+  ([ADR 14](decisions/0014-give-a-feature-its-own-error-type-when-it-has-its-own-failures.md)). Auth is the first.
 - `CancellationException` is always rethrown. Konsist fails the build if `ui/` or `domain/` catches exceptions.
 
 ## Dependency injection and lifetimes

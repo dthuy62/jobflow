@@ -33,7 +33,7 @@ covers the Android app's engineering requirements.
 
 ## Non-goals (for now)
 
-A production endpoint and HTTPS pinning, offline viewing on screens, Firebase SDKs, a Play release pipeline,
+A production endpoint and HTTPS pinning, offline viewing on screens, a Play release pipeline,
 feature modules, and a shared base ViewModel hierarchy beyond `MviViewModel`.
 
 ## Acceptance

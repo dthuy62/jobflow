@@ -7,9 +7,10 @@
   parallel booleans such as `isLoading` + `hasError`.
 - **Errors:** repositories return `Either<AppError, T>`. Each data source has one mapper (`Throwable.toApiError()`)
   used through `Either.catch(onError = ...)`; it maps only known exception types and sends the rest to `unexpected()`.
-  Layers in between pass errors through. The UI maps them once with `AppError.toUiError()`, and a feature maps its own
-  `AppError.Feature` reasons. No `Throwable` in `AppError` or UI state
-  ([ADR 10](decisions/0010-use-either-and-two-boundary-error-mapping.md)).
+  Layers in between pass errors through. The UI maps them once with `AppError.toUiError()`. A feature with failures of
+  its own has its own sealed error type and mappers. No `Throwable` in errors or UI state
+  ([ADR 10](decisions/0010-use-either-and-two-boundary-error-mapping.md),
+  [ADR 14](decisions/0014-give-a-feature-its-own-error-type-when-it-has-its-own-failures.md)).
 - **Coroutines:** inject `DispatcherProvider`, never reference `Dispatchers.IO` directly; never swallow
   `CancellationException`.
 - **Use cases:** only for real logic or reuse. No pass-through wrappers; JobFlow has none yet.

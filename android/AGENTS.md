@@ -14,7 +14,8 @@ Flavors: `dev` (the contract's mock at `http://10.0.2.2:4010`, cleartext allowed
 
 ## Never
 
-- Reach anything but the hosted API (`data/remote/JobFlowApi.kt`, contract in `../contracts/`).
+- Get product data from anything but the hosted API (`data/remote/JobFlowApi.kt`, contract in `../contracts/`). Platform
+  SDKs go through one adapter: Firebase Auth only in `data/auth`.
 - Import `data/` from `ui/`, or Android, Room or DataStore types from `domain/`.
 - Import one `ui/<feature>` from another; navigation goes through callbacks in `navigation/NavGraph.kt`.
 - Catch exceptions outside `core/common` and data sources; map them with the source's mapper (`toApiError`).
