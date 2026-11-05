@@ -6,6 +6,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import me.dthuy.jobflow.R
 import me.dthuy.jobflow.ui.auth.AuthKind
+import me.dthuy.jobflow.ui.auth.AuthState
 import me.dthuy.jobflow.ui.components.SectionLabel
 import me.dthuy.jobflow.ui.components.SoftButton
 import me.dthuy.jobflow.ui.components.SoftCard
@@ -15,21 +16,20 @@ import me.dthuy.jobflow.ui.theme.JobFlowSurface
 
 // shortcut: placeholder layout to exercise sign-in, replace it when the account design is ready.
 @Composable
-fun AccountCard(state: AccountUiState, actions: AccountActions) {
+fun AccountCard(state: AuthState, onSignIn: () -> Unit, onContinueAsGuest: () -> Unit, onSignOut: () -> Unit) {
     SoftCard {
         SectionLabel(stringResource(R.string.account_section))
         Text(text = stringResource(state.kind.message()), color = JobFlowInk, fontWeight = FontWeight.Bold)
         state.error?.let { Text(text = stringResource(it.message), color = JobFlowInk) }
-        if (state.canSignIn) AccountButton(R.string.account_sign_in, actions.onSignIn)
+        if (state.canSignIn) AccountButton(R.string.account_sign_in, onSignIn)
         if (state.canContinueAsGuest) {
             AccountButton(
                 R.string.account_continue_as_guest,
-                actions.onContinueAsGuest,
+                onContinueAsGuest,
                 primary = false,
             )
         }
-        if (state.canRetry) AccountButton(R.string.account_retry, actions.onRetry)
-        if (state.canSignOut) AccountButton(R.string.account_sign_out, actions.onSignOut, primary = false)
+        if (state.canSignOut) AccountButton(R.string.account_sign_out, onSignOut, primary = false)
     }
 }
 

@@ -13,7 +13,7 @@ wants a recipe an AI agent can follow without judgement calls.
 
 A feature with failures of its own defines a sealed `<Feature>Error`. Its repository returns `Either<<Feature>Error, T>`,
 one `<Source>ErrorMapper` object per data source maps exceptions to it, and an exhaustive `toUiError()` in its UI code
-maps it to the shared `UiError`. Auth is the first: `AuthError`, `AuthErrorMapper`, `GoogleCredentialErrorMapper`.
+maps it to the shared `UiError`. Auth is the first: `AuthError`, `FirebaseAuthErrorMapper`, `AuthApiErrorMapper`, `GoogleCredentialErrorMapper`.
 
 A feature whose failures are only the API's or the database's keeps `AppError` and its mappers. `AppError.Feature` and
 `FeatureError` are removed. `UiError` moves to `core/common`, so any feature can produce it without importing `ui/components`.
@@ -29,4 +29,4 @@ second step with one consumer, except for the API, where `AppError` already play
 
 Signatures say what can fail, and `when` is exhaustive per feature. Adding such a feature costs a sealed type, a mapper and
 a UI mapping. Credential Manager's mapper stays in `ui/auth` because it needs an Activity and `ui/` cannot import `data/`, so
-auth has two mappers. This replaces the `FeatureError` part of ADR 10; the rest of it stands.
+auth has several mappers. This replaces the `FeatureError` part of ADR 10; the rest of it stands.

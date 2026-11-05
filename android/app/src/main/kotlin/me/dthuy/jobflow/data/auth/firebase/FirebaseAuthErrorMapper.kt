@@ -1,4 +1,4 @@
-package me.dthuy.jobflow.data.auth
+package me.dthuy.jobflow.data.auth.firebase
 
 import com.google.firebase.FirebaseException
 import com.google.firebase.FirebaseNetworkException
@@ -12,8 +12,8 @@ import timber.log.Timber
 private const val ERROR_USER_DISABLED = "ERROR_USER_DISABLED"
 
 /** Firebase Auth's error mapper: the only code that knows its exception types. */
-object AuthErrorMapper {
-    fun fromFirebase(error: Throwable): AuthError = when (error) {
+object FirebaseAuthErrorMapper {
+    fun map(error: Throwable): AuthError = when (error) {
         is CancellationException -> throw error
         is FirebaseNetworkException -> AuthError.Network
         is FirebaseTooManyRequestsException -> AuthError.TooManyAttempts

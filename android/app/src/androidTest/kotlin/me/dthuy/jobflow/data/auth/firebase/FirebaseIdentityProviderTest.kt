@@ -1,4 +1,4 @@
-package me.dthuy.jobflow.data.auth
+package me.dthuy.jobflow.data.auth.firebase
 
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
@@ -8,8 +8,10 @@ import com.google.firebase.auth.GoogleAuthProvider
 import java.net.HttpURLConnection
 import java.net.URL
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
@@ -18,12 +20,15 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withTimeout
 import me.dthuy.jobflow.core.common.Either
+import me.dthuy.jobflow.data.auth.GoogleSignInResult
+import me.dthuy.jobflow.data.auth.IdentityUser
 import me.dthuy.jobflow.domain.auth.AuthError
 import me.dthuy.jobflow.domain.auth.IdToken
 import me.dthuy.jobflow.domain.auth.Uid
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Before
 import org.junit.Test
@@ -76,29 +81,19 @@ class FirebaseIdentityProviderTest {
     fun a_new_guest_is_reported_to_someone_already_listening() = runBlocking {
         val seen = listening()
 
-        assertEquals(Either.Right(Unit), provider.signInAsGuest())
+        assertEquals(Either.Right(Unit), provider.startGuest())
 
         val guest = within { seen.first { it.lastOrNull() != null } }.last()
         assertEquals(true, guest?.isAnonymous)
     }
 
     @Test
-    fun signing_in_as_a_guest_twice_keeps_the_same_user() = runBlocking {
-        provider.signInAsGuest()
-        val uid = auth.uid
-
-        provider.signInAsGuest()
-
-        assertEquals(uid, auth.uid)
-    }
-
-    @Test
     fun linking_google_keeps_the_uid_and_is_reported_while_listening() = runBlocking {
-        provider.signInAsGuest()
+        provider.startGuest()
         val guestUid = auth.uid!!
         val seen = listening()
 
-        assertEquals(Either.Right(Unit), provider.signInWithGoogle(googleToken("linked")))
+        assertEquals(Either.Right(GoogleSignInResult.Linked), provider.signInWithGoogle(googleToken("linked")))
 
         val latest = within { seen.first { it.lastOrNull()?.isAnonymous == false } }.last()
         assertEquals(IdentityUser(Uid(guestUid), isAnonymous = false), latest)
@@ -107,10 +102,12 @@ class FirebaseIdentityProviderTest {
     @Test
     fun a_google_account_already_used_here_switches_and_reports_the_new_uid() = runBlocking {
         val existingUid = existingGoogleUser("existing")
-        provider.signInAsGuest()
+        provider.startGuest()
         val seen = listening()
 
-        assertEquals(Either.Right(Unit), provider.signInWithGoogle(googleToken("existing")))
+        val result = provider.signInWithGoogle(googleToken("existing"))
+
+        assertNotNull(((result as Either.Right).value as GoogleSignInResult.Switched).guestToken)
 
         val latest = within { seen.first { it.lastOrNull()?.uid == Uid(existingUid) } }.last()
         assertEquals(IdentityUser(Uid(existingUid), isAnonymous = false), latest)
@@ -120,7 +117,7 @@ class FirebaseIdentityProviderTest {
     fun a_disabled_google_account_fails_and_keeps_the_guest() = runBlocking {
         val disabledUid = existingGoogleUser("disabled")
         disable(disabledUid)
-        provider.signInAsGuest()
+        provider.startGuest()
         val guestUid = auth.uid
 
         val result = provider.signInWithGoogle(googleToken("disabled"))
@@ -131,14 +128,15 @@ class FirebaseIdentityProviderTest {
 
     // A deleted account is not tested here: the emulator answers INVALID_REFRESH_TOKEN, not the documented invalid-user error.
     @Test
-    fun an_account_disabled_elsewhere_ends_the_session_when_the_token_refreshes() = runBlocking {
+    fun an_account_disabled_elsewhere_is_reported_when_the_token_refreshes() = runBlocking {
         provider.signInWithGoogle(googleToken("disabled_later"))
-        val seen = listening()
-        disable(auth.uid!!)
+        val uid = auth.uid!!
+        val rejected = scope.async(start = CoroutineStart.UNDISPATCHED) { provider.rejected.first() }
+        disable(uid)
 
         assertNull(provider.idToken(forceRefresh = true))
 
-        assertNull(within { seen.first { it.lastOrNull() == null } }.last())
+        assertEquals(Uid(uid), within { rejected.await() })
     }
 
     @Test

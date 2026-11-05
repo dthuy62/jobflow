@@ -19,19 +19,18 @@ simple screens.
 ## Authentication
 
 The design is in [system architecture](system-architecture.md#authentication) and
-[ADR 13](decisions/0013-keep-auth-self-contained-with-one-session-source.md). Read `AuthRepository.session` to know who is
-signed in. A screen that offers sign-in takes an `AuthViewModel` and calls `onSignIn` with
-`requestGoogleIdToken(context, webClientId)` to run, as `SettingsScreen` does. Its scope survives rotation, and it blocks a
-second tap. If the screen redoes something on a session change, also pass `onSignedInAgain`: a member signing in again can
-stay the same user, which changes no session. To clear data of your own when the
-session changes, implement `SessionObserver` and register it with `@IntoSet`, as `FeedSessionCleanup` does.
+[ADR 13](decisions/0013-keep-auth-self-contained-with-one-session-source.md). Read `AuthenticationService.session` to know who is
+signed in. A screen that offers sign-in takes its own `AuthViewModel` and sends `AuthIntent.SignInWithGoogle` with
+`requestGoogleIdToken(context, webClientId)` to run, as `SettingsScreen` does. To clear data of your own when the user changes,
+implement `SessionObserver` and register it with `@IntoSet`, as `FeedSessionCleanup` does. To add a sign-in method, add it to
+`SignInMethod`, follow the compile error, and write one more strategy in `SignInStrategies.kt`.
 
-To reuse auth in another project, copy `domain/auth`, `data/auth`, `ui/auth`, `di/AuthModule.kt`, `core/common` and the
-`error_auth_*` strings from `strings.xml`. Then provide an `@ApplicationScope` `CoroutineScope` (`di/CoroutinesModule.kt`)
-and add `BearerTokenInterceptor` and `TokenAuthenticator` to the OkHttp client, with your public routes
-(`di/NetworkModule.kt`).
+To reuse auth in another project, copy `domain/auth`, `data/auth`, `ui/auth`, `di/AuthModule.kt`, `di/AuthFirebaseModule.kt`,
+`core/common`, `core/mvi` and the `error_auth_*` strings from `strings.xml`. Then provide an `@ApplicationScope` `CoroutineScope`
+(`di/CoroutinesModule.kt`) and add `BearerTokenInterceptor` and `TokenAuthenticator` to the OkHttp client, with your public
+routes (`di/NetworkModule.kt`).
 
-Session rules are tested on the JVM with `FakeIdentityProvider`. What a fake cannot prove runs the real SDK against the
+Session rules and sagas are tested on the JVM with `AuthFakes.kt`. What a fake cannot prove runs the real SDK against the
 local Auth emulator, outside the verify command because it needs a device. With an emulator or device connected:
 
 ```bash
@@ -41,19 +40,23 @@ firebase emulators:start --only auth --project demo-jobflow
 
 | Case | Result | Proven by |
 |---|---|---|
-| First open | `SignedOut`, no user created | Auth emulator |
-| Start a guest; start again | One guest, same uid | Auth emulator |
+| First open | `SignedOut`, no user created | Auth emulator, unit |
 | Guest again after this install's guest | Refused, only Google is offered | Unit |
-| Guest links Google | Same uid, `Member`, cache kept | Auth emulator |
-| Guest picks a Google account already used here | New uid, guest's cache removed, guest's server data left behind until the merge | Auth emulator |
+| Guest or Google, the backend confirms | Session moves only at the end | Unit |
+| Provider fails | Session unchanged, backend not called | Unit |
+| Backend fails after the provider | Signed out on the device, `/auth/logout` not called, can try again | Unit |
+| App dies between the two | Rolled back on the next launch, before any session shows | Unit |
+| Caller leaves the screen during a sign-in | The sign-in finishes | Unit |
+| Guest links Google | Same uid, `Member`, observers not run | Auth emulator, unit |
+| Guest picks a Google account already used here | New uid, guest token sent, observers run | Auth emulator, unit |
+| That switch fails at the backend | Guest token kept, and sent on the next sign-in | Unit |
 | That Google account is disabled | `AccountDisabled`, the guest stays | Auth emulator |
-| Account disabled while in use | Session ends when the token refreshes | Auth emulator |
-| Account deleted while in use | Session ends when the token refreshes | Not proven: the emulator answers differently from the docs |
-| Sign out | `SignedOut`, feed removed, no guest | Auth emulator, unit |
+| Account disabled while in use | Rejected when the token refreshes; the service ends the session, after any running sign-in | Auth emulator, unit |
+| Account deleted while in use | Same | Not proven: the emulator answers differently from the docs |
+| Sign out | Backend told as best effort, works offline, starts no guest | Unit |
 | Restart with a stored session | Known at once, no signed-out flash | Auth emulator, one manual run |
-| Network failure, 5xx, `AUTH_UNAVAILABLE`, API 401 | Session kept, error shown | Unit |
-| Failed command; failing observer | Session unchanged; session and other observers unaffected | Unit |
-| Second tap while a sign-in runs | Ignored | Unit |
+| A failing observer | Session and other observers unaffected | Unit |
+| Second tap, or a command running on another screen | Ignored, and that screen shows loading | Unit |
 | Google's sheet: closed, no account, no Play services | No error, `NoGoogleAccount`, `GoogleUnavailable` | Unit for the mapping; not run on a device |
 | Rotate while the sheet is open | Sign-in should finish | Not proven |
 | Reinstall | New guest allowed | Not proven: follows from the backup rules |
@@ -125,7 +128,7 @@ to Room. Data that is not cached, like health, goes straight from DTO to domain.
    which fails when collected: map it to `Either` and add `.catch { emit(Either.Left(it.toLocalError())) }`.
 4. Because the database is a rebuildable cache, a destructive migration is acceptable, and `DatabaseModule` uses one.
 5. Expose cached data with its sync time and last refresh error instead of replacing data with an error.
-6. `AuthRepositoryImpl` calls `deleteAllFeeds` when the session ends and `deleteFeedsExcept` whenever the session changes.
+6. `FeedSessionCleanup` calls `deleteAllFeeds` when nobody is signed in and `deleteFeedsExcept` whenever the user changes.
    A later per-user table joins both, and `deleteUnusedJobs` must keep any job it references.
 
 DAO tests run real SQL on the JVM (`FeedDaoTest`). `@Upsert` does not work there: it reads the error code from the

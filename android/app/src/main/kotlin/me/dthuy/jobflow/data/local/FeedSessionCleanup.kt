@@ -12,7 +12,7 @@ import me.dthuy.jobflow.domain.auth.Uid
  * offline, and linking Google keeps it. A failure is not fatal: reads filter by owner, and the next change tries again.
  */
 class FeedSessionCleanup @Inject constructor(private val dao: FeedDao) : SessionObserver {
-    override suspend fun onSessionChanged(uid: Uid?) {
+    override suspend fun onUserChanged(uid: Uid?) {
         Either.catch(onError = Throwable::toLocalError) {
             if (uid == null) dao.deleteAllFeeds() else dao.deleteFeedsExcept(uid.value)
         }

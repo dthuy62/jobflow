@@ -59,6 +59,7 @@ hilt-navigation-compose = { module = "androidx.hilt:hilt-navigation-compose", ve
 # --- Firebase and Google sign-in
 firebase-bom = { module = "com.google.firebase:firebase-bom", version.ref = "firebaseBom" }
 firebase-auth = { module = "com.google.firebase:firebase-auth" }
+firebase-installations = { module = "com.google.firebase:firebase-installations" }
 androidx-credentials = { module = "androidx.credentials:credentials", version.ref = "credentials" }
 androidx-credentials-play-services-auth = { module = "androidx.credentials:credentials-play-services-auth", version.ref = "credentials" }
 googleid = { module = "com.google.android.libraries.identity.googleid:googleid", version.ref = "googleid" }

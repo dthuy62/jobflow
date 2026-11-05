@@ -18,14 +18,14 @@ class FeedSessionCleanupTest {
 
     @Test
     fun `a signed-in user keeps only their own feed`() = runTest {
-        cleanup.onSessionChanged(Uid("uid_a"))
+        cleanup.onUserChanged(Uid("uid_a"))
 
         assertEquals(listOf("except uid_a"), dao.cleanups)
     }
 
     @Test
     fun `no user means no feed stays`() = runTest {
-        cleanup.onSessionChanged(null)
+        cleanup.onUserChanged(null)
 
         assertEquals(listOf("all"), dao.cleanups)
     }
@@ -34,7 +34,7 @@ class FeedSessionCleanupTest {
     fun `a database failure is not fatal, because reads filter by owner`() = runTest {
         dao.failure = SQLException("disk full")
 
-        cleanup.onSessionChanged(null)
+        cleanup.onUserChanged(null)
 
         assertEquals(emptyList<String>(), dao.cleanups)
     }

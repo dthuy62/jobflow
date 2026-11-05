@@ -8,19 +8,37 @@ import me.dthuy.jobflow.domain.auth.Uid
 
 data class IdentityUser(val uid: Uid, val isAnonymous: Boolean)
 
-/** Who the identity service says is signed in. A seam so the session's rules can be tested without Firebase. */
-interface IdentityProvider {
-    /** Emits the current user when collected and on every change; null means nobody is signed in. */
+sealed interface GoogleSignInResult {
+    /** The guest became this account and kept their identity, so no data has to move. */
+    data object Linked : GoogleSignInResult
+
+    /** This is another account. [guestToken] proves who the guest was, if there was one, so the backend can merge. */
+    data class Switched(val guestToken: String?) : GoogleSignInResult
+}
+
+/**
+ * The boundary with the identity vendor. Nothing above it knows how linking works, so changing that mechanism or the
+ * vendor means replacing the implementation, which lives in `data/auth/firebase`.
+ */
+interface IdentityProvider : IdTokenSource {
+    /** Emits when collected and on every change. */
     val user: Flow<IdentityUser?>
 
-    /** Does nothing if someone is already signed in. */
-    suspend fun signInAsGuest(): Either<AuthError, Unit>
+    val currentUser: IdentityUser?
 
-    /**
-     * Links Google to a guest, who keeps their user id. A Google account already used here keeps its own data instead,
-     * and the guest's data stays behind on the server.
-     */
-    suspend fun signInWithGoogle(idToken: IdToken): Either<AuthError, Unit>
+    /** The vendor no longer accepts this user, found while fetching a token. The service decides what to do. */
+    val rejected: Flow<Uid>
 
+    suspend fun startGuest(): Either<AuthError, Unit>
+
+    suspend fun signInWithGoogle(idToken: IdToken): Either<AuthError, GoogleSignInResult>
+
+    /** On this device only: the backend is not told. */
     suspend fun signOut()
+}
+
+/** Identifies this install of the app to the backend, which treats it as an opaque string. */
+fun interface InstallationIdSource {
+    /** Null if it cannot be read right now. */
+    suspend fun id(): String?
 }

@@ -1,82 +1,68 @@
 package me.dthuy.jobflow.ui.auth
 
-import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharingStarted
-import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 import me.dthuy.jobflow.core.common.Either
+import me.dthuy.jobflow.core.common.UiError
 import me.dthuy.jobflow.core.common.fold
+import me.dthuy.jobflow.core.mvi.MviViewModel
 import me.dthuy.jobflow.domain.auth.AuthError
-import me.dthuy.jobflow.domain.auth.AuthRepository
-import me.dthuy.jobflow.domain.auth.IdToken
-import me.dthuy.jobflow.domain.auth.Session
-
-private const val STOP_TIMEOUT_MS = 5_000L
+import me.dthuy.jobflow.domain.auth.AuthenticationService
+import me.dthuy.jobflow.domain.auth.SignInMethod
 
 /**
- * MVVM-lite: sign-in state and commands for any screen that offers them. Each screen gets its own instance, which is
- * safe because the session has one source, [AuthRepository].
+ * MVI: every command goes through one door. Each screen has its own instance, which holds only what is that screen's:
+ * its error and its sign-in in progress. What every screen must agree on, the session and whether a command runs, is
+ * the service's. No effects: navigation follows the session.
  */
 @HiltViewModel
-class AuthViewModel @Inject constructor(private val authRepository: AuthRepository) : ViewModel() {
-    private val activity = MutableStateFlow<AuthActivity>(AuthActivity.Idle)
+class AuthViewModel @Inject constructor(private val authentication: AuthenticationService) :
+    MviViewModel<AuthState, AuthIntent, Nothing>(AuthState()) {
+    private val signingIn = MutableStateFlow(false)
+    private val error = MutableStateFlow<UiError?>(null)
 
-    val uiState: StateFlow<AuthUiState> = combine(authRepository.session, activity, ::authUiState)
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), AuthUiState())
+    init {
+        combine(authentication.session, authentication.isBusy, signingIn, error) { session, busy, signing, failed ->
+            authState(session, running = busy || signing, failed)
+        }.onEach { state -> setState { state } }.launchIn(viewModelScope)
+    }
 
-    /**
-     * Runs [requestToken] here and not in a screen's scope: rotating the screen would cancel that scope and drop the
-     * result. A null token means the user closed Google's sheet, so everything stays as it was.
-     *
-     * A member signing in again can stay the same user, which changes no session, so [onSignedInAgain] is how a screen
-     * learns to redo what it does on a session change.
-     */
-    fun onSignIn(onSignedInAgain: () -> Unit = {}, requestToken: suspend () -> Either<AuthError, IdToken?>) =
-        runAction { before ->
-            requestToken().fold(
-                onLeft = { AuthActivity.Failed(it.toUiError()) },
-                onRight = { token -> if (token == null) before else signIn(token, onSignedInAgain) },
-            )
+    override fun handleIntent(intent: AuthIntent) {
+        when (intent) {
+            is AuthIntent.SignInWithGoogle -> signInWithGoogle(intent)
+            AuthIntent.ContinueAsGuest -> launchCommand { authentication.signIn(SignInMethod.Guest).report() }
+            AuthIntent.SignOut -> launchCommand {
+                authentication.signOut()
+                error.value = null
+            }
         }
-
-    fun onContinueAsGuest() = runAction {
-        authRepository.continueAsGuest().fold(
-            onLeft = { AuthActivity.Failed(it.toUiError()) },
-            onRight = { AuthActivity.Idle },
-        )
     }
 
-    fun onSignOut() = runAction {
-        authRepository.signOut()
-        AuthActivity.Idle
+    // Runs here and not in a screen's scope: rotating the screen would cancel that scope and drop the result. Nothing
+    // has started until there is a token, so leaving the screen with the sheet open simply signs nobody in.
+    private fun signInWithGoogle(intent: AuthIntent.SignInWithGoogle) {
+        if (signingIn.value || authentication.isBusy.value) return
+        signingIn.value = true
+        viewModelScope.launch {
+            when (val result = intent.requestToken()) {
+                is Either.Right -> result.value?.let { authentication.signIn(SignInMethod.Google(it)).report() }
+                is Either.Left -> error.value = result.value.toUiError()
+            }
+        }.invokeOnCompletion { signingIn.value = false }
     }
 
-    private suspend fun signIn(token: IdToken, onSignedInAgain: () -> Unit): AuthActivity {
-        val wasMember = authRepository.session.value is Session.Member
-        return authRepository.signInWithGoogle(token).fold(
-            onLeft = { AuthActivity.Failed(it.toUiError()) },
-            onRight = {
-                if (wasMember) onSignedInAgain()
-                AuthActivity.Idle
-            },
-        )
+    private fun launchCommand(command: suspend () -> Unit) {
+        if (authentication.isBusy.value) return
+        viewModelScope.launch { command() }
     }
 
-    // Set before the first suspension, so a second tap cannot start a second action.
-    private fun runAction(action: suspend (before: AuthActivity) -> AuthActivity) {
-        val before = activity.value
-        if (before == AuthActivity.Running) return
-        activity.value = AuthActivity.Running
-        viewModelScope.launch { activity.value = action(before) }.invokeOnCompletion {
-            // A task cancelled from outside ends the action with no result, and Running would block all later ones.
-            activity.update { if (it == AuthActivity.Running) before else it }
-        }
+    private fun Either<AuthError, Unit>.report() {
+        error.value = fold(onLeft = AuthError::toUiError, onRight = { null })
     }
 }

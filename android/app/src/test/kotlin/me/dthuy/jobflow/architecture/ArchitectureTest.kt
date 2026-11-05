@@ -50,14 +50,14 @@ class ArchitectureTest {
     }
 
     @Test
-    fun `only the auth adapter calls Firebase`() {
-        assertOnlyImportedIn(listOf("data.auth", "di"), "com.google.firebase.", "com.google.android.gms.")
+    fun `only the Firebase adapter calls Firebase`() {
+        assertOnlyImportedIn(listOf("data.auth.firebase", "di"), "com.google.firebase.", "com.google.android.gms.")
     }
 
     @Test
     fun `only the Google sheet and the auth adapter use Credential Manager`() {
         assertOnlyImportedIn(
-            listOf("ui.auth", "data.auth"),
+            listOf("ui.auth", "data.auth.firebase"),
             "androidx.credentials.",
             "com.google.android.libraries.identity.googleid.",
         )
@@ -69,7 +69,7 @@ class ArchitectureTest {
         val allowedByLayer = mapOf(
             "domain.auth" to listOf("domain.auth", "core.common"),
             "data.auth" to listOf("data.auth", "domain.auth", "core.common"),
-            "ui.auth" to listOf("ui.auth", "domain.auth", "core.common", "R"),
+            "ui.auth" to listOf("ui.auth", "domain.auth", "core.common", "core.mvi", "R"),
         )
         allowedByLayer.forEach { (layer, allowed) ->
             productionFilesIn(layer).assertFalse { file ->
@@ -88,6 +88,15 @@ class ArchitectureTest {
         }
         assertTrue("No files found in $root.$subPackage; did the package move?", files.isNotEmpty())
         return files
+    }
+
+    @Test
+    fun `everything else in auth does not depend on the Firebase adapter`() {
+        val adapter = "$root.data.auth.firebase"
+        Konsist.scopeFromProduction().files
+            .filter { it.packagee?.name?.startsWith("$root.di") != true }
+            .filterNot { it.packagee?.name?.startsWith(adapter) == true }
+            .assertFalse { file -> file.imports.any { it.name.startsWith("$adapter.") } }
     }
 
     private fun assertOnlyImportedIn(allowedPackages: List<String>, vararg prefixes: String) {

@@ -190,8 +190,6 @@ class HealthRepositoryImplTest {
             calls++
             return respond()
         }
-
-        override suspend fun getMe() = error("Health never calls this")
     }
 
     private fun httpError(status: Int, body: String): Response<HealthDto> =

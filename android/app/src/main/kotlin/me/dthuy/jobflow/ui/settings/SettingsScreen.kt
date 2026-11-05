@@ -10,6 +10,11 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import me.dthuy.jobflow.R
+import me.dthuy.jobflow.core.common.Either
+import me.dthuy.jobflow.domain.auth.AuthError
+import me.dthuy.jobflow.domain.auth.IdToken
+import me.dthuy.jobflow.ui.auth.AuthIntent
+import me.dthuy.jobflow.ui.auth.AuthState
 import me.dthuy.jobflow.ui.auth.AuthViewModel
 import me.dthuy.jobflow.ui.auth.requestGoogleIdToken
 import me.dthuy.jobflow.ui.components.JobFlowPage
@@ -23,29 +28,36 @@ fun SettingsScreen(
     authViewModel: AuthViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    val auth by authViewModel.uiState.collectAsStateWithLifecycle()
+    val auth by authViewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val webClientId = stringResource(R.string.default_web_client_id)
     SettingsContent(
         state = state,
-        account = accountUiState(auth, state.accountCheck),
+        auth = auth,
         contentPadding = contentPadding,
         onCheckAgain = viewModel::onCheckAgain,
-        accountActions = accountActions(viewModel, authViewModel) { requestGoogleIdToken(context, webClientId) },
+        onAuthIntent = authViewModel::onIntent,
+        requestGoogleToken = { requestGoogleIdToken(context, webClientId) },
     )
 }
 
 @Composable
 fun SettingsContent(
     state: SettingsUiState,
-    account: AccountUiState,
+    auth: AuthState,
     contentPadding: PaddingValues,
     onCheckAgain: () -> Unit,
-    accountActions: AccountActions,
+    onAuthIntent: (AuthIntent) -> Unit,
+    requestGoogleToken: suspend () -> Either<AuthError, IdToken?>,
     modifier: Modifier = Modifier,
 ) {
     JobFlowPage(title = stringResource(R.string.settings_title), contentPadding = contentPadding, modifier = modifier) {
-        AccountCard(account, accountActions)
+        AccountCard(
+            state = auth,
+            onSignIn = { onAuthIntent(AuthIntent.SignInWithGoogle(requestGoogleToken)) },
+            onContinueAsGuest = { onAuthIntent(AuthIntent.ContinueAsGuest) },
+            onSignOut = { onAuthIntent(AuthIntent.SignOut) },
+        )
         HealthSummaryCard(state.health)
         HealthDetailsCard(state.health, onCheckAgain = onCheckAgain)
     }
@@ -56,9 +68,10 @@ fun SettingsContent(
 private fun SettingsContentPreview() {
     SettingsContent(
         state = SettingsUiState(),
-        account = AccountUiState(),
+        auth = AuthState(),
         contentPadding = PaddingValues(),
         onCheckAgain = {},
-        accountActions = AccountActions(onRetry = {}, onSignIn = {}, onContinueAsGuest = {}, onSignOut = {}),
+        onAuthIntent = {},
+        requestGoogleToken = { Either.Right(null) },
     )
 }

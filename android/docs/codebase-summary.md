@@ -11,15 +11,15 @@ done with `mobile-app-config`.
 | `core/mvi`                  | `MviViewModel`, `CollectEffects`                                        | feature logic                          |
 | `domain/model`              | plain data classes and enums (`Health`, `HealthSnapshot`, `Job`, `FeedItem`)               | annotations from Room or serialization |
 | `domain/repository`         | interfaces (ports): `HealthRepository`                                  | implementations                        |
-| `domain/auth`               | `Session`, `AuthError`, `AuthRepository`, `GuestPolicy`, `SessionObserver` | Firebase or Android types              |
-| `data/auth`                 | The only code calling Firebase Auth; session source, bearer token       | anything outside auth and `core/common` |
+| `domain/auth`               | `AuthenticationService`, `Session`, `SignInMethod`, `AuthError`, `SessionObserver` | Firebase or Android types              |
+| `data/auth`                 | Session source, sign-in sagas, bearer token; Firebase only in `firebase/`       | anything outside auth and `core/common` |
 | `data/remote`               | `JobFlowApi`, `ApiJson`, `toApiError`, `healthOrThrow`, `normalizeBaseUrl` | UI types              |
 | `data/remote/dto`           | `@Serializable` API DTOs and their `toDomain()` mappers             | domain rules                           |
 | `data/local`                | Room 3: `JobFlowDatabase`, `toLocalError`, `StringListConverter`         | UI types and domain rules |
 | `data/local/dao`            | `FeedDao`                                                                | UI types and domain rules |
 | `data/local/entity`         | `JobEntity`, `FeedItemEntity` and their `toEntity()`/`toDomain()` mappers | UI types and domain rules |
 | `data/repository/impl`      | port implementations (`HealthRepositoryImpl`)                           | UI types                               |
-| `di`                        | Hilt modules: `NetworkModule`, `DatabaseModule`, `RepositoryModule`, `AuthModule`, `CoroutinesModule`, `TimeModule` | business logic             |
+| `di`                        | Hilt modules: `NetworkModule`, `DatabaseModule`, `RepositoryModule`, `AuthModule`, `AuthFirebaseModule`, `CoroutinesModule`, `TimeModule` | business logic             |
 | `navigation`                | `NavGraph.kt` (the only file that knows every feature), `TopLevelTab`, bottom bar | feature logic            |
 | `ui/<feature>`              | Screen, ViewModel, Route, Contract                                      | imports from `data/` or other features |
 | `ui/theme`, `ui/components`, `ui/health`, `ui/auth` | shared UI: `AppTheme`, `Spacing`, soft components, `toUiError`, health cards, `AuthViewModel`, Google's sheet | feature-specific state  |

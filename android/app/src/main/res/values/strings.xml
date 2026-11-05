@@ -66,7 +66,6 @@
     <string name="account_continue_as_guest">CONTINUE AS GUEST</string>
     <string name="account_sign_in">SIGN IN WITH GOOGLE</string>
     <string name="account_sign_out">SIGN OUT</string>
-    <string name="account_retry">TRY AGAIN</string>
 
     <!-- Health -->
     <string name="health_section_system">SYSTEM HEALTH</string>
