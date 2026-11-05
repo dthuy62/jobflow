@@ -6,7 +6,6 @@ interface UserRow {
   readonly id: string;
   readonly created_at: Date;
   readonly deleted_at: Date | null;
-  readonly linked_at: Date | null;
 }
 
 const toUser = ({ id, created_at, deleted_at }: UserRow): ResolvedUser => ({
@@ -30,25 +29,17 @@ export const GUEST_MERGE_STEPS: readonly GuestMergeStep[] = [
 
 export function createPgUserRepository(pool: Pick<Pool, "query" | "connect">, guestMergeSteps = GUEST_MERGE_STEPS): UserRepository {
   return {
-    async resolve(subject, isAnonymous) {
-      // Reads first, so a known user's request writes nothing, except once when a real token first appears: this runs on every request.
-      const existing = await pool.query<UserRow>("SELECT id, created_at, deleted_at, linked_at FROM users WHERE auth_subject = $1", [subject]);
+    async resolve(subject) {
+      // Reads first, so a known user's request writes nothing: this runs on every request.
+      const existing = await pool.query<UserRow>("SELECT id, created_at, deleted_at FROM users WHERE auth_subject = $1", [subject]);
       const [found] = existing.rows;
-      if (found) {
-        if (isAnonymous || found.linked_at !== null || found.deleted_at !== null) return toUser(found);
-        // Uses the row this returns: the write waits for any merge holding it, which may have closed the user.
-        const linked = await pool.query<UserRow>(
-          "UPDATE users SET linked_at = COALESCE(linked_at, now()) WHERE id = $1 RETURNING id, created_at, deleted_at, linked_at",
-          [found.id]
-        );
-        return toUser(linked.rows[0] ?? found);
-      }
+      if (found) return toUser(found);
       // DO UPDATE, not DO NOTHING, so a parallel first request still gets the row back.
       const created = await pool.query<UserRow>(
-        `INSERT INTO users (auth_subject, linked_at) VALUES ($1, CASE WHEN $2::boolean THEN NULL ELSE now() END)
-         ON CONFLICT (auth_subject) DO UPDATE SET linked_at = COALESCE(users.linked_at, EXCLUDED.linked_at)
-         RETURNING id, created_at, deleted_at, linked_at`,
-        [subject, isAnonymous]
+        `INSERT INTO users (auth_subject) VALUES ($1)
+         ON CONFLICT (auth_subject) DO UPDATE SET auth_subject = EXCLUDED.auth_subject
+         RETURNING id, created_at, deleted_at`,
+        [subject]
       );
       const [row] = created.rows;
       if (!row) throw new Error("The user upsert returned no row.");
@@ -65,16 +56,19 @@ export function createPgUserRepository(pool: Pick<Pool, "query" | "connect">, gu
       client.on("error", onConnectionError);
       try {
         await client.query("BEGIN");
-        // The lock makes a parallel retry wait here and then see merged_into. A guest with no row has no data.
-        const { rows } = await client.query<{ id: string; deleted_at: Date | null; linked_at: Date | null; merged_into: string | null }>(
-          "SELECT id, deleted_at, linked_at, merged_into FROM users WHERE auth_subject = $1 FOR UPDATE",
+        // An upsert, so a guest who never reached the API is closed too. It also locks the row, so
+        // a parallel retry waits here and then sees merged_into.
+        const { rows } = await client.query<{ id: string; deleted_at: Date | null; merged_into: string | null }>(
+          `INSERT INTO users (auth_subject) VALUES ($1)
+           ON CONFLICT (auth_subject) DO UPDATE SET auth_subject = EXCLUDED.auth_subject
+           RETURNING id, deleted_at, merged_into`,
           [guestSubject]
         );
         const [guest] = rows;
-        // shortcut: a user Firebase linked, whose new token never reached this server, looks like any guest here, so its old anonymous token can still close it within the hour. Ask Firebase for the user's providers if that ever matters.
-        if (!guest || guest.id === memberId || guest.linked_at !== null || guest.deleted_at !== null) {
+        if (!guest) throw new Error("The guest upsert returned no row.");
+        if (guest.id === memberId || guest.deleted_at !== null) {
           await client.query("ROLLBACK");
-          return guest?.merged_into === memberId;
+          return guest.merged_into === memberId;
         }
         for (const step of guestMergeSteps) await step(client, guest.id, memberId);
         await client.query("UPDATE users SET deleted_at = now(), merged_into = $2 WHERE id = $1", [guest.id, memberId]);

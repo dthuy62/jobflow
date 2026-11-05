@@ -5,7 +5,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createOidcAuthVerifier } from "../src/adapters/oidc-auth-verifier.js";
 import { createPgDeviceRepository } from "../src/adapters/pg-device-repository.js";
 import { createPgUserRepository, GUEST_MERGE_STEPS, type GuestMergeStep } from "../src/adapters/pg-user-repository.js";
-import { AuthUnavailableError } from "../src/core/identity.js";
+import { AuthUnavailableError, InvalidTokenError } from "../src/core/identity.js";
 import type { AuthVerifier } from "../src/core/ports.js";
 import { migrateUp } from "../src/db/migrate.js";
 import { createPool } from "../src/db/pool.js";
@@ -14,14 +14,23 @@ import { withTestDatabase, type TestDatabase } from "./support/database.js";
 import { asUser, createTestServer, stubAuthVerifier, testConfig } from "./support/server.js";
 
 /**
- * On top of the stub: `stale-<name>` is an anonymous token for the subject of `test-<name>`, as
- * when Firebase linked that user after issuing it. `outage-<name>` cannot be checked.
+ * On top of the stub: `stale-<name>` is an anonymous token for the subject of `test-<name>`, issued
+ * before Firebase linked that user, so Firebase no longer calls the user anonymous.
+ * `outage-<name>` cannot be checked. `no-lookup-<name>` passes the signature check, but Firebase
+ * cannot be asked. `gone-<name>` passes it, but Firebase no longer knows the user.
  */
 const authVerifier: AuthVerifier = {
   async verify(token) {
-    if (token.startsWith("stale-")) return { subject: `test-${token.slice("stale-".length)}`, isAnonymous: true };
+    for (const prefix of ["stale-", "no-lookup-", "gone-"]) {
+      if (token.startsWith(prefix)) return { subject: `test-${token.slice(prefix.length)}`, isAnonymous: true };
+    }
     if (token.startsWith("outage-")) throw new AuthUnavailableError(new Error("keys are down"));
     return stubAuthVerifier.verify(token);
+  },
+  async stillAnonymous(token) {
+    if (token.startsWith("no-lookup-")) throw new AuthUnavailableError(new Error("Firebase is down"));
+    if (token.startsWith("gone-")) throw new InvalidTokenError();
+    return !token.startsWith("stale-");
   }
 };
 
@@ -58,7 +67,7 @@ describe("the auth routes, with real PostgreSQL and the app role", () => {
   const logout = (name: string, body: unknown) => server.inject({ method: "POST", url: "/api/v1/auth/logout", headers: asUser(name), payload: body as object });
 
   const userRow = async (name: string) =>
-    (await pool.query("select id, deleted_at, linked_at, merged_into, xmin::text as version from users where auth_subject = $1", [`test-${name}`])).rows[0];
+    (await pool.query("select id, deleted_at, merged_into, xmin::text as version from users where auth_subject = $1", [`test-${name}`])).rows[0];
   const seedDevice = async (name: string, installationId: string) => {
     await me(name);
     const { id } = await userRow(name);
@@ -165,13 +174,14 @@ describe("the auth routes, with real PostgreSQL and the app role", () => {
       }
     });
 
-    it("has nothing to merge from a guest the server never saw, and creates no row for it", async () => {
-      expect(merged(await sso("member-early", { guestToken: "test-anon-unseen" }))).toBe(false);
-      expect(await userRow("anon-unseen")).toBeUndefined();
+    it("closes a guest that never reached the API, so its token stops working too", async () => {
+      expect(merged(await sso("member-early", { guestToken: "test-anon-unseen" }))).toBe(true);
+      expect((await me("anon-unseen")).statusCode).toBe(401);
     });
 
     it("does not close an account the server never saw, through its anonymous token from before Firebase linked it", async () => {
       expect(merged(await sso("thief-early", { guestToken: "stale-unseen-account" }))).toBe(false);
+      expect(await userRow("unseen-account")).toBeUndefined();
       expect((await me("unseen-account")).statusCode).toBe(200);
     });
 
@@ -199,6 +209,13 @@ describe("the auth routes, with real PostgreSQL and the app role", () => {
       expect((await me("linked")).statusCode).toBe(200);
     });
 
+    it("does not merge a user into itself even if Firebase called it anonymous a moment ago", async () => {
+      await me("self-race");
+      const { id } = await userRow("self-race");
+      await expect(createPgUserRepository(pool).mergeGuest("test-self-race", id)).resolves.toBe(false);
+      expect((await userRow("self-race")).deleted_at).toBeNull();
+    });
+
     it("does not close a member through an anonymous token from before Firebase linked it", async () => {
       await sso("real-account");
       expect(merged(await sso("thief", { guestToken: "stale-real-account" }))).toBe(false);
@@ -206,16 +223,33 @@ describe("the auth routes, with real PostgreSQL and the app role", () => {
       expect((await me("real-account")).statusCode).toBe(200);
     });
 
-    it("protects a member whose /auth/sso failed, once any route has seen their real token", async () => {
-      await server.inject({ url: "/api/v1/me", headers: { authorization: "Bearer stale-safety-net" } });
-      expect((await userRow("safety-net")).linked_at).toBeNull();
+    it("does not close a member whose /auth/sso failed, once Firebase has linked them", async () => {
       await me("safety-net");
-      const { linked_at: linkedAt, version } = await userRow("safety-net");
-      expect(linkedAt).not.toBeNull();
-
       expect(merged(await sso("thief-net", { guestToken: "stale-safety-net" }))).toBe(false);
       expect((await me("safety-net")).statusCode).toBe(200);
-      expect((await userRow("safety-net")).version).toBe(version);
+    });
+
+    it("does not close a linked user whose new token never reached the server, though the row looks like a guest", async () => {
+      await server.inject({ url: "/api/v1/me", headers: { authorization: "Bearer stale-silent" } });
+      const before = await userRow("silent");
+      expect(merged(await sso("thief-silent", { guestToken: "stale-silent" }))).toBe(false);
+      expect(await userRow("silent")).toEqual(before);
+      expect((await me("silent")).statusCode).toBe(200);
+    });
+
+    it("answers 503 and changes nothing when Firebase cannot say whether the guest is still anonymous", async () => {
+      await me("anon-lookup");
+      const before = await userRow("anon-lookup");
+      const response = await sso("member-lookup", { guestToken: "no-lookup-anon-lookup" });
+      expect(response.statusCode).toBe(503);
+      expect(codeOf(response)).toBe("AUTH_UNAVAILABLE");
+      expect(await userRow("anon-lookup")).toEqual(before);
+    });
+
+    it("signs in without merging when Firebase no longer knows the guest", async () => {
+      await me("anon-gone-firebase");
+      expect(merged(await sso("member-gone-firebase", { guestToken: "gone-anon-gone-firebase" }))).toBe(false);
+      expect((await userRow("anon-gone-firebase")).deleted_at).toBeNull();
     });
 
     it("does not merge a token that is not anonymous, and does not touch that member", async () => {
@@ -254,7 +288,8 @@ describe("the auth routes, with real PostgreSQL and the app role", () => {
         issuer,
         audience: "aud",
         keys: createLocalJWKSet({ keys: [{ ...(await exportJWK(publicKey)), kid: "key-1", alg: "RS256", use: "sig" }] }),
-        isAnonymous: (payload) => payload.anonymous === true
+        isAnonymous: (payload) => payload.anonymous === true,
+        stillAnonymous: async () => true
       });
       const sign = (subject: string, anonymous: boolean, exp: number) =>
         new SignJWT({ anonymous })
@@ -325,32 +360,6 @@ describe("the auth routes, with real PostgreSQL and the app role", () => {
       expect(response.statusCode).toBe(503);
       expect((await userRow("anon-dropped")).deleted_at).toBeNull();
       expect(merged(await sso("member-dropped", { guestToken: "test-anon-dropped" }))).toBe(true);
-    });
-
-    it("refuses a first real token that waited on a merge closing its account, and merges nothing into it", async () => {
-      await pool.query("insert into users (auth_subject) values ('test-closing'), ('test-closer'), ('test-anon-second')");
-      let release = () => {};
-      const gate = new Promise<void>((resolve) => (release = resolve));
-      let locked = () => {};
-      const holdingLock = new Promise<void>((resolve) => (locked = resolve));
-      const slow = createPgUserRepository(pool, [
-        async () => {
-          locked();
-          await gate;
-        }
-      ]);
-      const merging = slow.mergeGuest("test-closing", (await userRow("closer")).id);
-      await holdingLock;
-
-      const waiting = sso("closing", { guestToken: "test-anon-second" });
-      await expect
-        .poll(async () => (await pool.query("select 1 from pg_stat_activity where wait_event_type = 'Lock' and query like 'UPDATE users SET linked_at%'")).rowCount)
-        .toBe(1);
-      release();
-      await merging;
-
-      expect((await waiting).statusCode).toBe(401);
-      expect((await userRow("anon-second")).deleted_at).toBeNull();
     });
 
     it("gives every connection back to the pool, whatever the outcome", async () => {

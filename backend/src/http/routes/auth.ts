@@ -12,13 +12,14 @@ export interface AuthRouteDeps {
 }
 
 /**
- * The guest whose data this token may move, or undefined when it may not. An outage is not an
- * answer: reporting "no merge" would make the app give up on data a retry could still bring.
+ * The guest whose data this token may move, or undefined when it may not. Asks the provider too,
+ * because this token may predate a link, and closing that user would lock a real account out. An
+ * outage is not an answer: "no merge" would make the app give up on data a retry could still bring.
  */
 async function verifyGuest(request: FastifyRequest, authVerifier: AuthVerifier, token: string): Promise<VerifiedIdentity | undefined> {
   try {
     const identity = await authVerifier.verify(token);
-    return identity.isAnonymous ? identity : undefined;
+    return identity.isAnonymous && (await authVerifier.stillAnonymous(token)) ? identity : undefined;
   } catch (error) {
     if (error instanceof InvalidTokenError) return undefined;
     if (error instanceof AuthUnavailableError) {

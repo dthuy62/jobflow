@@ -36,7 +36,7 @@ describe("database roles", () => {
     await owner.connect();
     const { rows } = await owner.query("select name from pgmigrations");
     await owner.end();
-    expect(rows.map((row: { name: string }) => row.name)).toEqual(["0001_users", "0002_auth"]);
+    expect(rows.map((row: { name: string }) => row.name)).toEqual(["0001_users", "0002_auth", "0003_drop_linked_at"]);
   });
 
   it("the app role can read and write users", async () => {

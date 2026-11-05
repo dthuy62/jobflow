@@ -61,6 +61,9 @@ docker compose down
 - Limit malformed requests at the host or proxy, because the API refuses them before its own
   rate limits run.
 - Set `FIREBASE_PROJECT_ID` to the real project. Production refuses a `demo-` project.
+- Set `FIREBASE_API_KEY` to a web API key of that project, restricted to the Identity Toolkit
+  API. Use a key for the server, not the app's: a key restricted to Android apps gets 403, and
+  guest merges then answer 503. It is not a secret on its own, but inject it like the rest.
 
 ## Wrapper, Local Development
 
