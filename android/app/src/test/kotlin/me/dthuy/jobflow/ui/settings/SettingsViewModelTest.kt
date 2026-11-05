@@ -1,6 +1,7 @@
 package me.dthuy.jobflow.ui.settings
 
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
@@ -11,6 +12,7 @@ import kotlinx.coroutines.test.setMain
 import me.dthuy.jobflow.core.common.AppError
 import me.dthuy.jobflow.core.common.Either
 import me.dthuy.jobflow.domain.auth.Session
+import me.dthuy.jobflow.domain.auth.Uid
 import me.dthuy.jobflow.domain.model.Account
 import me.dthuy.jobflow.testing.FakeAccountRepository
 import me.dthuy.jobflow.testing.FakeAuthRepository
@@ -133,6 +135,39 @@ class SettingsViewModelTest {
 
         assertEquals(checksBefore + 1, accounts.calls)
         assertTrue(vm.uiState.value.accountCheck is AccountCheck.Failed)
+    }
+
+    @Test
+    fun `a new session drops the old failed check before its own answers`() = runTest {
+        accounts.account = Either.Left(AppError.Unreachable)
+        val auth = FakeAuthRepository()
+        val vm = settings(auth)
+        backgroundScope.launch(dispatcher) { vm.uiState.collect {} }
+        accounts.gate = CompletableDeferred()
+
+        auth.publish(MEMBER_SESSION)
+
+        assertEquals(AccountCheck.Idle, vm.uiState.value.accountCheck)
+        accounts.gate?.complete(Unit)
+    }
+
+    @Test
+    fun `a retry from the old session cannot override the new session's check`() = runTest {
+        val auth = FakeAuthRepository(session = MEMBER_SESSION)
+        val vm = settings(auth)
+        backgroundScope.launch(dispatcher) { vm.uiState.collect {} }
+        val oldRetry = CompletableDeferred<Unit>()
+        accounts.gate = oldRetry
+        accounts.account = Either.Left(AppError.Unauthorized)
+        vm.onRetryAccount()
+
+        accounts.gate = null
+        accounts.account = Either.Right(Account("user_2", isAnonymous = false))
+        auth.publish(Session.Guest(Uid("uid_new")))
+        accounts.account = Either.Left(AppError.Unauthorized)
+        oldRetry.complete(Unit)
+
+        assertEquals(AccountCheck.Idle, vm.uiState.value.accountCheck)
     }
 
     private fun settings(auth: FakeAuthRepository) = SettingsViewModel(FakeHealthRepository(), auth, accounts)

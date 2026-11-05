@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -42,6 +43,7 @@ class SettingsViewModel @Inject constructor(
 ) : ViewModel() {
     private val refreshing = MutableStateFlow(false)
     private val accountCheck = MutableStateFlow<AccountCheck>(AccountCheck.Idle)
+    private var retry: Job? = null
 
     val uiState: StateFlow<SettingsUiState> =
         combine(healthRepository.latest, refreshing, accountCheck) { snapshot, isRefreshing, check ->
@@ -55,6 +57,9 @@ class SettingsViewModel @Inject constructor(
     init {
         viewModelScope.launch {
             authRepository.session.collectLatest { session ->
+                // A new session owes nothing to the old one's check, whether finished or still running.
+                retry?.cancel()
+                accountCheck.value = AccountCheck.Idle
                 if (session.isSignedIn) {
                     val result = askTheApi()
                     accountCheck.update { if (it == AccountCheck.Running) it else result }
@@ -68,7 +73,8 @@ class SettingsViewModel @Inject constructor(
         val before = accountCheck.value
         if (before == AccountCheck.Running) return
         accountCheck.value = AccountCheck.Running
-        viewModelScope.launch { accountCheck.value = askTheApi() }.invokeOnCompletion {
+        retry = viewModelScope.launch { accountCheck.value = askTheApi() }
+        retry?.invokeOnCompletion {
             // A task cancelled from outside ends the check with no result, and Running would block all later ones.
             accountCheck.update { if (it == AccountCheck.Running) before else it }
         }

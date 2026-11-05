@@ -37,4 +37,6 @@ cases for each command (pass-throughs; `SignInWithGoogle` earns one when it has 
 Session rules are tested on the JVM with a fake, and the SDK's real behaviour against the Auth emulator. A new per-user
 table adds one observer. To reuse auth in another project, copy those folders, `core/common` and the `error_auth_*` strings,
 provide the application scope, add the token classes to the OkHttp client, and pass the web client id to
-`requestGoogleIdToken`. The boundary is only as strong as Konsist until a module exists.
+`requestGoogleIdToken`. The boundary is only as strong as Konsist until a module exists. After linking, the session can change just before the token
+refresh, so the first `GET /me` may carry the old anonymous claim. That is harmless while the app ignores its body; a screen
+that shows `isAnonymous` from the API must ask again.

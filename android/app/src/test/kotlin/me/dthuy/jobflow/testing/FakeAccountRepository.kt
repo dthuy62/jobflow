@@ -1,5 +1,6 @@
 package me.dthuy.jobflow.testing
 
+import kotlinx.coroutines.CompletableDeferred
 import me.dthuy.jobflow.core.common.AppError
 import me.dthuy.jobflow.core.common.Either
 import me.dthuy.jobflow.domain.model.Account
@@ -10,11 +11,15 @@ class FakeAccountRepository(
 ) : AccountRepository {
     var calls = 0
 
+    /** Set to hold the answer in flight. */
+    var gate: CompletableDeferred<Unit>? = null
+
     /** Thrown instead of answering, for what cannot be an expected failure, such as a cancelled task. */
     var failure: Exception? = null
 
     override suspend fun account(): Either<AppError, Account> {
         calls++
+        gate?.await()
         failure?.let { throw it }
         return account
     }

@@ -1,10 +1,14 @@
 package me.dthuy.jobflow.ui.settings
 
 import androidx.compose.runtime.Immutable
+import me.dthuy.jobflow.core.common.Either
 import me.dthuy.jobflow.core.common.ErrorAction
 import me.dthuy.jobflow.core.common.UiError
+import me.dthuy.jobflow.domain.auth.AuthError
+import me.dthuy.jobflow.domain.auth.IdToken
 import me.dthuy.jobflow.ui.auth.AuthKind
 import me.dthuy.jobflow.ui.auth.AuthUiState
+import me.dthuy.jobflow.ui.auth.AuthViewModel
 
 /** Whether the API confirmed the signed-in user. Who they are comes from the session alone. */
 sealed interface AccountCheck {
@@ -31,6 +35,18 @@ data class AccountActions(
     val onSignIn: () -> Unit,
     val onContinueAsGuest: () -> Unit,
     val onSignOut: () -> Unit,
+)
+
+/** Wires the card to both ViewModels. A member signing in again changes no session, so this asks the API again. */
+fun accountActions(
+    settings: SettingsViewModel,
+    auth: AuthViewModel,
+    requestToken: suspend () -> Either<AuthError, IdToken?>,
+) = AccountActions(
+    onRetry = settings::onRetryAccount,
+    onSignIn = { auth.onSignIn(onSignedInAgain = settings::onRetryAccount, requestToken = requestToken) },
+    onContinueAsGuest = auth::onContinueAsGuest,
+    onSignOut = auth::onSignOut,
 )
 
 /** A check says nothing once nobody is signed in, however it got here. A running one offers no button. */

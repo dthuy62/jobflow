@@ -31,16 +31,7 @@ fun SettingsScreen(
         account = accountUiState(auth, state.accountCheck),
         contentPadding = contentPadding,
         onCheckAgain = viewModel::onCheckAgain,
-        accountActions = AccountActions(
-            onRetry = viewModel::onRetryAccount,
-            onSignIn = {
-                authViewModel.onSignIn(onSignedInAgain = viewModel::onRetryAccount) {
-                    requestGoogleIdToken(context, webClientId)
-                }
-            },
-            onContinueAsGuest = authViewModel::onContinueAsGuest,
-            onSignOut = authViewModel::onSignOut,
-        ),
+        accountActions = accountActions(viewModel, authViewModel) { requestGoogleIdToken(context, webClientId) },
     )
 }
 

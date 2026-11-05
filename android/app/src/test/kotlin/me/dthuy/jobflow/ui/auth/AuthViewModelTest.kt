@@ -61,6 +61,20 @@ class AuthViewModelTest {
     }
 
     @Test
+    fun `a guest that cannot start shows the error and stays signed out`() = runTest {
+        val auth = FakeAuthRepository(
+            session = Session.SignedOut(canStartGuest = false),
+            guest = Either.Left(AuthError.GuestAlreadyUsed),
+        )
+        val vm = viewModel(auth)
+
+        vm.onContinueAsGuest()
+
+        assertEquals(AuthKind.SIGNED_OUT, vm.uiState.value.kind)
+        assertNotNull(vm.uiState.value.error)
+    }
+
+    @Test
     fun `signing in with Google shows the new session`() = runTest {
         val auth = FakeAuthRepository()
         val vm = viewModel(auth)
