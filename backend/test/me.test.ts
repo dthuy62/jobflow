@@ -6,7 +6,7 @@ import { migrateUp } from "../src/db/migrate.js";
 import { createPool } from "../src/db/pool.js";
 import { createServer } from "../src/server.js";
 import { withTestDatabase, type TestDatabase } from "./support/database.js";
-import { asUser, stubAuthVerifier, testConfig } from "./support/server.js";
+import { asUser, memoryDevices, stubAuthVerifier, testConfig } from "./support/server.js";
 
 describe("GET /api/v1/me, with real PostgreSQL and the app role", () => {
   let database: TestDatabase;
@@ -17,7 +17,7 @@ describe("GET /api/v1/me, with real PostgreSQL and the app role", () => {
     database = await withTestDatabase();
     await migrateUp(database.ownerUrl);
     pool = createPool(database.appUrl, () => undefined);
-    server = await createServer({ config: testConfig, pool, authVerifier: stubAuthVerifier, users: createPgUserRepository(pool) });
+    server = await createServer({ config: testConfig, pool, authVerifier: stubAuthVerifier, users: createPgUserRepository(pool), devices: memoryDevices });
   });
   afterAll(async () => {
     await server.close();

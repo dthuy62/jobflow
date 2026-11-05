@@ -2,7 +2,7 @@ import { Writable } from "node:stream";
 import type { FastifyInstance, RouteOptions } from "fastify";
 import type { Config } from "../../src/config.js";
 import { InvalidTokenError, type UserId } from "../../src/core/identity.js";
-import type { AuthVerifier, UserRepository } from "../../src/core/ports.js";
+import type { AuthVerifier, DeviceRepository, UserRepository } from "../../src/core/ports.js";
 import { createServer, type ServerDeps } from "../../src/server.js";
 
 export const testConfig: Config = {
@@ -36,9 +36,13 @@ export function createMemoryUsers(): UserRepository & { readonly deletedSubjects
         created.set(subject, user);
       }
       return { ...user, deleted: deletedSubjects.has(subject) };
-    }
+    },
+    markLinked: async () => undefined,
+    mergeGuest: async () => false
   };
 }
+
+export const memoryDevices: DeviceRepository = { remove: async () => undefined };
 
 export const asUser = (subject = "user-a") => ({ authorization: `Bearer test-${subject}` });
 
@@ -65,6 +69,7 @@ export async function createTestServer(overrides: Partial<ServerDeps> = {}): Pro
     pool: healthyPool,
     authVerifier: stubAuthVerifier,
     users: createMemoryUsers(),
+    devices: memoryDevices,
     logStream,
     observeRoute: (route) => routes.push(route),
     ...overrides
