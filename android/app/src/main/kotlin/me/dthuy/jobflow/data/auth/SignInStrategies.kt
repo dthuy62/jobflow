@@ -31,8 +31,12 @@ class GoogleSignIn @Inject constructor(
     private val pending: PendingLogin,
 ) {
     suspend fun signIn(idToken: IdToken): Either<AuthError, Unit> =
-        identity.signInWithGoogle(idToken, keepGuestToken = { pending.keepGuestToken(it) }).flatMap {
-            identity.confirmOrSignOut { api.sso(SsoRequest(pending.guestToken())) }
-                .map { pending.clearGuestToken() }
+        identity.signInWithGoogle(idToken, pending).flatMap {
+            identity.confirmOrSignOut {
+                val guestToken = pending.guestTokenFor(identity.currentUser?.uid)
+                api.sso(SsoRequest(guestToken))
+                // A token not sent still belongs to the account it was kept for, which may yet come back.
+                if (guestToken != null) pending.clearGuestToken()
+            }
         }
 }

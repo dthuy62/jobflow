@@ -17,7 +17,7 @@ method does not compile until it is handled. There is no registry, because the m
 
 **One vendor boundary.** `IdentityProvider` and `InstallationIdSource` are the only ties to the vendor. Everything that
 imports Firebase is in `data/auth/firebase`, and `di/AuthFirebaseModule.kt` picks it; Konsist enforces both. Nothing above the
-boundary knows `linkWithCredential`: before switching accounts, the adapter only hands over the guest token to keep. Changing how linking works means
+boundary knows `linkWithCredential`: before switching accounts, the adapter only hands over the guest token to keep, and then the account it landed on. Changing how linking works means
 changing the adapter, and changing vendor means another adapter and, on the backend, another `AuthVerifier`.
 
 **A session means the backend confirmed it.** A sign-in is a saga: provider, then the auth API. If the API fails after the
@@ -26,7 +26,8 @@ again. The session is held back until the end, so nobody sees an unconfirmed use
 one cut off by the app dying is rolled back on the next launch, unless it was a Google sign-in and the user is still anonymous:
 the provider never moved, and signing out would lose that guest for good. A mark that cannot be read counts as no mark, for the
 same reason: when unsure, never risk someone's identity. A sign-in whose mark cannot be written does not start. It also keeps the guest token, because after a switch there is no
-way back to the guest. This applies only to signing in: a signed-in user is never signed out for a network failure or a 5xx.
+way back to the guest. The token is written before the switch and tied to the account the switch lands on, and is sent only for
+that account, so the next person on a shared device cannot receive the guest's data. This applies only to signing in: a signed-in user is never signed out for a network failure or a 5xx.
 Only an account the vendor no longer accepts ends a session, and the service does that.
 
 **Upgrading keeps the uid.** A guest links Google with `linkWithCredential`, so no data moves. Only when that Google account
@@ -60,6 +61,8 @@ application scope, add the token classes to the OkHttp client, and pass the web 
 
 A bad connection during a sign-in costs more: a guest who was linking is signed out, cannot return to being a guest, and must
 sign in with Google again, which finds the same uid. A guest who was switching has only the kept token, which lasts about an hour.
+If the app cannot record the account a switch landed on, or dies first, the token is never sent and that guest's data stays
+behind: sending it to the wrong person would be worse. Any sign-out on the device also clears the token.
 No abstraction covers changing vendor fully: `users.auth_subject` holds the vendor's uid, so it needs a data migration, everyone
 must sign in again, and a vendor without anonymous sign-in needs the backend to issue guests. `SettingsScreen` also reads
 `default_web_client_id`, which the google-services plugin generates, so dropping the plugin means supplying that id another way. The boundary is only as strong as

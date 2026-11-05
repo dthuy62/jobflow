@@ -25,9 +25,9 @@ interface IdentityProvider : IdTokenSource {
 
     /**
      * Upgrades a guest and keeps their identity if it can. If this Google account already exists, the guest cannot be
-     * reached again afterwards, so [keepGuestToken] gets the proof of who they were first, for the backend to merge.
+     * reached again afterwards, so [guestTokens] gets the proof of who they were first, for the backend to merge.
      */
-    suspend fun signInWithGoogle(idToken: IdToken, keepGuestToken: suspend (String) -> Unit): Either<AuthError, Unit>
+    suspend fun signInWithGoogle(idToken: IdToken, guestTokens: GuestTokenKeeper): Either<AuthError, Unit>
 
     /** On this device only: the backend is not told. */
     suspend fun signOut()

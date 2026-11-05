@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.StateFlow
 import me.dthuy.jobflow.core.common.Either
 import me.dthuy.jobflow.data.auth.AuthApi
 import me.dthuy.jobflow.data.auth.GuestLedger
+import me.dthuy.jobflow.data.auth.GuestTokenKeeper
 import me.dthuy.jobflow.data.auth.IdentityProvider
 import me.dthuy.jobflow.data.auth.IdentityUser
 import me.dthuy.jobflow.data.auth.LogoutRequest
@@ -38,6 +39,7 @@ class FakeIdentityProvider : IdentityProvider {
     var guestFailure: AuthError? = null
     var googleFailure: AuthError? = null
     var guestTokenAtSwitch: String? = null
+    var diesBeforeBinding = false
     var userAfterGoogle: IdentityUser = LINKED_USER
     var onSignInStart: suspend () -> Unit = {}
     val tokens = mutableListOf<IdToken>()
@@ -57,14 +59,12 @@ class FakeIdentityProvider : IdentityProvider {
         return Either.Right(Unit)
     }
 
-    override suspend fun signInWithGoogle(
-        idToken: IdToken,
-        keepGuestToken: suspend (String) -> Unit,
-    ): Either<AuthError, Unit> {
+    override suspend fun signInWithGoogle(idToken: IdToken, guestTokens: GuestTokenKeeper): Either<AuthError, Unit> {
         onSignInStart()
         tokens += idToken
-        guestTokenAtSwitch?.let { keepGuestToken(it) }
+        guestTokenAtSwitch?.let { guestTokens.keepGuestToken(it) }
         googleFailure?.let { return Either.Left(it) }
+        if (guestTokenAtSwitch != null && !diesBeforeBinding) guestTokens.bindGuestToken(userAfterGoogle.uid)
         publish(userAfterGoogle)
         return Either.Right(Unit)
     }
@@ -122,6 +122,7 @@ class FakeGuestLedger : GuestLedger {
 class FakePendingLogin : PendingLogin {
     private var running: PendingSignIn? = null
     private var token: String? = null
+    private var target: Uid? = null
 
     var canWrite = true
 
@@ -136,15 +137,23 @@ class FakePendingLogin : PendingLogin {
         running = null
     }
 
-    override suspend fun guestToken() = token
+    override suspend fun guestTokenFor(uid: Uid?) = token.takeIf { uid != null && target == uid }
 
     override suspend fun keepGuestToken(token: String) {
         this.token = token
+        target = null
+    }
+
+    override suspend fun bindGuestToken(uid: Uid) {
+        target = uid
     }
 
     override suspend fun clearGuestToken() {
         token = null
+        target = null
     }
+
+    fun rawGuestToken() = token
 }
 
 /** Answers with [result]; set [gate] to hold a command in flight, during which [isBusy] is true. */

@@ -122,7 +122,7 @@ sequenceDiagram
     else provider succeeds
         Note over S,I: Before a switch, the guest token is saved first
         I-->>S: done
-        S->>A: POST /auth/sso, with the saved token if any
+        S->>A: POST /auth/sso, with the saved token if it was kept for this account
         alt API succeeds
             A-->>S: account
             S->>S: run observers, publish session

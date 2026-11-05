@@ -11,8 +11,10 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
+import me.dthuy.jobflow.domain.auth.Uid
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -63,15 +65,30 @@ class AuthStoreTest {
     }
 
     @Test
-    fun `the guest token is kept until cleared, and finishing leaves it`() = runTest {
+    fun `the guest token is only for the account it was bound to`() = runTest {
         val pending = DataStorePendingLogin(store())
         pending.keepGuestToken("guest_token")
+        assertNull(pending.guestTokenFor(Uid("uid_a")))
+
+        pending.bindGuestToken(Uid("uid_a"))
+
+        assertEquals("guest_token", pending.guestTokenFor(Uid("uid_a")))
+        assertNull(pending.guestTokenFor(Uid("uid_b")))
+        assertNull(pending.guestTokenFor(null))
+    }
+
+    @Test
+    fun `finishing leaves the token, and clearing removes it`() = runTest {
+        val store = store()
+        val pending = DataStorePendingLogin(store)
+        pending.keepGuestToken("guest_token")
+        pending.bindGuestToken(Uid("uid_a"))
 
         pending.finish()
-        assertEquals("guest_token", pending.guestToken())
+        assertEquals("guest_token", pending.guestTokenFor(Uid("uid_a")))
 
         pending.clearGuestToken()
-        assertNull(pending.guestToken())
+        assertEquals(emptyPreferences(), store.data.first())
     }
 
     @Test
@@ -103,5 +120,8 @@ class AuthStoreTest {
         assertNull(pending.running())
         assertFalse(pending.begin(PendingSignIn.GOOGLE))
         assertThrows(IOException::class.java) { runBlocking { pending.keepGuestToken("guest_token") } }
+        // These run after the provider moved, where a throw would skip the rollback.
+        pending.bindGuestToken(Uid("uid_a"))
+        pending.clearGuestToken()
     }
 }

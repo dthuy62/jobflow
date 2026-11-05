@@ -25,6 +25,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.tasks.await
 import me.dthuy.jobflow.core.common.Either
 import me.dthuy.jobflow.core.common.catch
+import me.dthuy.jobflow.data.auth.GuestTokenKeeper
 import me.dthuy.jobflow.data.auth.IdentityProvider
 import me.dthuy.jobflow.data.auth.IdentityUser
 import me.dthuy.jobflow.domain.auth.AuthError
@@ -56,32 +57,28 @@ class FirebaseIdentityProvider @Inject constructor(
         auth.signInAnonymously().await()
     }
 
-    override suspend fun signInWithGoogle(
-        idToken: IdToken,
-        keepGuestToken: suspend (String) -> Unit,
-    ): Either<AuthError, Unit> = Either.catch(onError = FirebaseAuthErrorMapper::map) {
-        val credential = GoogleAuthProvider.getCredential(idToken.value, null)
-        val guest = auth.currentUser?.takeIf { it.isAnonymous }
-        if (guest != null) {
-            linkOrSwitch(guest, credential, keepGuestToken)
-        } else {
-            auth.signInWithCredential(credential).await()
+    override suspend fun signInWithGoogle(idToken: IdToken, guestTokens: GuestTokenKeeper): Either<AuthError, Unit> =
+        Either.catch(onError = FirebaseAuthErrorMapper::map) {
+            val credential = GoogleAuthProvider.getCredential(idToken.value, null)
+            val guest = auth.currentUser?.takeIf { it.isAnonymous }
+            if (guest != null) {
+                linkOrSwitch(guest, credential, guestTokens)
+            } else {
+                auth.signInWithCredential(credential).await()
+            }
+            refreshToken()
         }
-        refreshToken()
-    }
 
-    private suspend fun linkOrSwitch(
-        guest: FirebaseUser,
-        credential: AuthCredential,
-        keepGuestToken: suspend (String) -> Unit,
-    ) {
+    private suspend fun linkOrSwitch(guest: FirebaseUser, credential: AuthCredential, guestTokens: GuestTokenKeeper) {
         try {
             guest.linkWithCredential(credential).await()
         } catch (error: FirebaseAuthUserCollisionException) {
             // Before switching, because afterwards this guest is out of reach. A failure here stops the switch with the
             // guest still intact, so nothing is lost and the user can try again.
-            guest.getIdToken(true).await().token?.let { keepGuestToken(it) }
-            auth.signInWithCredential(error.updatedCredential ?: credential).await()
+            val kept = guest.getIdToken(true).await().token?.also { guestTokens.keepGuestToken(it) }
+            val switched = auth.signInWithCredential(error.updatedCredential ?: credential).await().user
+            // Only a token this switch kept: an older one on disk belongs to someone else.
+            if (kept != null) switched?.let { guestTokens.bindGuestToken(Uid(it.uid)) }
         } catch (error: FirebaseAuthInvalidUserException) {
             // Here it is the guest that is gone. The same error from signing in would only be about the Google account.
             auth.signOut()

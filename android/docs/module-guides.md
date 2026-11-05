@@ -53,7 +53,7 @@ Gradle runs these on every connected device, and uninstalls the app from each af
 | Caller leaves the screen during a sign-in | The sign-in finishes | Unit |
 | Guest links Google | Same uid, `Member`, observers not run | Auth emulator, unit |
 | Guest picks a Google account already used here | New uid, guest token sent, observers run | Auth emulator, unit |
-| That switch fails at the backend | Guest token kept, and sent on the next sign-in | Unit |
+| That switch fails at the backend | Guest token kept, and sent only if the same account signs in again | Unit |
 | That Google account is disabled | `AccountDisabled`, the guest stays | Auth emulator |
 | Account disabled while in use | Rejected when the token refreshes; the service ends the session, after any running sign-in | Auth emulator, unit |
 | Account deleted while in use | Same | Not proven: the emulator answers differently from the docs |

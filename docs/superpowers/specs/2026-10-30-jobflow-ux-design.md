@@ -140,11 +140,11 @@ One screen, two states. See canvas **F · Đăng nhập**.
   out by a network failure, a 5xx or an API 401.
 - **Known limit of that rollback:** it ends the guest's Firebase session for good, and
   a guest starts only once per install. To keep the data reachable, the app keeps the
-  guest token captured before sign-in and sends it again on the next Google sign-in.
-  The token lasts about an hour. After that the sign-in still works but `guestMerged`
-  is false, and the guest's server data stays behind with no way to reach it. This only
-  happens when the API fails during a merge and the user does not retry within the
-  hour. Keeping the token is not in the Android auth design yet and must be added.
+  guest token captured before sign-in and sends it when the same account signs in again,
+  never for another account. The token lasts about an hour. After that the sign-in still
+  works but `guestMerged` is false, and the guest's server data stays behind with no way
+  to reach it. This only happens when the API fails during a merge and that account does
+  not retry within the hour.
 
 ### Get Started: one sentence
 

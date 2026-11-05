@@ -29,6 +29,8 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
+private val NEXT_PERSON = IdentityUser(Uid("uid_next"), isAnonymous = false)
+
 @OptIn(ExperimentalCoroutinesApi::class)
 class AuthenticationServiceImplTest {
     private val google = SignInMethod.Google(IdToken("token"))
@@ -186,7 +188,7 @@ class AuthenticationServiceImplTest {
         assertEquals(Session.Member(OTHER_USER.uid), service.session.value)
         assertEquals("guest_token", api.ssoRequests.single().guestToken)
         assertEquals(OTHER_USER.uid, seen.last())
-        assertNull(pending.guestToken())
+        assertNull(pending.rawGuestToken())
     }
 
     @Test
@@ -242,7 +244,49 @@ class AuthenticationServiceImplTest {
         service.signIn(google)
 
         assertEquals("guest_token", api.ssoRequests.last().guestToken)
-        assertNull(pending.guestToken())
+        assertNull(pending.rawGuestToken())
+    }
+
+    @Test
+    fun `the next person on the device does not receive the guest's data`() = test {
+        val service = switchingService()
+        api.failure = IOException("offline")
+        service.signIn(google)
+        api.failure = null
+        identity.guestTokenAtSwitch = null
+        identity.userAfterGoogle = NEXT_PERSON
+
+        service.signIn(google)
+
+        assertNull(api.ssoRequests.last().guestToken)
+        assertEquals("guest_token", pending.rawGuestToken())
+    }
+
+    @Test
+    fun `someone else signing in does not clear the guest token`() = test {
+        val service = switchingService()
+        api.failure = IOException("offline")
+        service.signIn(google)
+        api.failure = null
+        identity.guestTokenAtSwitch = null
+        identity.userAfterGoogle = NEXT_PERSON
+        service.signIn(google)
+
+        identity.userAfterGoogle = OTHER_USER
+        service.signIn(google)
+
+        assertEquals("guest_token", api.ssoRequests.last().guestToken)
+        assertNull(pending.rawGuestToken())
+    }
+
+    @Test
+    fun `a token whose target was never recorded is not sent`() = test {
+        val service = switchingService()
+        identity.diesBeforeBinding = true
+
+        service.signIn(google)
+
+        assertNull(api.ssoRequests.single().guestToken)
     }
 
     @Test
@@ -252,7 +296,7 @@ class AuthenticationServiceImplTest {
 
         service.signIn(google)
 
-        assertEquals("guest_token", pending.guestToken())
+        assertEquals("guest_token", pending.rawGuestToken())
         assertEquals(guestSession, service.session.value)
     }
 
@@ -404,7 +448,7 @@ class AuthenticationServiceImplTest {
 
         service.signOut()
 
-        assertNull(pending.guestToken())
+        assertNull(pending.rawGuestToken())
     }
 
     @Test
