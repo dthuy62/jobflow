@@ -3,6 +3,12 @@ import type { UserId, VerifiedIdentity } from "./identity.js";
 export interface AuthVerifier {
   /** Throws InvalidTokenError or AuthUnavailableError. */
   verify(token: string): Promise<VerifiedIdentity>;
+  /**
+   * Asks the provider whether this valid token's user is anonymous now. A token says what was true
+   * when it was issued, and an anonymous one stays valid after the user links a real account.
+   * Throws InvalidTokenError or AuthUnavailableError.
+   */
+  stillAnonymous(token: string): Promise<boolean>;
 }
 
 export interface ResolvedUser {
@@ -12,15 +18,12 @@ export interface ResolvedUser {
 }
 
 export interface UserRepository {
-  /**
-   * The user with this subject, created on first sight. A deleted user is returned as deleted, never revived.
-   * The first token that is not anonymous marks the user as linked, so an old anonymous token of theirs cannot merge it away.
-   */
-  resolve(subject: string, isAnonymous: boolean): Promise<ResolvedUser>;
+  /** The user with this subject, created on first sight. A deleted user is returned as deleted, never revived. */
+  resolve(subject: string): Promise<ResolvedUser>;
   /**
    * Moves a guest's data to this member and closes the guest, all or nothing. True when the data
-   * is in this member now, also on a retry. False, with nothing changed, when it is the same user,
-   * a linked user, a guest the server never saw, or a guest already closed some other way.
+   * is in this member now, also on a retry. False, with nothing changed, when it is the same user
+   * or a guest already closed some other way. The caller checks first that the guest is anonymous.
    */
   mergeGuest(guestSubject: string, memberId: UserId): Promise<boolean>;
 }

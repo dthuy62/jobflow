@@ -37,6 +37,7 @@ services:
       PORT: "8080"
       DATABASE_URL: postgres://jobflow_app:dev-only-app@postgres:5432/jobflow
       FIREBASE_PROJECT_ID: demo-jobflow
+      FIREBASE_API_KEY: demo-key
     ports:
       - "127.0.0.1:8080:8080"
     depends_on:

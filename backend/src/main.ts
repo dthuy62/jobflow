@@ -12,7 +12,7 @@ async function main(): Promise<void> {
   const server = await createServer({
     config,
     pool,
-    authVerifier: createFirebaseAuthVerifier(config.firebaseProjectId),
+    authVerifier: createFirebaseAuthVerifier(config.firebaseProjectId, config.firebaseApiKey),
     users: createPgUserRepository(pool),
     devices: createPgDeviceRepository(pool)
   });

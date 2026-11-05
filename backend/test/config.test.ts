@@ -4,7 +4,8 @@ import { loadConfig, loadMigrationUrl, loadWorkerConfig } from "../src/config.js
 const valid = {
   JOBFLOW_ENV: "development",
   DATABASE_URL: "postgres://jobflow_app:s3cret-value@127.0.0.1:5432/jobflow",
-  FIREBASE_PROJECT_ID: "demo-jobflow"
+  FIREBASE_PROJECT_ID: "demo-jobflow",
+  FIREBASE_API_KEY: "demo-key"
 };
 
 function messageOf(action: () => unknown): string {
@@ -24,11 +25,12 @@ describe("loadConfig", () => {
       port: 8080,
       databaseUrl: valid.DATABASE_URL,
       firebaseProjectId: "demo-jobflow",
+      firebaseApiKey: "demo-key",
       trustProxyHops: 0
     });
   });
 
-  it.each(["JOBFLOW_ENV", "DATABASE_URL", "FIREBASE_PROJECT_ID"])("names a missing %s in the error", (name) => {
+  it.each(["JOBFLOW_ENV", "DATABASE_URL", "FIREBASE_PROJECT_ID", "FIREBASE_API_KEY"])("names a missing %s in the error", (name) => {
     const env: Record<string, string> = { ...valid };
     delete env[name];
     expect(messageOf(() => loadConfig(env))).toContain(name);
@@ -73,12 +75,16 @@ describe("loadConfig", () => {
 
   it("refuses the development Firebase project in production", () => {
     expect(messageOf(() => loadConfig({ ...valid, JOBFLOW_ENV: "production", FIREBASE_PROJECT_ID: "demo-jobflow" }))).toContain("FIREBASE_PROJECT_ID");
-    expect(loadConfig({ ...valid, JOBFLOW_ENV: "production", FIREBASE_PROJECT_ID: "jobflow-prod" }).firebaseProjectId).toBe("jobflow-prod");
+    expect(loadConfig({ ...valid, JOBFLOW_ENV: "production", FIREBASE_PROJECT_ID: "jobflow-prod", FIREBASE_API_KEY: "real-key" }).firebaseProjectId).toBe("jobflow-prod");
+  });
+
+  it("refuses the development Firebase key in production", () => {
+    expect(messageOf(() => loadConfig({ ...valid, JOBFLOW_ENV: "production", FIREBASE_PROJECT_ID: "jobflow-prod", FIREBASE_API_KEY: "demo-key" }))).toContain("FIREBASE_API_KEY");
   });
 
   it("looks only at the password, so a host name holding the marker is fine", () => {
     expect(() =>
-      loadConfig({ ...valid, JOBFLOW_ENV: "production", FIREBASE_PROJECT_ID: "jobflow-prod", DATABASE_URL: "postgres://app:real-password@dev-only-replica.internal/x" })
+      loadConfig({ ...valid, JOBFLOW_ENV: "production", FIREBASE_PROJECT_ID: "jobflow-prod", FIREBASE_API_KEY: "real-key", DATABASE_URL: "postgres://app:real-password@dev-only-replica.internal/x" })
     ).not.toThrow();
   });
 

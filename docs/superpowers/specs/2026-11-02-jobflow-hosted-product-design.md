@@ -169,7 +169,7 @@ Android app ──HTTPS + Firebase ID token + Play Integrity──► API servic
 
 | Data | Where | Protection |
 | --- | --- | --- |
-| User (Firebase uid, created, linked, deleted, merged into) | PostgreSQL | no email or name stored unless needed for support |
+| User (Firebase uid, created, deleted, merged into) | PostgreSQL | no email or name stored unless needed for support |
 | Preferences, tracker states, FCM tokens | PostgreSQL | per-user rows |
 | CV text (Markdown) | PostgreSQL, encrypted column | envelope encryption, per-user data key wrapped by a KMS key |
 | CV original file (PDF/DOCX) | object storage | encrypted with the same per-user key |
@@ -233,12 +233,12 @@ never contain CV text, prompts or AI output.
   - `POST /auth/sso`, with an optional `guestToken`, needs a token that is not
     anonymous. The account comes only from the Bearer token. A valid anonymous
     `guestToken` of another, unmerged user has its data moved in one transaction,
-    and that guest closes, so its token gets 401. A guest the server never saw has no
-    data, so nothing happens to it and its token works until it expires. An expired or invalid
-    `guestToken` never fails the sign-in: `guestMerged` is false. One that cannot be
-    checked because of an outage gets a 503 the app retries, so it does not give up on
-    the guest's data. Rules per table:
-    preferences keep the member's and the guest's only fill gaps; tracker entries
+    and that guest closes, so its token gets 401. The backend first asks Firebase
+    whether that user is still anonymous, because such a token stays valid for up to
+    an hour after a link, and closing a linked user would lock out a real account. An
+    expired or invalid `guestToken` never fails the sign-in: `guestMerged` is false.
+    One that cannot be checked because of an outage gets a 503 the app retries, so it
+    does not give up on the guest's data. Rules per table: preferences keep the member's and the guest's only fill gaps; tracker entries
     combine and the newer wins for the same job; a CV moves only if the member has
     none, encrypted again with the member's key; the guest's FCM tokens are dropped.
   - `POST /auth/logout` removes the caller's device row and FCM token for one
