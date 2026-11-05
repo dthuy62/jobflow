@@ -31,9 +31,7 @@ class GoogleSignIn @Inject constructor(
     private val pending: PendingLogin,
 ) {
     suspend fun signIn(idToken: IdToken): Either<AuthError, Unit> =
-        identity.signInWithGoogle(idToken).flatMap { result ->
-            // Once switched there is no way back to the guest, so this token is the only proof left for a later retry.
-            (result as? GoogleSignInResult.Switched)?.guestToken?.let(pending::keepGuestToken)
+        identity.signInWithGoogle(idToken, keepGuestToken = { pending.keepGuestToken(it) }).flatMap {
             identity.confirmOrSignOut { api.sso(SsoRequest(pending.guestToken())) }
                 .map { pending.clearGuestToken() }
         }

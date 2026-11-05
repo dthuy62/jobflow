@@ -27,8 +27,6 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.tasks.await
 import me.dthuy.jobflow.core.common.Either
 import me.dthuy.jobflow.core.common.catch
-import me.dthuy.jobflow.core.common.getOrNull
-import me.dthuy.jobflow.data.auth.GoogleSignInResult
 import me.dthuy.jobflow.data.auth.IdentityProvider
 import me.dthuy.jobflow.data.auth.IdentityUser
 import me.dthuy.jobflow.domain.auth.AuthError
@@ -62,34 +60,37 @@ class FirebaseIdentityProvider @Inject constructor(
         auth.signInAnonymously().await()
     }
 
-    override suspend fun signInWithGoogle(idToken: IdToken): Either<AuthError, GoogleSignInResult> =
-        Either.catch(onError = FirebaseAuthErrorMapper::map) {
-            val credential = GoogleAuthProvider.getCredential(idToken.value, null)
-            val guest = auth.currentUser?.takeIf { it.isAnonymous }
-            val result = if (guest != null) {
-                linkOrSwitch(guest, credential)
-            } else {
-                auth.signInWithCredential(credential).await()
-                GoogleSignInResult.Switched(guestToken = null)
-            }
-            refreshToken()
-            result
+    override suspend fun signInWithGoogle(
+        idToken: IdToken,
+        keepGuestToken: suspend (String) -> Unit,
+    ): Either<AuthError, Unit> = Either.catch(onError = FirebaseAuthErrorMapper::map) {
+        val credential = GoogleAuthProvider.getCredential(idToken.value, null)
+        val guest = auth.currentUser?.takeIf { it.isAnonymous }
+        if (guest != null) {
+            linkOrSwitch(guest, credential, keepGuestToken)
+        } else {
+            auth.signInWithCredential(credential).await()
         }
+        refreshToken()
+    }
 
-    private suspend fun linkOrSwitch(guest: FirebaseUser, credential: AuthCredential): GoogleSignInResult = try {
-        guest.linkWithCredential(credential).await()
-        GoogleSignInResult.Linked
-    } catch (error: FirebaseAuthUserCollisionException) {
-        // Must come first: once signed in to the other account, this guest is out of reach.
-        val guestToken = Either.catch(onError = { Timber.w(it, "Could not read the guest's token") }) {
-            guest.getIdToken(true).await().token
-        }.getOrNull()
-        auth.signInWithCredential(error.updatedCredential ?: credential).await()
-        GoogleSignInResult.Switched(guestToken)
-    } catch (error: FirebaseAuthInvalidUserException) {
-        // Here it is the guest that is gone. The same error from signing in would only be about the Google account.
-        auth.signOut()
-        throw error
+    private suspend fun linkOrSwitch(
+        guest: FirebaseUser,
+        credential: AuthCredential,
+        keepGuestToken: suspend (String) -> Unit,
+    ) {
+        try {
+            guest.linkWithCredential(credential).await()
+        } catch (error: FirebaseAuthUserCollisionException) {
+            // Before switching, because afterwards this guest is out of reach. A failure here stops the switch with the
+            // guest still intact, so nothing is lost and the user can try again.
+            guest.getIdToken(true).await().token?.let { keepGuestToken(it) }
+            auth.signInWithCredential(error.updatedCredential ?: credential).await()
+        } catch (error: FirebaseAuthInvalidUserException) {
+            // Here it is the guest that is gone. The same error from signing in would only be about the Google account.
+            auth.signOut()
+            throw error
+        }
     }
 
     // The API reads anonymous or not from the token, so it wants one issued after a sign-in. Best effort: the sign-in

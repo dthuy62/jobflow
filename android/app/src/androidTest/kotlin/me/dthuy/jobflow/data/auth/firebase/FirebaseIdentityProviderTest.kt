@@ -20,7 +20,6 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withTimeout
 import me.dthuy.jobflow.core.common.Either
-import me.dthuy.jobflow.data.auth.GoogleSignInResult
 import me.dthuy.jobflow.data.auth.IdentityUser
 import me.dthuy.jobflow.domain.auth.AuthError
 import me.dthuy.jobflow.domain.auth.IdToken
@@ -93,7 +92,11 @@ class FirebaseIdentityProviderTest {
         val guestUid = auth.uid!!
         val seen = listening()
 
-        assertEquals(Either.Right(GoogleSignInResult.Linked), provider.signInWithGoogle(googleToken("linked")))
+        var kept: String? = null
+
+        assertEquals(Either.Right(Unit), provider.signInWithGoogle(googleToken("linked")) { kept = it })
+
+        assertNull(kept)
 
         val latest = within { seen.first { it.lastOrNull()?.isAnonymous == false } }.last()
         assertEquals(IdentityUser(Uid(guestUid), isAnonymous = false), latest)
@@ -105,9 +108,11 @@ class FirebaseIdentityProviderTest {
         provider.startGuest()
         val seen = listening()
 
-        val result = provider.signInWithGoogle(googleToken("existing"))
+        var kept: String? = null
 
-        assertNotNull(((result as Either.Right).value as GoogleSignInResult.Switched).guestToken)
+        assertEquals(Either.Right(Unit), provider.signInWithGoogle(googleToken("existing")) { kept = it })
+
+        assertNotNull(kept)
 
         val latest = within { seen.first { it.lastOrNull()?.uid == Uid(existingUid) } }.last()
         assertEquals(IdentityUser(Uid(existingUid), isAnonymous = false), latest)
@@ -120,7 +125,7 @@ class FirebaseIdentityProviderTest {
         provider.startGuest()
         val guestUid = auth.uid
 
-        val result = provider.signInWithGoogle(googleToken("disabled"))
+        val result = provider.signInWithGoogle(googleToken("disabled")) {}
 
         assertEquals(Either.Left(AuthError.AccountDisabled), result)
         assertEquals(guestUid, auth.uid)
@@ -129,7 +134,7 @@ class FirebaseIdentityProviderTest {
     // A deleted account is not tested here: the emulator answers INVALID_REFRESH_TOKEN, not the documented invalid-user error.
     @Test
     fun an_account_disabled_elsewhere_is_reported_when_the_token_refreshes() = runBlocking {
-        provider.signInWithGoogle(googleToken("disabled_later"))
+        provider.signInWithGoogle(googleToken("disabled_later")) {}
         val uid = auth.uid!!
         val rejected = scope.async(start = CoroutineStart.UNDISPATCHED) { provider.rejected.first() }
         disable(uid)
@@ -141,7 +146,7 @@ class FirebaseIdentityProviderTest {
 
     @Test
     fun signing_out_is_reported_and_starts_no_guest() = runBlocking {
-        provider.signInWithGoogle(googleToken("leaving"))
+        provider.signInWithGoogle(googleToken("leaving")) {}
         val seen = listening()
 
         provider.signOut()

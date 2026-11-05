@@ -213,7 +213,7 @@ class AuthenticationServiceImplTest {
     fun `a provider failure leaves the session and never reaches the backend`() = test {
         val service = service()
         identity.publish(GUEST_USER)
-        identity.googleResult = Either.Left(AuthError.SignInFailed)
+        identity.googleFailure = AuthError.SignInFailed
 
         assertEquals(Either.Left(AuthError.SignInFailed), service.signIn(google))
 
@@ -241,12 +241,23 @@ class AuthenticationServiceImplTest {
         api.failure = IOException("offline")
         service.signIn(google)
         api.failure = null
-        identity.googleResult = Either.Right(GoogleSignInResult.Switched(guestToken = null))
+        identity.guestTokenAtSwitch = null
 
         service.signIn(google)
 
         assertEquals("guest_token", api.ssoRequests.last().guestToken)
         assertNull(pending.guestToken())
+    }
+
+    @Test
+    fun `the guest token is on disk even if the switch never finishes`() = test {
+        val service = switchingService()
+        identity.googleFailure = AuthError.Network
+
+        service.signIn(google)
+
+        assertEquals("guest_token", pending.guestToken())
+        assertEquals(guestSession, service.session.value)
     }
 
     @Test
@@ -259,6 +270,18 @@ class AuthenticationServiceImplTest {
         service.signIn(google)
 
         assertEquals(PendingSignIn.GOOGLE, mark)
+    }
+
+    @Test
+    fun `a sign-in that cannot leave its mark does not start`() = test {
+        val service = service()
+        identity.publish(GUEST_USER)
+        pending.canWrite = false
+
+        assertEquals(Either.Left(AuthError.SignInFailed), service.signIn(google))
+
+        assertTrue(identity.tokens.isEmpty())
+        assertEquals(guestSession, service.session.value)
     }
 
     @Test
@@ -470,7 +493,7 @@ class AuthenticationServiceImplTest {
     private suspend fun TestScope.switchingService() = service().also {
         identity.publish(GUEST_USER)
         identity.userAfterGoogle = OTHER_USER
-        identity.googleResult = Either.Right(GoogleSignInResult.Switched("guest_token"))
+        identity.guestTokenAtSwitch = "guest_token"
     }
 
     private fun TestScope.service(vararg observers: SessionObserver): AuthenticationServiceImpl =

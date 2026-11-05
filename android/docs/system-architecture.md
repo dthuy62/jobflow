@@ -120,8 +120,9 @@ sequenceDiagram
         I-->>S: error
         S-->>VM: error, session unchanged
     else provider succeeds
-        I-->>S: Linked or Switched(guestToken)
-        S->>A: POST /auth/sso
+        Note over S,I: Before a switch, the guest token is saved first
+        I-->>S: done
+        S->>A: POST /auth/sso, with the saved token if any
         alt API succeeds
             A-->>S: account
             S->>S: run observers, publish session

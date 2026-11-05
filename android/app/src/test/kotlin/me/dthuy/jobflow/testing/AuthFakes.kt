@@ -7,7 +7,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import me.dthuy.jobflow.core.common.Either
 import me.dthuy.jobflow.data.auth.AuthApi
-import me.dthuy.jobflow.data.auth.GoogleSignInResult
 import me.dthuy.jobflow.data.auth.GuestLedger
 import me.dthuy.jobflow.data.auth.IdentityProvider
 import me.dthuy.jobflow.data.auth.IdentityUser
@@ -37,9 +36,10 @@ class FakeIdentityProvider : IdentityProvider {
     override var currentUser: IdentityUser? = null
 
     var guestFailure: AuthError? = null
-    var googleResult: Either<AuthError, GoogleSignInResult> = Either.Right(GoogleSignInResult.Linked)
+    var googleFailure: AuthError? = null
+    var guestTokenAtSwitch: String? = null
     var userAfterGoogle: IdentityUser = LINKED_USER
-    var onSignInStart: () -> Unit = {}
+    var onSignInStart: suspend () -> Unit = {}
     val tokens = mutableListOf<IdToken>()
     var signOuts = 0
 
@@ -57,11 +57,16 @@ class FakeIdentityProvider : IdentityProvider {
         return Either.Right(Unit)
     }
 
-    override suspend fun signInWithGoogle(idToken: IdToken): Either<AuthError, GoogleSignInResult> {
+    override suspend fun signInWithGoogle(
+        idToken: IdToken,
+        keepGuestToken: suspend (String) -> Unit,
+    ): Either<AuthError, Unit> {
         onSignInStart()
         tokens += idToken
-        if (googleResult is Either.Right) publish(userAfterGoogle)
-        return googleResult
+        guestTokenAtSwitch?.let { keepGuestToken(it) }
+        googleFailure?.let { return Either.Left(it) }
+        publish(userAfterGoogle)
+        return Either.Right(Unit)
     }
 
     override suspend fun signOut() {
@@ -107,9 +112,9 @@ class FakeAuthApi : AuthApi {
 class FakeGuestLedger : GuestLedger {
     private var used = false
 
-    override fun isUsed() = used
+    override suspend fun isUsed() = used
 
-    override fun markUsed() {
+    override suspend fun markUsed() {
         used = true
     }
 }
@@ -118,23 +123,26 @@ class FakePendingLogin : PendingLogin {
     private var running: PendingSignIn? = null
     private var token: String? = null
 
-    override fun running() = running
+    var canWrite = true
 
-    override fun begin(signIn: PendingSignIn) {
-        running = signIn
+    override suspend fun running() = running
+
+    override suspend fun begin(signIn: PendingSignIn): Boolean {
+        if (canWrite) running = signIn
+        return canWrite
     }
 
-    override fun finish() {
+    override suspend fun finish() {
         running = null
     }
 
-    override fun guestToken() = token
+    override suspend fun guestToken() = token
 
-    override fun keepGuestToken(token: String) {
+    override suspend fun keepGuestToken(token: String) {
         this.token = token
     }
 
-    override fun clearGuestToken() {
+    override suspend fun clearGuestToken() {
         token = null
     }
 }

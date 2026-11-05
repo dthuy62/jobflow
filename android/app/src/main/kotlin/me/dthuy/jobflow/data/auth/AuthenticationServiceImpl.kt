@@ -2,6 +2,7 @@ package me.dthuy.jobflow.data.auth
 
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -80,7 +81,8 @@ class AuthenticationServiceImpl @Inject constructor(
         kind: PendingSignIn,
         signIn: suspend () -> Either<AuthError, Unit>,
     ): Either<AuthError, Unit> {
-        pending.begin(kind)
+        // Without the mark, the app dying halfway could not be undone, so nothing may start.
+        if (!pending.begin(kind)) return Either.Left(AuthError.SignInFailed)
         // Finally skips a dead process, which is what the mark is for. A cancelled task must not leave the mark behind.
         val result = try {
             signIn()
@@ -122,7 +124,7 @@ class AuthenticationServiceImpl @Inject constructor(
 
     // Best effort and bounded: signing out must work offline. Only removes this device's push registration.
     private suspend fun tellTheBackend() {
-        withTimeoutOrNull(LOGOUT_TIMEOUT_MS) {
+        withTimeoutOrNull(LOGOUT_TIMEOUT_MS.milliseconds) {
             Either.catch(onError = { Timber.w(it, "Could not tell the backend about the sign-out") }) {
                 installations.id()?.let { api.logout(LogoutRequest(it)) }
             }

@@ -1,29 +1,27 @@
 package me.dthuy.jobflow.data.auth
 
-import android.content.Context
-import androidx.core.content.edit
-import dagger.hilt.android.qualifiers.ApplicationContext
+import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import javax.inject.Inject
 import javax.inject.Singleton
 
-/** Remembers that this install of the app has had its guest. */
+/** Remembers that this install of the app has had its guest. Uninstalling is what resets it. */
 interface GuestLedger {
-    fun isUsed(): Boolean
+    suspend fun isUsed(): Boolean
 
-    fun markUsed()
+    suspend fun markUsed()
 }
 
-/** Left out of backup and device transfer (`data_extraction_rules.xml`), so uninstalling is what resets it. */
 @Singleton
-class PreferencesGuestLedger @Inject constructor(@ApplicationContext context: Context) : GuestLedger {
-    private val preferences = context.getSharedPreferences(FILE, Context.MODE_PRIVATE)
+class DataStoreGuestLedger @Inject constructor(@AuthStore private val store: DataStore<Preferences>) : GuestLedger {
+    override suspend fun isUsed(): Boolean = store.current()[USED] == true
 
-    override fun isUsed(): Boolean = preferences.getBoolean(KEY_USED, false)
-
-    override fun markUsed() = preferences.edit { putBoolean(KEY_USED, true) }
+    override suspend fun markUsed() {
+        store.tryEdit { it[USED] = true }
+    }
 
     private companion object {
-        const val FILE = "auth_guest"
-        const val KEY_USED = "used"
+        val USED = booleanPreferencesKey("guest_used")
     }
 }

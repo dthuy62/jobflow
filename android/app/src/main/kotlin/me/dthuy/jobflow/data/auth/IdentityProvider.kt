@@ -8,14 +8,6 @@ import me.dthuy.jobflow.domain.auth.Uid
 
 data class IdentityUser(val uid: Uid, val isAnonymous: Boolean)
 
-sealed interface GoogleSignInResult {
-    /** The guest became this account and kept their identity, so no data has to move. */
-    data object Linked : GoogleSignInResult
-
-    /** This is another account. [guestToken] proves who the guest was, if there was one, so the backend can merge. */
-    data class Switched(val guestToken: String?) : GoogleSignInResult
-}
-
 /**
  * The boundary with the identity vendor. Nothing above it knows how linking works, so changing that mechanism or the
  * vendor means replacing the implementation, which lives in `data/auth/firebase`.
@@ -31,7 +23,11 @@ interface IdentityProvider : IdTokenSource {
 
     suspend fun startGuest(): Either<AuthError, Unit>
 
-    suspend fun signInWithGoogle(idToken: IdToken): Either<AuthError, GoogleSignInResult>
+    /**
+     * Upgrades a guest and keeps their identity if it can. If this Google account already exists, the guest cannot be
+     * reached again afterwards, so [keepGuestToken] gets the proof of who they were first, for the backend to merge.
+     */
+    suspend fun signInWithGoogle(idToken: IdToken, keepGuestToken: suspend (String) -> Unit): Either<AuthError, Unit>
 
     /** On this device only: the backend is not told. */
     suspend fun signOut()
