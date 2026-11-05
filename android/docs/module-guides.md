@@ -24,8 +24,8 @@ signed in. Start a sign-in from a ViewModel, passing it `requestGoogleIdToken(co
 `SettingsViewModel`, the ViewModel's scope survives rotation and blocks a second tap. To clear data of your own when the
 session changes, implement `SessionObserver` and register it with `@IntoSet`, as `FeedSessionCleanup` does.
 
-To reuse auth in another project, copy `domain/auth`, `data/auth`, `ui/auth`, `di/AuthModule.kt`, `core/common` and
-`app/src/main/res/values/strings_auth.xml`.
+To reuse auth in another project, copy `domain/auth`, `data/auth`, `ui/auth`, `di/AuthModule.kt`, `core/common` and the
+`error_auth_*` strings from `strings.xml`.
 
 Session rules are tested on the JVM with `FakeIdentityProvider`. What a fake cannot prove runs the real SDK against the
 local Auth emulator, outside the verify command because it needs a device. With an emulator or device connected:

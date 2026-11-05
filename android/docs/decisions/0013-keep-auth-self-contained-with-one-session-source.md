@@ -32,5 +32,5 @@ cases for each command (pass-throughs; `SignInWithGoogle` earns one when it has 
 ## Consequences
 
 Session rules are tested on the JVM with a fake, and the SDK's real behaviour against the Auth emulator. A new per-user
-table adds one observer. To reuse auth in another project, copy those folders, `core/common` and `strings_auth.xml`, then
-pass the web client id to `requestGoogleIdToken`. The boundary is only as strong as Konsist until a module exists.
+table adds one observer. To reuse auth in another project, copy those folders, `core/common` and the `error_auth_*` strings,
+then pass the web client id to `requestGoogleIdToken`. The boundary is only as strong as Konsist until a module exists.
