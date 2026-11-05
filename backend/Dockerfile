@@ -20,8 +20,9 @@ RUN npm ci --omit=dev --ignore-scripts --no-audit --no-fund -w @jobflow/backend 
 
 FROM node:22-slim@sha256:4b150b48b4116e2a22f2c39cc27025fbf4f153e2078fd3b14d159fdb5c7279da
 ENV NODE_ENV=production
-# The API never installs anything, and npm's bundled packages would add their own vulnerabilities.
-RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack
+# The API never installs anything, and npm's bundled packages and apt would add their own vulnerabilities.
+RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack \
+  && dpkg --purge apt libapt-pkg6.0
 WORKDIR /app
 COPY --from=production-deps /app/node_modules node_modules
 COPY --from=build /app/packages/contract/package.json packages/contract/package.json
