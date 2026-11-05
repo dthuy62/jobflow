@@ -74,6 +74,8 @@ checked. So scan and evaluator workers normalize each value and validate against
   route still creates a missing user, so a failed call here does not lock the app out.
 - `POST /auth/sso` keeps the app signed in when a merge is not possible: `guestMerged` is
   false. A 503 there means the merge could not be tried yet, so retry with the same `guestToken`.
+  A retry after that token expires answers false even if an earlier call merged, so do not tell
+  the user that data was lost because of `guestMerged` alone.
 - A closed guest gets 401 like any invalid token, including on `POST /auth/logout`.
 - Lists are `{ "items", "nextCursor" }`. `nextCursor` is opaque and null on the last page.
 - Ids and cursors are opaque strings of letters, digits, `.`, `_` and `-`, starting with a

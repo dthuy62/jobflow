@@ -157,9 +157,22 @@ describe("the auth routes, with real PostgreSQL and the app role", () => {
       }
     });
 
-    it("closes a guest that never reached the API, so its token stops working too", async () => {
-      expect(merged(await sso("member-early", { guestToken: "test-anon-unseen" }))).toBe(true);
-      expect((await me("anon-unseen")).statusCode).toBe(401);
+    it("merges for only one member when different members race for a guest", async () => {
+      for (let round = 0; round < 10; round += 1) {
+        await me(`anon-contested-${round}`);
+        const responses = await Promise.all(["a", "b", "c"].map((name) => sso(`member-${name}-${round}`, { guestToken: `test-anon-contested-${round}` })));
+        expect(responses.map(merged).filter(Boolean)).toHaveLength(1);
+      }
+    });
+
+    it("has nothing to merge from a guest the server never saw, and creates no row for it", async () => {
+      expect(merged(await sso("member-early", { guestToken: "test-anon-unseen" }))).toBe(false);
+      expect(await userRow("anon-unseen")).toBeUndefined();
+    });
+
+    it("does not close an account the server never saw, through its anonymous token from before Firebase linked it", async () => {
+      expect(merged(await sso("thief-early", { guestToken: "stale-unseen-account" }))).toBe(false);
+      expect((await me("unseen-account")).statusCode).toBe(200);
     });
 
     it("does not merge a guest already merged into someone else", async () => {
@@ -193,6 +206,18 @@ describe("the auth routes, with real PostgreSQL and the app role", () => {
       expect((await me("real-account")).statusCode).toBe(200);
     });
 
+    it("protects a member whose /auth/sso failed, once any route has seen their real token", async () => {
+      await server.inject({ url: "/api/v1/me", headers: { authorization: "Bearer stale-safety-net" } });
+      expect((await userRow("safety-net")).linked_at).toBeNull();
+      await me("safety-net");
+      const { linked_at: linkedAt, version } = await userRow("safety-net");
+      expect(linkedAt).not.toBeNull();
+
+      expect(merged(await sso("thief-net", { guestToken: "stale-safety-net" }))).toBe(false);
+      expect((await me("safety-net")).statusCode).toBe(200);
+      expect((await userRow("safety-net")).version).toBe(version);
+    });
+
     it("does not merge a token that is not anonymous, and does not touch that member", async () => {
       await me("other-member");
       expect(merged(await sso("member-wrong-kind", { guestToken: "test-other-member" }))).toBe(false);
@@ -202,7 +227,8 @@ describe("the auth routes, with real PostgreSQL and the app role", () => {
     it.each([
       ["signed by no one", "garbage"],
       ["with spaces", "not a token"],
-      ["empty", ""]
+      ["empty", ""],
+      ["over 4096 characters", "x".repeat(4097)]
     ])("still signs in when the guestToken is %s", async (_name, guestToken) => {
       const response = await sso("member-bad-token", { guestToken });
       expect(merged(response)).toBe(false);
@@ -249,6 +275,7 @@ describe("the auth routes, with real PostgreSQL and the app role", () => {
           payload: { guestToken }
         });
 
+      await realServer.inject({ url: "/api/v1/me", headers: { authorization: `Bearer ${await sign("real-guest", true, now + 3600)}` } });
       expect(merged(await call(await sign("real-guest", true, now - 3600)))).toBe(false);
       expect(merged(await call(await sign("real-guest", true, now + 3600)))).toBe(true);
       await realServer.close();
@@ -280,6 +307,17 @@ describe("the auth routes, with real PostgreSQL and the app role", () => {
       expect((await userRow("anon-rollback")).deleted_at).toBeNull();
       expect((await me("anon-rollback")).statusCode).toBe(200);
       expect(merged(await sso("member-rollback", { guestToken: "test-anon-rollback" }))).toBe(true);
+    });
+
+    it("answers 503 and keeps running when the database connection dies during a merge, and the retry works", async () => {
+      await me("anon-dropped");
+      const dropping = await serverWith(authVerifier, [(client) => client.query("select pg_terminate_backend(pg_backend_pid())")]);
+      const response = await sso("member-dropped", { guestToken: "test-anon-dropped" }, dropping);
+      await dropping.close();
+
+      expect(response.statusCode).toBe(503);
+      expect((await userRow("anon-dropped")).deleted_at).toBeNull();
+      expect(merged(await sso("member-dropped", { guestToken: "test-anon-dropped" }))).toBe(true);
     });
 
     it("gives every connection back to the pool, whatever the outcome", async () => {

@@ -231,7 +231,9 @@ never contain CV text, prompts or AI output.
     anonymous. The account comes only from the Bearer token. A valid anonymous
     `guestToken` of another, unmerged user has its data moved in one transaction,
     and that guest closes, so its token gets 401. An expired or invalid
-    `guestToken` never fails the sign-in: `guestMerged` is false. Rules per table:
+    `guestToken` never fails the sign-in: `guestMerged` is false. One that cannot be
+    checked because of an outage gets a 503 the app retries, so it does not give up on
+    the guest's data. Rules per table:
     preferences keep the member's and the guest's only fill gaps; tracker entries
     combine and the newer wins for the same job; a CV moves only if the member has
     none, encrypted again with the member's key; the guest's FCM tokens are dropped.

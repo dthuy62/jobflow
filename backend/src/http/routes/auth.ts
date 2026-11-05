@@ -51,10 +51,7 @@ export function registerAuthRoutes(scope: FastifyInstance, { authVerifier, users
     if (auth.isAnonymous) throw new ApiError(403, "SIGN_IN_REQUIRED", "Sign in with Google to use this.");
     const { guestToken } = parseRequest(SsoRequestSchema, request.body);
     const guest = guestToken === undefined ? undefined : await verifyGuest(request, authVerifier, guestToken);
-    const guestMerged = await orUnavailable(request, async () => {
-      await users.markLinked(auth.userId);
-      return guest !== undefined && (await users.mergeGuest(guest.subject, auth.userId));
-    });
+    const guestMerged = guest !== undefined && (await orUnavailable(request, () => users.mergeGuest(guest.subject, auth.userId)));
     return SsoResponseDtoSchema.parse({ account: meDto(auth), guestMerged });
   });
 

@@ -93,7 +93,7 @@ describe("GET /api/v1/me, with real PostgreSQL and the app role", () => {
         return pool.query(sql, args as never[]);
       }) as never
     };
-    await expect(createPgUserRepository(racing).resolve("gone-race")).resolves.toMatchObject({ deleted: true });
+    await expect(createPgUserRepository(racing).resolve("gone-race", false)).resolves.toMatchObject({ deleted: true });
     expect((await pool.query("select deleted_at from users where auth_subject = 'gone-race'")).rows[0].deleted_at).toEqual(before);
   });
 

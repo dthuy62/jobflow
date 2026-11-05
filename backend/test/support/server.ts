@@ -37,7 +37,6 @@ export function createMemoryUsers(): UserRepository & { readonly deletedSubjects
       }
       return { ...user, deleted: deletedSubjects.has(subject) };
     },
-    markLinked: async () => undefined,
     mergeGuest: async () => false
   };
 }

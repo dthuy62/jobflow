@@ -295,7 +295,7 @@ describe("schemas", () => {
 
   it("let a guest token that is malformed reach the verifier, so it cannot fail the sign-in", () => {
     for (const guestToken of ["", "not a token", "a\nb"]) expect(SsoRequestSchema.parse({ guestToken })).toEqual({ guestToken });
-    expect(SsoRequestSchema.safeParse({ guestToken: "x".repeat(4097) }).success).toBe(false);
+    expect(SsoRequestSchema.parse({ guestToken: "x".repeat(4097) }).guestToken).toHaveLength(4097);
     expect(SsoRequestSchema.safeParse({ guestToken: 1 }).success).toBe(false);
   });
 

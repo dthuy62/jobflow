@@ -1,6 +1,6 @@
 -- Up Migration
--- linked_at: when this user first finished a sign-in with a real account. An anonymous token
--- issued before Firebase linked the account stays valid for up to an hour, and must not merge it.
+-- linked_at: when this user first used a token that is not anonymous. An anonymous token issued
+-- before Firebase linked the account stays valid for up to an hour, and must not merge it.
 -- merged_into: where a closed guest's data went, so a retry gets the same answer.
 ALTER TABLE users
   ADD COLUMN linked_at timestamptz,
