@@ -52,10 +52,15 @@ fun accountUiState(session: Session, activity: AccountActivity): AccountUiState 
         AccountActivity.Running -> AccountUiState(AccountKind.LOADING)
         // Only a sign-in can fail for a member, so the button stays to try it again.
         is AccountActivity.ActionFailed -> idle.copy(error = activity.error, canSignIn = true)
-        is AccountActivity.CheckFailed -> idle.copy(
-            error = activity.error,
-            canSignIn = idle.canSignIn || activity.error.action == ErrorAction.SignIn,
-            canRetry = activity.error.action == ErrorAction.Retry,
-        )
+        // A failed check says nothing once nobody is signed in, however it got here.
+        is AccountActivity.CheckFailed -> if (!session.isSignedIn) {
+            idle
+        } else {
+            idle.copy(
+                error = activity.error,
+                canSignIn = idle.canSignIn || activity.error.action == ErrorAction.SignIn,
+                canRetry = activity.error.action == ErrorAction.Retry,
+            )
+        }
     }
 }

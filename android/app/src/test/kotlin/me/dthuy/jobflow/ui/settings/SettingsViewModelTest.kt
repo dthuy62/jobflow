@@ -273,5 +273,76 @@ class SettingsViewModelTest {
         assertEquals(1, auth.signOuts)
     }
 
+    @Test
+    fun `a session that ends while the sheet is open does not bring the failed check back`() = runTest {
+        accounts.account = Either.Left(AppError.Unreachable)
+        val auth = FakeAuthRepository()
+        val vm = settings(auth)
+        backgroundScope.launch(dispatcher) { vm.uiState.collect {} }
+        val sheet = CompletableDeferred<Unit>()
+
+        vm.onSignIn {
+            sheet.await()
+            Either.Right(null)
+        }
+        auth.publish(Session.SignedOut(canStartGuest = false))
+        sheet.complete(Unit)
+
+        assertNull(vm.uiState.value.account.error)
+        assertFalse(vm.uiState.value.account.canRetry)
+    }
+
+    @Test
+    fun `a retry that fails after the session ended offers no retry`() = runTest {
+        accounts.account = Either.Left(AppError.Unreachable)
+        val auth = FakeAuthRepository(session = MEMBER_SESSION)
+        val vm = settings(auth)
+        backgroundScope.launch(dispatcher) { vm.uiState.collect {} }
+
+        auth.publish(Session.SignedOut(canStartGuest = false))
+        vm.onRetryAccount()
+
+        assertNull(vm.uiState.value.account.error)
+        assertFalse(vm.uiState.value.account.canRetry)
+    }
+
+    @Test
+    fun `a cancelled sign-in keeps the prompt of a member the API rejected`() = runTest {
+        accounts.account = Either.Left(AppError.Unauthorized)
+        val vm = settings(FakeAuthRepository(session = MEMBER_SESSION))
+        backgroundScope.launch(dispatcher) { vm.uiState.collect {} }
+
+        vm.onSignIn { throw CancellationException("Task was cancelled") }
+
+        assertTrue(vm.uiState.value.account.canSignIn)
+    }
+
+    @Test
+    fun `a cancelled retry keeps the retry button`() = runTest {
+        accounts.account = Either.Left(AppError.Unreachable)
+        val vm = settings(FakeAuthRepository(session = MEMBER_SESSION))
+        backgroundScope.launch(dispatcher) { vm.uiState.collect {} }
+        accounts.failure = CancellationException("Task was cancelled")
+
+        vm.onRetryAccount()
+
+        assertTrue(vm.uiState.value.account.canRetry)
+    }
+
+    @Test
+    fun `signing in again as the same member asks the API again`() = runTest {
+        accounts.account = Either.Left(AppError.Unauthorized)
+        val auth = FakeAuthRepository(session = MEMBER_SESSION)
+        val vm = settings(auth)
+        backgroundScope.launch(dispatcher) { vm.uiState.collect {} }
+        val checksBefore = accounts.calls
+
+        vm.onSignIn { Either.Right(token) }
+
+        assertEquals(checksBefore + 1, accounts.calls)
+        assertTrue(vm.uiState.value.account.canSignIn)
+        assertNotNull(vm.uiState.value.account.error)
+    }
+
     private fun settings(auth: FakeAuthRepository) = SettingsViewModel(FakeHealthRepository(), auth, accounts)
 }

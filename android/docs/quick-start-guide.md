@@ -13,6 +13,7 @@ curl http://127.0.0.1:4010/api/v1/health
 A fresh clone needs two ignored files before it builds, once per machine:
 
 ```bash
+cd android
 base64 --decode < debug.keystore.base64 > debug.keystore
 cp ci/google-services.json app/google-services.json
 ```
@@ -33,7 +34,7 @@ Verify everything before saying a task is done:
 ./gradlew assembleDevDebug testDevDebugUnitTest lintDevDebug detekt ktlintCheck
 ```
 
-`./gradlew ktlintFormat` fixes formatting. This is the same command CI runs.
+`./gradlew ktlintFormat` fixes formatting. CI runs this command, and also compiles the instrumented tests.
 
 ## Add a screen
 

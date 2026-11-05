@@ -64,33 +64,22 @@ class SettingsViewModel @Inject constructor(
     init {
         viewModelScope.launch {
             authRepository.session.collectLatest { session ->
-                if (session.isSignedIn) checkAccount() else clearFailedCheck()
+                if (session.isSignedIn) checkAccount()
             }
         }
     }
 
-    fun onRetryAccount() = runAction {
-        accountRepository.account().mapLeft(AppError::toUiError).toActivity(AccountActivity::CheckFailed)
-    }
+    fun onRetryAccount() = runAction { recheckAccount() }
 
     /**
      * Runs [requestToken] here and not in a screen's scope: rotating the screen would cancel that scope and drop the
      * result. A null token means the user closed Google's sheet, so everything stays as it was.
      */
-    fun onSignIn(requestToken: suspend () -> Either<AuthError, IdToken?>) {
-        val before = activity.value
-        runAction {
-            requestToken().fold(
-                onLeft = { AccountActivity.ActionFailed(it.toUiError()) },
-                onRight = { token ->
-                    if (token == null) {
-                        before
-                    } else {
-                        authRepository.signInWithGoogle(token).mapLeft(AuthError::toUiError).toActivity()
-                    }
-                },
-            )
-        }
+    fun onSignIn(requestToken: suspend () -> Either<AuthError, IdToken?>) = runAction { before ->
+        requestToken().fold(
+            onLeft = { AccountActivity.ActionFailed(it.toUiError()) },
+            onRight = { token -> if (token == null) before else signIn(token, before) },
+        )
     }
 
     fun onContinueAsGuest() = runAction { authRepository.continueAsGuest().mapLeft(AuthError::toUiError).toActivity() }
@@ -100,13 +89,24 @@ class SettingsViewModel @Inject constructor(
         AccountActivity.Idle
     }
 
+    // Signing in as the same user changes no session, so nothing else would ask the API again after it rejected them.
+    private suspend fun signIn(token: IdToken, before: AccountActivity): AccountActivity =
+        authRepository.signInWithGoogle(token).fold(
+            onLeft = { AccountActivity.ActionFailed(it.toUiError()) },
+            onRight = { if (before is AccountActivity.CheckFailed) recheckAccount() else AccountActivity.Idle },
+        )
+
+    private suspend fun recheckAccount(): AccountActivity =
+        accountRepository.account().mapLeft(AppError::toUiError).toActivity(AccountActivity::CheckFailed)
+
     // Set before the first suspension, so a second tap cannot start a second action.
-    private fun runAction(action: suspend () -> AccountActivity) {
-        if (activity.value == AccountActivity.Running) return
+    private fun runAction(action: suspend (before: AccountActivity) -> AccountActivity) {
+        val before = activity.value
+        if (before == AccountActivity.Running) return
         activity.value = AccountActivity.Running
-        viewModelScope.launch { activity.value = action() }.invokeOnCompletion {
+        viewModelScope.launch { activity.value = action(before) }.invokeOnCompletion {
             // A task cancelled from outside ends the action with no result, and Running would block all later ones.
-            activity.update { if (it == AccountActivity.Running) AccountActivity.Idle else it }
+            activity.update { if (it == AccountActivity.Running) before else it }
         }
     }
 
@@ -118,15 +118,13 @@ class SettingsViewModel @Inject constructor(
     private suspend fun checkAccount() {
         activity.first { it != AccountActivity.Running }
         val failure = accountRepository.account().leftOrNull()?.toUiError()
-        if (failure == null) {
-            clearFailedCheck()
-        } else {
-            activity.update { if (it == AccountActivity.Idle) AccountActivity.CheckFailed(failure) else it }
+        activity.update { current ->
+            when {
+                current is AccountActivity.ActionFailed || current == AccountActivity.Running -> current
+                failure != null -> AccountActivity.CheckFailed(failure)
+                else -> AccountActivity.Idle
+            }
         }
-    }
-
-    private fun clearFailedCheck() {
-        activity.update { if (it is AccountActivity.CheckFailed) AccountActivity.Idle else it }
     }
 
     fun onCheckAgain() {

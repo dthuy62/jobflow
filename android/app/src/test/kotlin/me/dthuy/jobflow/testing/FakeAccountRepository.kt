@@ -10,8 +10,12 @@ class FakeAccountRepository(
 ) : AccountRepository {
     var calls = 0
 
+    /** Thrown instead of answering, for what cannot be an expected failure, such as a cancelled task. */
+    var failure: Exception? = null
+
     override suspend fun account(): Either<AppError, Account> {
         calls++
+        failure?.let { throw it }
         return account
     }
 }

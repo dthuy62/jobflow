@@ -8,7 +8,7 @@ pipeline is not used here ([ADR 7](decisions/0007-distribute-test-builds-with-fa
 
 | Trigger | Workflow | Jobs |
 |---|---|---|
-| Push to `main` or a pull request touching `android/`, `contracts/` or the workflow | `../.github/workflows/android.yml` | `verify` (the verify command from `AGENTS.md`), `agent-layer` (hook and instruction tests), `release-build` (unsigned `assembleProdRelease` with R8) |
+| Push to `main` or a pull request touching `android/`, `contracts/` or the workflow | `../.github/workflows/android.yml` | `verify` (compiles the instrumented tests, plus the verify command from `AGENTS.md`), `agent-layer` (hook and instruction tests), `release-build` (unsigned `assembleProdRelease` with R8) |
 | Push to `main` or a pull request touching `career-ops-wrapper/` | `../.github/workflows/wrapper.yml` | `npm ci`, `npm test`, `npm run build` |
 
 Android tests read `contracts/`, so a contract change also runs `android.yml` and fails until the DTOs and
