@@ -230,7 +230,8 @@ never contain CV text, prompts or AI output.
   - `POST /auth/sso`, with an optional `guestToken`, needs a token that is not
     anonymous. The account comes only from the Bearer token. A valid anonymous
     `guestToken` of another, unmerged user has its data moved in one transaction,
-    and that guest closes, so its token gets 401. An expired or invalid
+    and that guest closes, so its token gets 401. A guest the server never saw has no
+    data, so nothing happens to it and its token works until it expires. An expired or invalid
     `guestToken` never fails the sign-in: `guestMerged` is false. One that cannot be
     checked because of an outage gets a 503 the app retries, so it does not give up on
     the guest's data. Rules per table:

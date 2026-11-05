@@ -31,14 +31,17 @@ export const GUEST_MERGE_STEPS: readonly GuestMergeStep[] = [
 export function createPgUserRepository(pool: Pick<Pool, "query" | "connect">, guestMergeSteps = GUEST_MERGE_STEPS): UserRepository {
   return {
     async resolve(subject, isAnonymous) {
-      // Reads first, so a known user's request writes nothing: this runs on every request.
+      // Reads first, so a known user's request writes nothing, except once when a real token first appears: this runs on every request.
       const existing = await pool.query<UserRow>("SELECT id, created_at, deleted_at, linked_at FROM users WHERE auth_subject = $1", [subject]);
       const [found] = existing.rows;
       if (found) {
-        if (!isAnonymous && found.linked_at === null && found.deleted_at === null) {
-          await pool.query("UPDATE users SET linked_at = now() WHERE id = $1 AND linked_at IS NULL", [found.id]);
-        }
-        return toUser(found);
+        if (isAnonymous || found.linked_at !== null || found.deleted_at !== null) return toUser(found);
+        // Uses the row this returns: the write waits for any merge holding it, which may have closed the user.
+        const linked = await pool.query<UserRow>(
+          "UPDATE users SET linked_at = COALESCE(linked_at, now()) WHERE id = $1 RETURNING id, created_at, deleted_at, linked_at",
+          [found.id]
+        );
+        return toUser(linked.rows[0] ?? found);
       }
       // DO UPDATE, not DO NOTHING, so a parallel first request still gets the row back.
       const created = await pool.query<UserRow>(

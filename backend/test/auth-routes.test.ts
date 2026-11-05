@@ -311,13 +311,46 @@ describe("the auth routes, with real PostgreSQL and the app role", () => {
 
     it("answers 503 and keeps running when the database connection dies during a merge, and the retry works", async () => {
       await me("anon-dropped");
+      const uncaught: unknown[] = [];
+      const onUncaught = (error: unknown) => uncaught.push(error);
+      process.on("uncaughtException", onUncaught);
       const dropping = await serverWith(authVerifier, [(client) => client.query("select pg_terminate_backend(pg_backend_pid())")]);
       const response = await sso("member-dropped", { guestToken: "test-anon-dropped" }, dropping);
       await dropping.close();
+      // The client reports the lost socket just after the query fails.
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      process.off("uncaughtException", onUncaught);
 
+      expect(uncaught).toEqual([]);
       expect(response.statusCode).toBe(503);
       expect((await userRow("anon-dropped")).deleted_at).toBeNull();
       expect(merged(await sso("member-dropped", { guestToken: "test-anon-dropped" }))).toBe(true);
+    });
+
+    it("refuses a first real token that waited on a merge closing its account, and merges nothing into it", async () => {
+      await pool.query("insert into users (auth_subject) values ('test-closing'), ('test-closer'), ('test-anon-second')");
+      let release = () => {};
+      const gate = new Promise<void>((resolve) => (release = resolve));
+      let locked = () => {};
+      const holdingLock = new Promise<void>((resolve) => (locked = resolve));
+      const slow = createPgUserRepository(pool, [
+        async () => {
+          locked();
+          await gate;
+        }
+      ]);
+      const merging = slow.mergeGuest("test-closing", (await userRow("closer")).id);
+      await holdingLock;
+
+      const waiting = sso("closing", { guestToken: "test-anon-second" });
+      await expect
+        .poll(async () => (await pool.query("select 1 from pg_stat_activity where wait_event_type = 'Lock' and query like 'UPDATE users SET linked_at%'")).rowCount)
+        .toBe(1);
+      release();
+      await merging;
+
+      expect((await waiting).statusCode).toBe(401);
+      expect((await userRow("anon-second")).deleted_at).toBeNull();
     });
 
     it("gives every connection back to the pool, whatever the outcome", async () => {

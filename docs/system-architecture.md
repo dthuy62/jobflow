@@ -51,7 +51,8 @@ A merge runs in one transaction in `pg-user-repository.ts`: it locks the guest r
 `merged_into`. `merged_into` gives a retry the same answer, and stops a guest merging twice.
 `linked_at`, set the first time any route sees a token that is not anonymous, stops an anonymous
 token from before Firebase linked an account from closing that account. A guest the server never
-saw has no data, so a merge creates no row for it. A token that cannot be checked gets 503, not
+saw has no data, so a merge creates no row for it, and its token keeps working until it expires:
+a closed row for that uid could lock out a real account Firebase linked to it. A token that cannot be checked gets 503, not
 `guestMerged: false`, so the app retries instead of giving up on the guest's data.
 
 Known limit: if Firebase has linked a user and no new token has reached this server yet, the row
