@@ -128,7 +128,7 @@ export const operations: readonly Operation[] = [
     request: { kind: "json", schema: SsoRequestSchema, example: "requests/auth-sso" },
     responses: {
       200: body(
-        "Signed in. guestMerged is false when no merge can be reported: no guestToken, a token that is expired, invalid or not anonymous (an expired token says nothing about an earlier merge), the same user as this account (Firebase linked it, so the data is already here), a user linked to a real account, a guest the server never saw (it has no data), or a guest already merged elsewhere or deleted.",
+        "Signed in. guestMerged is false when no merge can be reported: no guestToken, a token that is expired, invalid or not anonymous (an expired token says nothing about an earlier merge), the same user as this account (Firebase linked it, so the data is already here), a user Firebase has since linked to a real account, or a guest already merged elsewhere or deleted.",
         SsoResponseDtoSchema,
         "auth-sso.merged",
         "auth-sso.not-merged"

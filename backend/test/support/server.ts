@@ -11,6 +11,7 @@ export const testConfig: Config = {
   port: 0,
   databaseUrl: "postgres://jobflow_app:dev-only-app@127.0.0.1:5432/unused",
   firebaseProjectId: "demo-jobflow",
+  firebaseApiKey: "demo-key",
   trustProxyHops: 0
 };
 
@@ -21,7 +22,8 @@ export const stubAuthVerifier: AuthVerifier = {
   async verify(token) {
     if (!token.startsWith("test-")) throw new InvalidTokenError();
     return { subject: token, isAnonymous: token.startsWith("test-anon-") };
-  }
+  },
+  stillAnonymous: async () => true
 };
 
 export function createMemoryUsers(): UserRepository & { readonly deletedSubjects: Set<string> } {

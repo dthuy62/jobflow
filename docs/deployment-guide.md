@@ -23,7 +23,7 @@ npm test -w @jobflow/backend
 ```
 
 Each test file creates its own database. Without the owner's Firebase project, real tokens
-cannot be tried yet; set `FIREBASE_PROJECT_ID` to it when it exists.
+cannot be tried yet; set `FIREBASE_PROJECT_ID` and `FIREBASE_API_KEY` to it when it exists.
 
 To run the API outside Docker, with PostgreSQL still in Compose:
 
@@ -61,6 +61,9 @@ docker compose down
 - Limit malformed requests at the host or proxy, because the API refuses them before its own
   rate limits run.
 - Set `FIREBASE_PROJECT_ID` to the real project. Production refuses a `demo-` project.
+- Set `FIREBASE_API_KEY` to a web API key of that project, restricted to the Identity Toolkit
+  API. Use a key for the server, not the app's: a key restricted to Android apps gets 403, and
+  guest merges then answer 503. It is not a secret on its own, but inject it like the rest.
 
 ## Wrapper, Local Development
 
