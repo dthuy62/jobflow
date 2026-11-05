@@ -2,6 +2,7 @@ package me.dthuy.jobflow.data.auth
 
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -22,6 +23,7 @@ interface PendingLogin {
     /** Proof of who the guest was, kept once the provider has switched away from them, until the backend has merged. */
     suspend fun guestToken(): String?
 
+    /** Throws an IOException if it cannot be written, so the switch stops while the guest can still be reached. */
     suspend fun keepGuestToken(token: String)
 
     suspend fun clearGuestToken()
@@ -41,7 +43,7 @@ class DataStorePendingLogin @Inject constructor(@AuthStore private val store: Da
     override suspend fun guestToken(): String? = store.current()[GUEST_TOKEN]
 
     override suspend fun keepGuestToken(token: String) {
-        store.tryEdit { it[GUEST_TOKEN] = token }
+        store.edit { it[GUEST_TOKEN] = token }
     }
 
     override suspend fun clearGuestToken() {

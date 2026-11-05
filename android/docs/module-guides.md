@@ -97,7 +97,7 @@ otherwise keep `AppError`. Auth is the model.
 
 1. Define a sealed `<Feature>Error`. Each case must change what the user sees or can do.
 2. Return `Either<<Feature>Error, T>` from the repository.
-3. Write one `<Source>ErrorMapper` object per data source, used as `Either.catch(onError = AuthErrorMapper::fromFirebase)`.
+3. Write one `<Source>ErrorMapper` object per data source, used as `Either.catch(onError = FirebaseAuthErrorMapper::map)`.
    It matches known exception types, rethrows `CancellationException` and sends the rest to `unexpected()`.
 4. Write an exhaustive `toUiError()` with no `else` in the feature's UI code, and test each case's action and message.
 

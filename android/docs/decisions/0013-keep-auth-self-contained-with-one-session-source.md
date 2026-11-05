@@ -61,7 +61,8 @@ application scope, add the token classes to the OkHttp client, and pass the web 
 A bad connection during a sign-in costs more: a guest who was linking is signed out, cannot return to being a guest, and must
 sign in with Google again, which finds the same uid. A guest who was switching has only the kept token, which lasts about an hour.
 No abstraction covers changing vendor fully: `users.auth_subject` holds the vendor's uid, so it needs a data migration, everyone
-must sign in again, and a vendor without anonymous sign-in needs the backend to issue guests. The boundary is only as strong as
+must sign in again, and a vendor without anonymous sign-in needs the backend to issue guests. `SettingsScreen` also reads
+`default_web_client_id`, which the google-services plugin generates, so dropping the plugin means supplying that id another way. The boundary is only as strong as
 Konsist until a module exists.
 
 Follow-up, with the Get Started screen: a gate that shows the sign-in flow or `key(uid) { MainGraph() }`. Clearing and re-adding

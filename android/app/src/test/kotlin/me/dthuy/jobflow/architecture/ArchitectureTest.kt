@@ -51,7 +51,7 @@ class ArchitectureTest {
 
     @Test
     fun `only the Firebase adapter calls Firebase`() {
-        assertOnlyImportedIn(listOf("data.auth.firebase", "di"), "com.google.firebase.", "com.google.android.gms.")
+        assertOnlyImportedIn(listOf("data.auth.firebase"), "com.google.firebase.", "com.google.android.gms.")
     }
 
     @Test
@@ -94,15 +94,17 @@ class ArchitectureTest {
     fun `everything else in auth does not depend on the Firebase adapter`() {
         val adapter = "$root.data.auth.firebase"
         Konsist.scopeFromProduction().files
-            .filter { it.packagee?.name?.startsWith("$root.di") != true }
-            .filterNot { it.packagee?.name?.startsWith(adapter) == true }
+            .filterNot { it.name == VENDOR_MODULE || it.packagee?.name?.startsWith(adapter) == true }
             .assertFalse { file -> file.imports.any { it.name.startsWith("$adapter.") } }
     }
 
     private fun assertOnlyImportedIn(allowedPackages: List<String>, vararg prefixes: String) {
         val allowed = allowedPackages.map { "$root.$it" }
         Konsist.scopeFromProduction().files
-            .filterNot { file -> allowed.any { file.packagee?.name?.startsWith(it) == true } }
+            .filterNot { file ->
+                file.name == VENDOR_MODULE ||
+                    allowed.any { file.packagee?.name?.startsWith(it) == true }
+            }
             .assertFalse { file -> file.imports.any { import -> prefixes.any(import.name::startsWith) } }
     }
 
@@ -120,6 +122,8 @@ class ArchitectureTest {
         .toSet()
 
     private companion object {
+        // The one place that picks the identity vendor (ADR 13).
+        const val VENDOR_MODULE = "AuthFirebaseModule"
         val CATCHING = Regex("""\btry\s*\{|(?<!\.)\bcatch\s*\(|\brunCatching\b""")
     }
 }
