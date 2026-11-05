@@ -103,6 +103,15 @@ data class CompanyCreateRequest(val careersUrl: String)
 data class DeviceUpdateRequest(val fcmToken: String)
 
 @Serializable
+data class SsoRequest(val guestToken: String? = null)
+
+@Serializable
+data class SsoResponseDto(val account: MeDto, val guestMerged: Boolean)
+
+@Serializable
+data class LogoutRequest(val installationId: String)
+
+@Serializable
 data class EvaluationDto(
     val evaluationId: String,
     val jobId: String,
