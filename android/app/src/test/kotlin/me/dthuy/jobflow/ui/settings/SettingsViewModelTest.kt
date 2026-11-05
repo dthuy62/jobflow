@@ -1,7 +1,6 @@
 package me.dthuy.jobflow.ui.settings
 
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
@@ -11,8 +10,6 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import me.dthuy.jobflow.core.common.AppError
 import me.dthuy.jobflow.core.common.Either
-import me.dthuy.jobflow.domain.auth.AuthError
-import me.dthuy.jobflow.domain.auth.IdToken
 import me.dthuy.jobflow.domain.auth.Session
 import me.dthuy.jobflow.domain.model.Account
 import me.dthuy.jobflow.testing.FakeAccountRepository
@@ -23,9 +20,6 @@ import me.dthuy.jobflow.testing.unreachableSnapshot
 import me.dthuy.jobflow.ui.health.HealthUiKind
 import org.junit.After
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNotNull
-import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -34,7 +28,6 @@ import org.junit.Test
 class SettingsViewModelTest {
     private val dispatcher = UnconfinedTestDispatcher()
     private val accounts = FakeAccountRepository()
-    private val token = IdToken("token")
 
     @Before
     fun setUp() = Dispatchers.setMain(dispatcher)
@@ -66,259 +59,59 @@ class SettingsViewModelTest {
     }
 
     @Test
-    fun `the session reaches the screen`() = runTest {
-        val vm = settings(FakeAuthRepository())
+    fun `nobody signed in means the API is not called`() = runTest {
+        val vm = settings(FakeAuthRepository(session = Session.SignedOut(canStartGuest = true)))
         backgroundScope.launch(dispatcher) { vm.uiState.collect {} }
 
-        assertEquals(AccountKind.GUEST, vm.uiState.value.account.kind)
-    }
-
-    @Test
-    fun `nobody signed in means no guest is created and the API is not called`() = runTest {
-        val auth = FakeAuthRepository(session = Session.SignedOut(canStartGuest = true))
-        val vm = settings(auth)
-        backgroundScope.launch(dispatcher) { vm.uiState.collect {} }
-
-        assertEquals(AccountKind.SIGNED_OUT, vm.uiState.value.account.kind)
         assertEquals(0, accounts.calls)
+        assertEquals(AccountCheck.Idle, vm.uiState.value.accountCheck)
     }
 
     @Test
-    fun `continuing as a guest starts a guest and checks them with the API`() = runTest {
-        val auth = FakeAuthRepository(session = Session.SignedOut(canStartGuest = true))
-        val vm = settings(auth)
-        backgroundScope.launch(dispatcher) { vm.uiState.collect {} }
+    fun `a signed-in user is checked with the API`() = runTest {
+        settings(FakeAuthRepository())
 
-        vm.onContinueAsGuest()
-
-        assertEquals(AccountKind.GUEST, vm.uiState.value.account.kind)
         assertEquals(1, accounts.calls)
     }
 
     @Test
-    fun `an account check that fails keeps the user and can be retried`() = runTest {
+    fun `a session change checks again`() = runTest {
+        val auth = FakeAuthRepository()
+        settings(auth)
+
+        auth.publish(MEMBER_SESSION)
+
+        assertEquals(2, accounts.calls)
+    }
+
+    @Test
+    fun `a check that fails can be retried`() = runTest {
         accounts.account = Either.Left(AppError.Unreachable)
         val vm = settings(FakeAuthRepository(session = MEMBER_SESSION))
         backgroundScope.launch(dispatcher) { vm.uiState.collect {} }
-        assertEquals(AccountKind.GOOGLE, vm.uiState.value.account.kind)
-        assertTrue(vm.uiState.value.account.canRetry)
+        assertTrue(vm.uiState.value.accountCheck is AccountCheck.Failed)
 
         accounts.account = Either.Right(Account("user_1", isAnonymous = false))
         vm.onRetryAccount()
 
-        assertEquals(AccountKind.GOOGLE, vm.uiState.value.account.kind)
-        assertNull(vm.uiState.value.account.error)
+        assertEquals(AccountCheck.Idle, vm.uiState.value.accountCheck)
     }
 
     @Test
-    fun `signing in with Google shows the new session`() = runTest {
+    fun `a good check clears a failed one after a session change`() = runTest {
+        accounts.account = Either.Left(AppError.Unreachable)
         val auth = FakeAuthRepository()
         val vm = settings(auth)
         backgroundScope.launch(dispatcher) { vm.uiState.collect {} }
 
-        vm.onSignIn { Either.Right(token) }
-
-        assertEquals(listOf(token), auth.tokens)
-        assertEquals(AccountKind.GOOGLE, vm.uiState.value.account.kind)
-    }
-
-    @Test
-    fun `closing the Google sheet changes nothing`() = runTest {
-        val auth = FakeAuthRepository()
-        val vm = settings(auth)
-        backgroundScope.launch(dispatcher) { vm.uiState.collect {} }
-
-        vm.onSignIn { Either.Right(null) }
-
-        assertTrue(auth.tokens.isEmpty())
-        assertEquals(AccountKind.GUEST, vm.uiState.value.account.kind)
-        assertNull(vm.uiState.value.account.error)
-    }
-
-    @Test
-    fun `a Google sheet failure keeps the guest and shows the error`() = runTest {
-        val vm = settings(FakeAuthRepository())
-        backgroundScope.launch(dispatcher) { vm.uiState.collect {} }
-
-        vm.onSignIn { Either.Left(AuthError.NoGoogleAccount) }
-
-        assertEquals(AccountKind.GUEST, vm.uiState.value.account.kind)
-        assertNotNull(vm.uiState.value.account.error)
-    }
-
-    @Test
-    fun `a failed sign-in keeps the guest and shows the error`() = runTest {
-        val auth = FakeAuthRepository(signIn = Either.Left(AuthError.Network))
-        val vm = settings(auth)
-        backgroundScope.launch(dispatcher) { vm.uiState.collect {} }
-
-        vm.onSignIn { Either.Right(token) }
-
-        assertEquals(AccountKind.GUEST, vm.uiState.value.account.kind)
-        assertTrue(vm.uiState.value.account.canSignIn)
-        assertNotNull(vm.uiState.value.account.error)
-    }
-
-    @Test
-    fun `a second tap while Google's sheet is open does nothing`() = runTest {
-        val vm = settings(FakeAuthRepository())
-        backgroundScope.launch(dispatcher) { vm.uiState.collect {} }
-        val sheet = CompletableDeferred<Unit>()
-        var sheetsOpened = 0
-        val request: suspend () -> Either<AuthError, IdToken?> = {
-            sheetsOpened++
-            sheet.await()
-            Either.Right(null)
-        }
-
-        vm.onSignIn(request)
-        vm.onSignIn(request)
-        val running = vm.uiState.value.account
-        sheet.complete(Unit)
-
-        assertEquals(1, sheetsOpened)
-        assertEquals(AccountKind.LOADING, running.kind)
-        assertFalse(running.canSignIn || running.canSignOut || running.canRetry)
-        assertEquals(AccountKind.GUEST, vm.uiState.value.account.kind)
-    }
-
-    @Test
-    fun `the account check waits for a running sign-in, whose new token it needs`() = runTest {
-        val auth = FakeAuthRepository()
-        val gate = CompletableDeferred<Unit>()
-        auth.gate = gate
-        val vm = settings(auth)
-        backgroundScope.launch(dispatcher) { vm.uiState.collect {} }
-        val checksBefore = accounts.calls
-
-        vm.onSignIn { Either.Right(token) }
+        accounts.account = Either.Right(Account("user_1", isAnonymous = false))
         auth.publish(MEMBER_SESSION)
-        val checksWhileRunning = accounts.calls
-        gate.complete(Unit)
 
-        assertEquals(checksBefore, checksWhileRunning)
-        assertEquals(checksBefore + 1, accounts.calls)
+        assertEquals(AccountCheck.Idle, vm.uiState.value.accountCheck)
     }
 
     @Test
-    fun `signing out ends the session and starts no guest`() = runTest {
-        val auth = FakeAuthRepository(session = MEMBER_SESSION)
-        val vm = settings(auth)
-        backgroundScope.launch(dispatcher) { vm.uiState.collect {} }
-
-        vm.onSignOut()
-
-        assertEquals(1, auth.signOuts)
-        assertEquals(AccountKind.SIGNED_OUT, vm.uiState.value.account.kind)
-        assertFalse(vm.uiState.value.account.canContinueAsGuest)
-    }
-
-    @Test
-    fun `a session that ends elsewhere reaches the screen`() = runTest {
-        val auth = FakeAuthRepository(session = MEMBER_SESSION)
-        val vm = settings(auth)
-        backgroundScope.launch(dispatcher) { vm.uiState.collect {} }
-
-        auth.publish(Session.SignedOut(canStartGuest = false))
-
-        assertEquals(AccountKind.SIGNED_OUT, vm.uiState.value.account.kind)
-    }
-
-    @Test
-    fun `closing the sheet keeps the sign-in prompt of a member the API rejected`() = runTest {
-        accounts.account = Either.Left(AppError.Unauthorized)
-        val vm = settings(FakeAuthRepository(session = MEMBER_SESSION))
-        backgroundScope.launch(dispatcher) { vm.uiState.collect {} }
-
-        vm.onSignIn { Either.Right(null) }
-
-        assertTrue(vm.uiState.value.account.canSignIn)
-        assertNotNull(vm.uiState.value.account.error)
-    }
-
-    @Test
-    fun `a member the API rejected can try signing in again after a failure`() = runTest {
-        accounts.account = Either.Left(AppError.Unauthorized)
-        val vm = settings(FakeAuthRepository(session = MEMBER_SESSION, signIn = Either.Left(AuthError.Network)))
-        backgroundScope.launch(dispatcher) { vm.uiState.collect {} }
-
-        vm.onSignIn { Either.Right(token) }
-
-        assertTrue(vm.uiState.value.account.canSignIn)
-    }
-
-    @Test
-    fun `a session that ends drops the failed account check`() = runTest {
-        accounts.account = Either.Left(AppError.Unreachable)
-        val auth = FakeAuthRepository(session = MEMBER_SESSION)
-        val vm = settings(auth)
-        backgroundScope.launch(dispatcher) { vm.uiState.collect {} }
-
-        auth.publish(Session.SignedOut(canStartGuest = false))
-
-        assertNull(vm.uiState.value.account.error)
-        assertFalse(vm.uiState.value.account.canRetry)
-    }
-
-    @Test
-    fun `an action cancelled from outside does not leave the card loading`() = runTest {
-        val auth = FakeAuthRepository()
-        val vm = settings(auth)
-        backgroundScope.launch(dispatcher) { vm.uiState.collect {} }
-
-        vm.onSignIn { throw CancellationException("Task was cancelled") }
-
-        assertEquals(AccountKind.GUEST, vm.uiState.value.account.kind)
-        vm.onSignOut()
-        assertEquals(1, auth.signOuts)
-    }
-
-    @Test
-    fun `a session that ends while the sheet is open does not bring the failed check back`() = runTest {
-        accounts.account = Either.Left(AppError.Unreachable)
-        val auth = FakeAuthRepository()
-        val vm = settings(auth)
-        backgroundScope.launch(dispatcher) { vm.uiState.collect {} }
-        val sheet = CompletableDeferred<Unit>()
-
-        vm.onSignIn {
-            sheet.await()
-            Either.Right(null)
-        }
-        auth.publish(Session.SignedOut(canStartGuest = false))
-        sheet.complete(Unit)
-
-        assertNull(vm.uiState.value.account.error)
-        assertFalse(vm.uiState.value.account.canRetry)
-    }
-
-    @Test
-    fun `a retry that fails after the session ended offers no retry`() = runTest {
-        accounts.account = Either.Left(AppError.Unreachable)
-        val auth = FakeAuthRepository(session = MEMBER_SESSION)
-        val vm = settings(auth)
-        backgroundScope.launch(dispatcher) { vm.uiState.collect {} }
-
-        auth.publish(Session.SignedOut(canStartGuest = false))
-        vm.onRetryAccount()
-
-        assertNull(vm.uiState.value.account.error)
-        assertFalse(vm.uiState.value.account.canRetry)
-    }
-
-    @Test
-    fun `a cancelled sign-in keeps the prompt of a member the API rejected`() = runTest {
-        accounts.account = Either.Left(AppError.Unauthorized)
-        val vm = settings(FakeAuthRepository(session = MEMBER_SESSION))
-        backgroundScope.launch(dispatcher) { vm.uiState.collect {} }
-
-        vm.onSignIn { throw CancellationException("Task was cancelled") }
-
-        assertTrue(vm.uiState.value.account.canSignIn)
-    }
-
-    @Test
-    fun `a cancelled retry keeps the retry button`() = runTest {
+    fun `a cancelled retry keeps the failed check`() = runTest {
         accounts.account = Either.Left(AppError.Unreachable)
         val vm = settings(FakeAuthRepository(session = MEMBER_SESSION))
         backgroundScope.launch(dispatcher) { vm.uiState.collect {} }
@@ -326,52 +119,20 @@ class SettingsViewModelTest {
 
         vm.onRetryAccount()
 
-        assertTrue(vm.uiState.value.account.canRetry)
+        assertTrue(vm.uiState.value.accountCheck is AccountCheck.Failed)
     }
 
     @Test
-    fun `signing in again as the same member asks the API again`() = runTest {
+    fun `a retry that fails leaves the failure for the card to judge`() = runTest {
         accounts.account = Either.Left(AppError.Unauthorized)
-        val auth = FakeAuthRepository(session = MEMBER_SESSION)
-        val vm = settings(auth)
+        val vm = settings(FakeAuthRepository(session = MEMBER_SESSION))
         backgroundScope.launch(dispatcher) { vm.uiState.collect {} }
         val checksBefore = accounts.calls
 
-        vm.onSignIn { Either.Right(token) }
+        vm.onRetryAccount()
 
         assertEquals(checksBefore + 1, accounts.calls)
-        assertTrue(vm.uiState.value.account.canSignIn)
-        assertNotNull(vm.uiState.value.account.error)
-    }
-
-    @Test
-    fun `a good sign-in after a failed one still asks the API again`() = runTest {
-        accounts.account = Either.Left(AppError.Unauthorized)
-        val auth = FakeAuthRepository(session = MEMBER_SESSION, signIn = Either.Left(AuthError.Network))
-        val vm = settings(auth)
-        backgroundScope.launch(dispatcher) { vm.uiState.collect {} }
-        vm.onSignIn { Either.Right(token) }
-        val checksBefore = accounts.calls
-        auth.signIn = Either.Right(Unit)
-
-        vm.onSignIn { Either.Right(token) }
-
-        assertEquals(checksBefore + 1, accounts.calls)
-        assertTrue(vm.uiState.value.account.canSignIn)
-        assertNotNull(vm.uiState.value.account.error)
-    }
-
-    @Test
-    fun `a guest's sign-in asks the API once, through the session change`() = runTest {
-        accounts.account = Either.Left(AppError.Unreachable)
-        val auth = FakeAuthRepository()
-        val vm = settings(auth)
-        backgroundScope.launch(dispatcher) { vm.uiState.collect {} }
-        val checksBefore = accounts.calls
-
-        vm.onSignIn { Either.Right(token) }
-
-        assertEquals(checksBefore + 1, accounts.calls)
+        assertTrue(vm.uiState.value.accountCheck is AccountCheck.Failed)
     }
 
     private fun settings(auth: FakeAuthRepository) = SettingsViewModel(FakeHealthRepository(), auth, accounts)

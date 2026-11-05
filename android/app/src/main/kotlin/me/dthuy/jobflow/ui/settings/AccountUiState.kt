@@ -3,33 +3,27 @@ package me.dthuy.jobflow.ui.settings
 import androidx.compose.runtime.Immutable
 import me.dthuy.jobflow.core.common.ErrorAction
 import me.dthuy.jobflow.core.common.UiError
-import me.dthuy.jobflow.domain.auth.Session
+import me.dthuy.jobflow.ui.auth.AuthKind
+import me.dthuy.jobflow.ui.auth.AuthUiState
 
-enum class AccountKind { LOADING, SIGNED_OUT, GUEST, GOOGLE }
+/** Whether the API confirmed the signed-in user. Who they are comes from the session alone. */
+sealed interface AccountCheck {
+    data object Idle : AccountCheck
 
-/** What this screen is doing with the account. Who the user is comes from the session alone. */
-sealed interface AccountActivity {
-    data object Idle : AccountActivity
+    data object Running : AccountCheck
 
-    data object Running : AccountActivity
-
-    /** A sign-in or similar failed. The user tries again with the same button. */
-    data class ActionFailed(val error: UiError) : AccountActivity
-
-    /** The API could not confirm the account. The user is still who the session says. */
-    data class CheckFailed(val error: UiError) : AccountActivity
+    data class Failed(val error: UiError) : AccountCheck
 }
 
 @Immutable
 data class AccountUiState(
-    val kind: AccountKind = AccountKind.LOADING,
+    val kind: AuthKind = AuthKind.LOADING,
     val error: UiError? = null,
     val canSignIn: Boolean = false,
     val canRetry: Boolean = false,
     val canContinueAsGuest: Boolean = false,
-) {
-    val canSignOut: Boolean get() = kind == AccountKind.GOOGLE
-}
+    val canSignOut: Boolean = false,
+)
 
 @Immutable
 data class AccountActions(
@@ -39,28 +33,16 @@ data class AccountActions(
     val onSignOut: () -> Unit,
 )
 
-fun accountUiState(session: Session, activity: AccountActivity): AccountUiState {
-    val idle = when (session) {
-        Session.Unknown -> AccountUiState(AccountKind.LOADING)
-        is Session.SignedOut ->
-            AccountUiState(AccountKind.SIGNED_OUT, canSignIn = true, canContinueAsGuest = session.canStartGuest)
-        is Session.Guest -> AccountUiState(AccountKind.GUEST, canSignIn = true)
-        is Session.Member -> AccountUiState(AccountKind.GOOGLE)
-    }
-    return when (activity) {
-        AccountActivity.Idle -> idle
-        AccountActivity.Running -> AccountUiState(AccountKind.LOADING)
-        // Only a sign-in can fail for a member, so the button stays to try it again.
-        is AccountActivity.ActionFailed -> idle.copy(error = activity.error, canSignIn = true)
-        // A failed check says nothing once nobody is signed in, however it got here.
-        is AccountActivity.CheckFailed -> if (!session.isSignedIn) {
-            idle
-        } else {
-            idle.copy(
-                error = activity.error,
-                canSignIn = idle.canSignIn || activity.error.action == ErrorAction.SignIn,
-                canRetry = activity.error.action == ErrorAction.Retry,
-            )
-        }
-    }
+/** A check says nothing once nobody is signed in, however it got here. A running one offers no button. */
+fun accountUiState(auth: AuthUiState, check: AccountCheck): AccountUiState {
+    if (auth.isSignedIn && check == AccountCheck.Running) return AccountUiState()
+    val failed = (check as? AccountCheck.Failed)?.error?.takeIf { auth.isSignedIn }
+    return AccountUiState(
+        kind = auth.kind,
+        error = auth.error ?: failed,
+        canSignIn = auth.canSignIn || failed?.action == ErrorAction.SignIn,
+        canRetry = auth.error == null && failed?.action == ErrorAction.Retry,
+        canContinueAsGuest = auth.canContinueAsGuest,
+        canSignOut = auth.canSignOut,
+    )
 }

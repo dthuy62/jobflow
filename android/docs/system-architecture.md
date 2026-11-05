@@ -97,6 +97,7 @@ The app only displays `isAnonymous`, it never authorizes with it.
 
 | Piece | Job | Never |
 |---|---|---|
+| `ui/auth/AuthViewModel.kt` | Sign-in state and commands for any screen; blocks a second tap and survives rotation | Asks the API about the account |
 | `ui/auth/GoogleCredentials.kt` | Shows Google's sheet, which needs an Activity, and returns an ID token | Holds session logic |
 | `domain/auth` | `Session`, `AuthError`, `GuestPolicy`, and the `AuthRepository` and `SessionObserver` ports | Knows Firebase or Android |
 | `data/auth/AuthRepositoryImpl.kt` | The one source of who is signed in; runs observers before publishing a change | Knows Firebase, or what the app stores |
@@ -106,7 +107,7 @@ The app only displays `isAnonymous`, it never authorizes with it.
 Auth imports only itself and `core/common`, which Konsist enforces, so it can move to another project
 ([ADR 13](decisions/0013-keep-auth-self-contained-with-one-session-source.md)). The app plugs in through `SessionObserver`:
 `FeedSessionCleanup` removes other users' feeds. `AccountRepository`, which is not part of auth, is what the API knows about
-the user.
+the user: `SettingsViewModel` checks it, and `accountUiState` merges that check with `AuthViewModel`'s state for the card.
 
 - `Session` is `Unknown` (Firebase has not answered), `SignedOut`, `Guest` or `Member`. It is known offline, so navigation
   must read it and not `GET /me`.

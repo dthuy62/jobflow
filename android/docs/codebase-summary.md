@@ -22,7 +22,7 @@ done with `mobile-app-config`.
 | `di`                        | Hilt modules: `NetworkModule`, `DatabaseModule`, `RepositoryModule`, `AuthModule`, `CoroutinesModule`, `TimeModule` | business logic             |
 | `navigation`                | `NavGraph.kt` (the only file that knows every feature), `TopLevelTab`, bottom bar | feature logic            |
 | `ui/<feature>`              | Screen, ViewModel, Route, Contract                                      | imports from `data/` or other features |
-| `ui/theme`, `ui/components`, `ui/health`, `ui/auth` | shared UI: `AppTheme`, `Spacing`, soft components, `toUiError`, health cards, Google's sheet | feature-specific state  |
+| `ui/theme`, `ui/components`, `ui/health`, `ui/auth` | shared UI: `AppTheme`, `Spacing`, soft components, `toUiError`, health cards, `AuthViewModel`, Google's sheet | feature-specific state  |
 
 Root files: `MainApplication` (Hilt entry) and `MainActivity` (applies the light `AppTheme`, hosts `AppNavigation`).
 There is no theme choice yet: the soft palette is light-only until a dark palette exists.

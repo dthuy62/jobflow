@@ -15,7 +15,7 @@ interface GuestLedger {
 
 /** Left out of backup and device transfer (`data_extraction_rules.xml`), so uninstalling is what resets it. */
 @Singleton
-class PreferencesGuestLedger @Inject constructor(@param:ApplicationContext context: Context) : GuestLedger {
+class PreferencesGuestLedger @Inject constructor(@ApplicationContext context: Context) : GuestLedger {
     private val preferences = context.getSharedPreferences(FILE, Context.MODE_PRIVATE)
 
     override fun isUsed(): Boolean = preferences.getBoolean(KEY_USED, false)

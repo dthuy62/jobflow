@@ -5,6 +5,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import me.dthuy.jobflow.R
+import me.dthuy.jobflow.ui.auth.AuthKind
 import me.dthuy.jobflow.ui.components.SectionLabel
 import me.dthuy.jobflow.ui.components.SoftButton
 import me.dthuy.jobflow.ui.components.SoftCard
@@ -39,9 +40,9 @@ private fun AccountButton(label: Int, onClick: () -> Unit, primary: Boolean = tr
     }
 }
 
-private fun AccountKind.message(): Int = when (this) {
-    AccountKind.LOADING -> R.string.account_loading
-    AccountKind.SIGNED_OUT -> R.string.account_signed_out
-    AccountKind.GUEST -> R.string.account_guest
-    AccountKind.GOOGLE -> R.string.account_google
+private fun AuthKind.message(): Int = when (this) {
+    AuthKind.LOADING -> R.string.account_loading
+    AuthKind.SIGNED_OUT -> R.string.account_signed_out
+    AuthKind.GUEST -> R.string.account_guest
+    AuthKind.MEMBER -> R.string.account_google
 }

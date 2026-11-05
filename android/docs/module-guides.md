@@ -20,8 +20,10 @@ simple screens.
 
 The design is in [system architecture](system-architecture.md#authentication) and
 [ADR 13](decisions/0013-keep-auth-self-contained-with-one-session-source.md). Read `AuthRepository.session` to know who is
-signed in. Start a sign-in from a ViewModel, passing it `requestGoogleIdToken(context, webClientId)` to run: as in
-`SettingsViewModel`, the ViewModel's scope survives rotation and blocks a second tap. To clear data of your own when the
+signed in. A screen that offers sign-in takes an `AuthViewModel` and calls `onSignIn` with
+`requestGoogleIdToken(context, webClientId)` to run, as `SettingsScreen` does. Its scope survives rotation, and it blocks a
+second tap. If the screen redoes something on a session change, also pass `onSignedInAgain`: a member signing in again can
+stay the same user, which changes no session. To clear data of your own when the
 session changes, implement `SessionObserver` and register it with `@IntoSet`, as `FeedSessionCleanup` does.
 
 To reuse auth in another project, copy `domain/auth`, `data/auth`, `ui/auth`, `di/AuthModule.kt`, `core/common` and the

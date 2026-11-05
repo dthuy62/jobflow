@@ -22,6 +22,9 @@ it could neither be tested without Firebase nor be moved.
 - Auth lives in `domain/auth`, `data/auth`, `ui/auth` and `di/AuthModule.kt`, and imports only itself and `core/common`.
   Konsist enforces it. The rest of the app plugs in through `SessionObserver` (with `@IntoSet`), so a new per-user table
   registers its own cleanup without changing auth. `GET /me` moved to `AccountRepository`, which belongs to JobFlow.
+- `AuthViewModel` in `ui/auth` holds sign-in state and commands, so every screen shares them. Each screen gets its own
+  instance, because the session has one source. If a screen's own state ever has to mix deeply with sign-in, such as a
+  multi-step onboarding, give that screen a helper class instead.
 - `domain/auth` is a deliberate exception to `domain/model` and `domain/repository`: splitting auth by kind would scatter
   what must move together.
 
