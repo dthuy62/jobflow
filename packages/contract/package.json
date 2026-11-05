@@ -1,0 +1,28 @@
+{
+  "name": "@jobflow/contract",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The hosted JobFlow API contract: Zod schemas, operations and the OpenAPI generator.",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "gen": "tsx scripts/gen-openapi.ts",
+    "mock:smoke": "tsx scripts/mock-smoke.ts"
+  },
+  "dependencies": {
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "^26.0.0",
+    "tsx": "^4.22.4",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.9"
+  }
+}

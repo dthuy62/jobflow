@@ -1,0 +1,364 @@
+import { chmod, cp, mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from "node:fs/promises";
+import { homedir, tmpdir } from "node:os";
+import path from "node:path";
+import { afterEach, describe, expect, it } from "vitest";
+import { ReportCollectionDtoSchema, ReportDetailDtoSchema } from "../src/contracts/index.js";
+import { artifactIdForFileName } from "../src/outputs/index.js";
+import { normalizeOfferUrl, offerIdForTrackerNumber, offerIdForUrl } from "../src/parsers/index.js";
+import { createServer } from "../src/server.js";
+import { copyProjectionFixture, projectionFixturePath, removeWorkspaces } from "./support/fixture-workspace.js";
+
+const workspaces: string[] = [];
+
+afterEach(async () => {
+  await removeWorkspaces(workspaces);
+});
+
+async function withServer<T>(workspace: string, run: (server: Awaited<ReturnType<typeof createServer>>) => Promise<T>) {
+  const server = await createServer({ config: { host: "127.0.0.1", port: 3000, workspace } });
+  try {
+    return await run(server);
+  } finally {
+    await server.close();
+  }
+}
+
+async function appendTrackerRow(workspace: string, row: string): Promise<void> {
+  const file = path.join(workspace, "data/applications.md");
+  await writeFile(file, `${(await readFile(file, "utf8")).trimEnd()}\n${row}\n`);
+}
+
+describe("report routes", () => {
+  it("lists reports newest first with offer links", async () => {
+    await withServer(projectionFixturePath, async (server) => {
+      const response = await server.inject({ method: "GET", url: "/api/v1/reports" });
+
+      expect(response.statusCode).toBe(200);
+      const collection = ReportCollectionDtoSchema.parse(response.json());
+      expect(collection.sourceRevision).toMatch(/^reports_sha256_[a-f0-9]{8}$/);
+      expect(collection.items.map((report) => [report.id, report.kind, report.title])).toEqual([
+        ["report_003", "unknown", "Interview notes for Umbrella Mobile"],
+        ["report_002", "evaluation", "Globex Labs — Mobile Platform Engineer"],
+        ["report_001", "evaluation", "Acme Robotics — Senior Android Engineer"]
+      ]);
+      expect(collection.items[2]).toMatchObject({
+        offerId: offerIdForUrl(normalizeOfferUrl("https://jobs.example.com/acme-robotics/senior-android") as string),
+        createdAt: "2026-06-20T00:00:00.000Z"
+      });
+      expect(collection.items[2]?.sourceRevision).toMatch(/^report_sha256_[a-f0-9]{8}$/);
+      expect(collection.items[0]?.offerId).toBeNull();
+      expect(collection.items[0]).not.toHaveProperty("markdown");
+    });
+  });
+
+  it("links each report to the offer of its own URL, even when the tracker links a later report", async () => {
+    const workspace = await copyProjectionFixture();
+    workspaces.push(workspace);
+    const url = "https://jobs.example.com/twice/android";
+    for (const number of ["004", "009"]) {
+      await writeFile(
+        path.join(workspace, `reports/${number}-twice-2026-07-01.md`),
+        `# Evaluation: Twice Co — Android\n\n**URL:** ${url}\n**Score:** 4/5\n`
+      );
+    }
+    await appendTrackerRow(workspace, "| 4 | 2026-07-02 | Twice Co | Android | 4/5 | Evaluated | ❌ | [009](../reports/009-twice-2026-07-01.md) | |");
+
+    await withServer(workspace, async (server) => {
+      const collection = ReportCollectionDtoSchema.parse((await server.inject({ method: "GET", url: "/api/v1/reports" })).json());
+      const offerId = offerIdForUrl(normalizeOfferUrl(url) as string);
+      expect(collection.items.find((item) => item.id === "report_004")?.offerId).toBe(offerId);
+      expect(collection.items.find((item) => item.id === "report_009")?.offerId).toBe(offerId);
+
+      const offer = (await server.inject({ method: "GET", url: `/api/v1/offers/${offerId}` })).json();
+      expect(offer.reportId).toBe("report_009");
+    });
+  });
+
+  it("does not let a pipeline line for another URL take a report's own offer", async () => {
+    const workspace = await copyProjectionFixture();
+    workspaces.push(workspace);
+    await writeFile(
+      path.join(workspace, "reports/007-own-2026-07-01.md"),
+      "# Evaluation: Own Co — Android\n\n**URL:** https://jobs.example.com/own/android\n"
+    );
+    await writeFile(
+      path.join(workspace, "data/pipeline.md"),
+      "# Pipeline\n\n## Procesadas\n\n- [x] #007 | https://jobs.example.com/other/android | Other Co | Android | 3/5 | PDF ❌\n"
+    );
+
+    await withServer(workspace, async (server) => {
+      const collection = ReportCollectionDtoSchema.parse((await server.inject({ method: "GET", url: "/api/v1/reports" })).json());
+      expect(collection.items.find((item) => item.id === "report_007")?.offerId).toBe(
+        offerIdForUrl(normalizeOfferUrl("https://jobs.example.com/own/android") as string)
+      );
+    });
+  });
+
+  it("falls back to the tracker row for a report without a URL", async () => {
+    const workspace = await copyProjectionFixture();
+    workspaces.push(workspace);
+    await writeFile(path.join(workspace, "reports/005-nourl-2026-07-01.md"), "# Evaluation: No URL Co — Role\n");
+    await appendTrackerRow(workspace, "| 5 | 2026-07-02 | No URL Co | Role | 3/5 | Evaluated | ❌ | [005](../reports/005-nourl-2026-07-01.md) | |");
+
+    await withServer(workspace, async (server) => {
+      const collection = ReportCollectionDtoSchema.parse((await server.inject({ method: "GET", url: "/api/v1/reports" })).json());
+      expect(collection.items.find((item) => item.id === "report_005")?.offerId).toBe(offerIdForTrackerNumber("5"));
+    });
+  });
+
+  it("rewrites workspace links to artifact download links", async () => {
+    await withServer(projectionFixturePath, async (server) => {
+      const response = await server.inject({ method: "GET", url: "/api/v1/reports/report_001" });
+
+      expect(response.statusCode).toBe(200);
+      const report = ReportDetailDtoSchema.parse(response.json());
+      const artifactId = artifactIdForFileName("cv-jane-doe-acme-robotics-2026-06-20.pdf");
+      expect(report.markdown).toContain("# Evaluation: Acme Robotics");
+      expect(report.markdown).toContain(`[tailored CV](/api/v1/artifacts/${artifactId}/download)`);
+      expect(report.markdown).not.toContain("../output");
+      expect(report.markdown).toContain(
+        `**PDF:** [output/cv-jane-doe-acme-robotics-2026-06-20.pdf](/api/v1/artifacts/${artifactId}/download)`
+      );
+
+      const download = await server.inject({ method: "GET", url: `/api/v1/artifacts/${artifactId}/download` });
+      expect(download.statusCode).toBe(200);
+    });
+  });
+
+  it("rewrites links between reports to the report route", async () => {
+    const workspace = await copyProjectionFixture();
+    workspaces.push(workspace);
+    await writeFile(
+      path.join(workspace, "reports/004-follow-up-2026-07-01.md"),
+      "# Evaluation: Follow Up — Role\n\nSee [the first one](001-acme-robotics-2026-06-20.md#scores) and [gone](099-gone.md).\n"
+    );
+
+    await withServer(workspace, async (server) => {
+      const report = ReportDetailDtoSchema.parse(
+        (await server.inject({ method: "GET", url: "/api/v1/reports/report_004" })).json()
+      );
+      expect(report.markdown).toContain("See [the first one](/api/v1/reports/report_001) and gone.");
+
+      const linked = await server.inject({ method: "GET", url: "/api/v1/reports/report_001" });
+      expect(linked.statusCode).toBe(200);
+    });
+  });
+
+  it("removes workspace and home paths from report Markdown", async () => {
+    const workspace = await copyProjectionFixture();
+    workspaces.push(workspace);
+    const workspaceRealPath = await realpath(workspace);
+    await writeFile(
+      path.join(workspace, "reports/004-leaky-2026-07-01.md"),
+      [
+        "# Evaluation: Leaky — Role",
+        "",
+        `Saved at ${workspaceRealPath}/reports and ${homedir()}/Downloads.`,
+        `Sibling ${workspaceRealPath}-old/cv.pdf and climb ${workspaceRealPath}/../secret.txt.`,
+        `Configured ${workspace}/../x and [old CV](${workspaceRealPath}-old/cv.pdf).`,
+        "[other](../output/notes.txt) and [outside](../../x.pdf)."
+      ].join("\n")
+    );
+
+    await withServer(workspace, async (server) => {
+      const response = await server.inject({ method: "GET", url: "/api/v1/reports/report_004" });
+
+      expect(response.statusCode).toBe(200);
+      expect(response.json().markdown).toBe(
+        [
+          "# Evaluation: Leaky — Role",
+          "",
+          "Saved at [local path] and [local path].",
+          "Sibling [local path] and climb [local path].",
+          "Configured [local path] and old CV.",
+          "other and outside."
+        ].join("\n")
+      );
+      for (const leak of [workspaceRealPath, workspace, homedir(), path.basename(workspace), "-old", "secret", "[WORKSPACE]", "[HOME]"]) {
+        expect(response.body).not.toContain(leak);
+      }
+    });
+  });
+
+  it("serves a report whose workspace path contains a space", async () => {
+    const parent = await mkdtemp(path.join(tmpdir(), "report-space-"));
+    workspaces.push(parent);
+    const workspace = path.join(parent, "Career Ops");
+    await cp(projectionFixturePath, workspace, { recursive: true });
+    const real = await realpath(workspace);
+    await writeFile(
+      path.join(workspace, "reports/004-leaky-2026-07-01.md"),
+      `# Evaluation: Leaky — Role\n\nSaved at ${real}/reports/x.md and at ${real}.\n`
+    );
+
+    await withServer(workspace, async (server) => {
+      const response = await server.inject({ method: "GET", url: "/api/v1/reports/report_004" });
+      expect(response.statusCode).toBe(200);
+      expect(response.json().markdown).toBe("# Evaluation: Leaky — Role\n\nSaved at [local path] and at [local path].\n");
+    });
+  });
+
+  it("returns PAYLOAD_TOO_LARGE when rewritten links push a report over 1 MiB", async () => {
+    const workspace = await copyProjectionFixture();
+    workspaces.push(workspace);
+    const link = "[c](../output/cv-jane-doe-acme-robotics-2026-06-20.pdf)\n";
+    await writeFile(
+      path.join(workspace, "reports/004-links-2026-07-01.md"),
+      link.repeat(Math.floor((1024 * 1024 - 100) / link.length))
+    );
+
+    await withServer(workspace, async (server) => {
+      const response = await server.inject({ method: "GET", url: "/api/v1/reports/report_004" });
+      expect(response.statusCode).toBe(413);
+      expect(response.json().error).toEqual({
+        code: "PAYLOAD_TOO_LARGE",
+        message: "Report Markdown must be 1 MiB or smaller after local links and paths are rewritten."
+      });
+    });
+  });
+
+  it("returns null createdAt for impossible report dates instead of failing", async () => {
+    const workspace = await copyProjectionFixture();
+    workspaces.push(workspace);
+    await writeFile(
+      path.join(workspace, "reports/010-bad-date-2026-02-30.md"),
+      "# Evaluation: Bad — Date\n\n**Date:** 2026-06-31\n"
+    );
+    await writeFile(
+      path.join(workspace, "reports/011-header-bad-2026-07-02.md"),
+      "# Evaluation: Header — Bad\n\n**Date:** 2026-13-01\n"
+    );
+
+    await withServer(workspace, async (server) => {
+      const list = await server.inject({ method: "GET", url: "/api/v1/reports" });
+      const detail = await server.inject({ method: "GET", url: "/api/v1/reports/report_010" });
+
+      expect(list.statusCode).toBe(200);
+      const items = ReportCollectionDtoSchema.parse(list.json()).items;
+      expect(items.find((item) => item.id === "report_010")?.createdAt).toBeNull();
+      expect(items.find((item) => item.id === "report_011")?.createdAt).toBe("2026-07-02T00:00:00.000Z");
+      expect(detail.statusCode).toBe(200);
+      expect(detail.json().createdAt).toBeNull();
+    });
+  });
+
+  it("still lists reports when scan history is over its size cap", async () => {
+    const workspace = await copyProjectionFixture();
+    workspaces.push(workspace);
+    await writeFile(path.join(workspace, "data/scan-history.tsv"), "x".repeat(10 * 1024 * 1024 + 1));
+
+    await withServer(workspace, async (server) => {
+      const reports = await server.inject({ method: "GET", url: "/api/v1/reports" });
+      const artifacts = await server.inject({ method: "GET", url: "/api/v1/artifacts" });
+      const offers = await server.inject({ method: "GET", url: "/api/v1/offers" });
+
+      expect(reports.statusCode).toBe(200);
+      expect(reports.json().items).toHaveLength(3);
+      expect(artifacts.statusCode).toBe(200);
+      expect(offers.statusCode).toBe(413);
+    });
+  });
+
+  it("still lists reports when the tracker is symlinked outside the workspace", async () => {
+    const workspace = await copyProjectionFixture();
+    workspaces.push(workspace);
+    const outside = await mkdtemp(path.join(tmpdir(), "report-outside-"));
+    workspaces.push(outside);
+    await writeFile(path.join(outside, "applications.md"), "# Applications\n");
+    await rm(path.join(workspace, "data/applications.md"));
+    await symlink(path.join(outside, "applications.md"), path.join(workspace, "data/applications.md"));
+
+    await withServer(workspace, async (server) => {
+      const reports = await server.inject({ method: "GET", url: "/api/v1/reports" });
+      const report = await server.inject({ method: "GET", url: "/api/v1/reports/report_001" });
+      const offers = await server.inject({ method: "GET", url: "/api/v1/offers" });
+
+      expect(reports.statusCode).toBe(200);
+      expect(reports.json().items).toHaveLength(3);
+      expect(report.statusCode).toBe(200);
+      expect(offers.statusCode).toBe(403);
+    });
+  });
+
+  it.each([
+    ["a directory", async (file: string) => { await rm(file); await mkdir(file); }],
+    ["a symlink loop", async (file: string) => { await rm(file); await symlink(file, file); }],
+    ["not readable", async (file: string) => { await chmod(file, 0o000); }]
+  ])("still lists reports and artifacts when the tracker is %s", async (_name, breakTracker) => {
+    const workspace = await copyProjectionFixture();
+    workspaces.push(workspace);
+    const tracker = path.join(workspace, "data/applications.md");
+    await breakTracker(tracker);
+
+    try {
+      await withServer(workspace, async (server) => {
+        const reports = await server.inject({ method: "GET", url: "/api/v1/reports" });
+        const artifacts = await server.inject({ method: "GET", url: "/api/v1/artifacts" });
+
+        expect(reports.statusCode).toBe(200);
+        expect(reports.json().items).toHaveLength(3);
+        expect(artifacts.statusCode).toBe(200);
+      });
+    } finally {
+      await chmod(tracker, 0o644).catch(() => undefined);
+    }
+  });
+
+  it("still returns WORKSPACE_UNHEALTHY when the workspace itself is missing", async () => {
+    const workspace = await copyProjectionFixture();
+    await rm(workspace, { recursive: true, force: true });
+
+    await withServer(workspace, async (server) => {
+      const reports = await server.inject({ method: "GET", url: "/api/v1/reports" });
+      const artifacts = await server.inject({ method: "GET", url: "/api/v1/artifacts" });
+
+      expect(reports.statusCode).toBe(503);
+      expect(reports.json().error.code).toBe("WORKSPACE_UNHEALTHY");
+      expect(artifacts.statusCode).toBe(503);
+    });
+  });
+
+  it("does not redact plain words when the workspace is configured as a relative path", async () => {
+    const workspace = await copyProjectionFixture();
+    workspaces.push(workspace);
+    await writeFile(
+      path.join(workspace, "reports/004-cv-2026-07-01.md"),
+      `# Evaluation: Acme — Role\n\nTailor the cv for ${path.basename(workspace)}.\n`
+    );
+    const previousCwd = process.cwd();
+    process.chdir(path.dirname(workspace));
+
+    try {
+      await withServer(path.basename(workspace), async (server) => {
+        const response = await server.inject({ method: "GET", url: "/api/v1/reports/report_004" });
+
+        expect(response.statusCode).toBe(200);
+        expect(response.json().markdown).toContain(`Tailor the cv for ${path.basename(workspace)}.`);
+      });
+    } finally {
+      process.chdir(previousCwd);
+    }
+  });
+
+  it("returns PAYLOAD_TOO_LARGE for reports over 1 MiB", async () => {
+    const workspace = await copyProjectionFixture();
+    workspaces.push(workspace);
+    await writeFile(path.join(workspace, "reports/009-huge.md"), "x".repeat(1024 * 1024 + 1));
+
+    await withServer(workspace, async (server) => {
+      const response = await server.inject({ method: "GET", url: "/api/v1/reports/report_009" });
+      expect(response.statusCode).toBe(413);
+    });
+  });
+
+  it.each(["report_999", "report-001", "001", "report_001.md", "..%2Freports%2F001-acme-robotics-2026-06-20.md"])(
+    "returns NOT_FOUND for %s",
+    async (id) => {
+      await withServer(projectionFixturePath, async (server) => {
+        const response = await server.inject({ method: "GET", url: `/api/v1/reports/${id}` });
+        expect(response.statusCode).toBe(404);
+        expect(response.json().error).toEqual({ code: "NOT_FOUND", message: "Report was not found." });
+      });
+    }
+  );
+});

@@ -1,0 +1,20 @@
+{
+  "id": "offer_31abdf227312a088",
+  "company": "Hooli",
+  "title": "Kotlin Developer",
+  "url": "https://jobs.example.com/hooli/kotlin-dev",
+  "location": "Da Nang",
+  "source": "ashby-api",
+  "status": "new",
+  "firstSeenAt": "2026-06-25T00:00:00.000Z",
+  "lastSeenAt": null,
+  "scanRunId": null,
+  "workMode": "unknown",
+  "evaluationStatus": "notEvaluated",
+  "score": null,
+  "reportId": null,
+  "artifactIds": [],
+  "rawSource": "scan-history, pipeline",
+  "notes": null,
+  "warnings": []
+}

@@ -19,7 +19,10 @@ const REQUIRED_FILES: readonly RequiredFile[] = [
   { name: "portal-config", relativePaths: ["portals.yml", "portals.yaml"] }
 ];
 
-export async function getScriptReadiness(workspacePath: string): Promise<CareerOpsReadinessDto> {
+/** Script readiness; the health service adds `aiCliRequired` and `evaluator`. */
+export type ScriptReadinessDto = Omit<CareerOpsReadinessDto, "aiCliRequired" | "evaluator">;
+
+export async function getScriptReadiness(workspacePath: string): Promise<ScriptReadinessDto> {
   const workspaceRealPath = await getRealPath(workspacePath);
   const checks = await Promise.all(
     REQUIRED_FILES.map(async (requiredFile) =>
@@ -35,7 +38,6 @@ export async function getScriptReadiness(workspacePath: string): Promise<CareerO
     status,
     executionMode: "local-script-runner",
     providerApiKeyRequired: false,
-    aiCliRequired: false,
     scanner: {
       status,
       commandType: "local-script",

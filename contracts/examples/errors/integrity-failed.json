@@ -1,0 +1,6 @@
+{
+  "error": {
+    "code": "INTEGRITY_FAILED",
+    "message": "This device could not be verified."
+  }
+}

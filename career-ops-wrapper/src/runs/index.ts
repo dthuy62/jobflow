@@ -1,3 +1,1 @@
-export interface RunsModuleBoundary {
-  readonly module: "runs";
-}
+export * from "./scan-run-store.js";

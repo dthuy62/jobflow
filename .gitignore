@@ -10,6 +10,8 @@
 /.idea/assetWizardSettings.xml
 .DS_Store
 /build
+node_modules/
+dist/
 /android/build
 /android/app/build
 /android/local.properties
@@ -19,12 +21,21 @@
 .cxx
 local.properties
 .env
+# Personal agent instructions; never committed.
+CLAUDE.local.md
 debug.keystore
-.agents
-.claude
+/.agents
+/.claude/*
+# Track only the project review skill; other local skills, settings and
+# worktrees under .claude/ stay ignored.
+!/.claude/skills/
+/.claude/skills/*
+!/.claude/skills/review-change/
 .kiro
 .agent
-.github
+.github/*
+!.github/workflows/
+!.github/pull_request_template.md
 _bmad
 /.idea/
 /android/.idea/

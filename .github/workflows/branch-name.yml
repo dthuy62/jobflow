@@ -1,0 +1,23 @@
+name: Branch name
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+
+permissions: {}
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - name: Check branch follows <type>/<kebab-case-description>
+        env:
+          BRANCH: ${{ github.head_ref }}
+        run: |
+          if [[ "$BRANCH" =~ ^(feature|bugfix|hotfix|refactor|design|doc)/[a-z0-9]+(-[a-z0-9]+)*$ ]]; then
+            echo "Branch name OK: $BRANCH"
+          else
+            echo "::error::Branch '$BRANCH' must match <type>/<kebab-case-description>; see docs/workflow/backend-delivery.md"
+            exit 1
+          fi

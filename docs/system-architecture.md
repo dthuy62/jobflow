@@ -1,13 +1,77 @@
 # System Architecture
 
-## Overview
+## Hosted Product (target)
 
-JobFlow is local-first. The Android app is the user interface. The wrapper API
+JobFlow is becoming a hosted product that anyone can install and use. The source
+of truth is `docs/superpowers/specs/2026-11-02-jobflow-hosted-product-design.md`, including its
+Security baseline. Phase 1 is being built (`docs/superpowers/plans/2026-11-02-hosted-backend-phase-1.md`).
+
+```mermaid
+flowchart LR
+  Android["Android app"]
+  API["API service\nFastify + Zod"]
+  DB["PostgreSQL\nincluding the pg-boss queue"]
+  Workers["Workers\nscan, match, evaluate, notify"]
+  Blob["Object storage\nencrypted CV files"]
+  External["Job sources, AI providers, FCM"]
+
+  Android -->|"HTTPS + Firebase ID token"| API
+  API --> DB
+  API --> Blob
+  DB --> Workers
+  Workers --> DB
+  Workers --> External
+```
+
+Main rules:
+
+- Core code depends only on ports; each external system has an adapter.
+- The API is stateless; slow work runs in queue workers.
+- One container image runs on any host, configured by environment.
+- The contract in root `contracts/` is the boundary with Android.
+
+### Sign-in
+
+Firebase signs in and links on the device; the backend only verifies Firebase ID tokens.
+Nothing here is public, and a wrong kind of token gets 403 or 409, never the 401 that makes
+the app sign out.
+
+| Route | Token | Does |
+| --- | --- | --- |
+| `POST /auth/guest` | anonymous | Returns the account |
+| `POST /auth/sso` | not anonymous | Returns the account and `guestMerged`; with `guestToken`, merges that guest |
+| `POST /auth/logout` | any | Removes the caller's device row for one `installationId` |
+
+The auth hook still creates a missing user on any route, so a failed call here cannot lock
+the app out. The two systems share no transaction, so the routes are idempotent and the app
+retries them.
+
+A merge runs in one transaction in `pg-user-repository.ts`: it locks the guest row, runs
+`GUEST_MERGE_STEPS` (one step per table with user data), then sets `deleted_at` and
+`merged_into`. `merged_into` gives a retry the same answer, and stops a guest merging twice.
+`linked_at`, set the first time any route sees a token that is not anonymous, stops an anonymous
+token from before Firebase linked an account from closing that account. A guest the server never
+saw has no data, so a merge creates no row for it, and its token keeps working until it expires:
+a closed row for that uid could lock out a real account Firebase linked to it. A token that cannot be checked gets 503, not
+`guestMerged: false`, so the app retries instead of giving up on the guest's data.
+
+Known limit: if Firebase has linked a user and no new token has reached this server yet, the row
+looks like any guest, so that user's old anonymous token can still close it for up to an hour.
+Closing this would need a lookup of the user's providers in Firebase.
+
+## Wrapper (frozen)
+
+The rest of this document describes `career-ops-wrapper/`. It is frozen as a
+development and self-host tool. The Android app has moved to the hosted contract.
+
+### Overview
+
+In the wrapper model, an Android client is the user interface and the wrapper API
 is the only integration surface for Career Ops workspace files and scripts.
 
 ```mermaid
 flowchart LR
-  Android["Android app\nCompose + ViewModel + Room"]
+  Android["Android app\nCompose + Hilt + ViewModel"]
   ApiClient["Retrofit / OkHttp\n/api/v1 DTOs"]
   Wrapper["career-ops-wrapper\nFastify + Zod"]
   Workspace["Career Ops Workspace\ncv.md, profile config, portals.yml, scripts"]
@@ -17,20 +81,24 @@ flowchart LR
   Wrapper --> Workspace
 ```
 
-## Component Responsibilities
+### Component Responsibilities
 
 | Component | Owns |
 | --- | --- |
 | Android presentation | Screens, UI state, intents, effects, user feedback |
 | Android domain | App models, repository contracts, use cases |
-| Android data | Room, Retrofit, DTO mapping, repository implementations |
+| Android data | Retrofit, DTO mapping, error mapping, repository implementations, Room cache |
 | Wrapper routes | HTTP endpoints, request parsing, response schema checks |
-| Wrapper services | Use-case behavior for health, CV, profile, portals, readiness |
-| Wrapper workspace adapters | File reads/writes, YAML/Markdown translation, backups |
+| Wrapper services | Use-case behavior for health, CV, profile, portals, readiness, scan runs, AI evaluations, offer/report/artifact projection |
+| Wrapper parsers | Pure parsing of Career Ops tracker, pipeline, scan history, reports, scan output |
+| Wrapper workspace adapters | File reads/writes, bounded symlink-safe reads, YAML/Markdown translation, backups |
+| Wrapper engine adapter | Spawns `scan.mjs` with allowlisted args, timeout, bounded output |
+| Wrapper evaluation | Fetches the posting (SSRF-guarded), builds the fenced prompt, runs the fixed tool-less AI CLI command, validates its JSON, writes the report and tracker row |
+| Wrapper runs | In-memory scan run and evaluation registries (one active run each) |
 | Wrapper security | Path containment, pairing token guard, redaction |
 | Career Ops workspace | Source-of-truth files and local scripts |
 
-## Android Data Flow
+### Android Data Flow
 
 ```mermaid
 flowchart TD
@@ -39,26 +107,27 @@ flowchart TD
   UseCase["Use Case"]
   Repo["Repository Interface"]
   RepoImpl["Repository Impl"]
-  DS["Data Source"]
-  Local["Room"]
-  Remote["Retrofit API"]
+  Local["Room cache"]
+  Remote["Retrofit API client"]
 
   Screen --> VM
-  VM --> UseCase
+  VM --> Repo
+  VM -.-> UseCase
   UseCase --> Repo
   Repo --> RepoImpl
-  RepoImpl --> DS
-  DS --> Local
-  DS --> Remote
+  RepoImpl --> Local
+  RepoImpl --> Remote
 ```
 
 Rules:
 
 - UI must not import data-layer DTOs/entities.
 - Repositories translate transport/storage models into domain models.
-- Room is local app state or projection cache, not Career Ops source of truth.
+- Room is a cache of API data, not a source of truth.
+- Errors cross layers as `Either<AppError, T>`; details in
+  `android/docs/system-architecture.md`.
 
-## Wrapper Request Flow
+### Wrapper Request Flow
 
 ```mermaid
 flowchart TD
@@ -86,8 +155,83 @@ Rules:
   host.
 - Workspace writes go through safe adapters.
 - Generic command execution endpoints are forbidden.
+- Offers, reports, and artifacts are read-only projections; their IDs are
+  opaque hashes or report numbers, matched against listings, never joined
+  into paths.
 
-## Runtime Configuration
+### Scan Run Lifecycle
+
+```mermaid
+sequenceDiagram
+  participant App as Android app
+  participant API as Wrapper
+  participant Scan as node scan.mjs
+  App->>API: POST /api/v1/scan-runs {dryRun, company}
+  API->>API: reserve single slot, check scan readiness
+  API->>Scan: spawn (no shell, allowlisted argv, CAREER_OPS_* stripped)
+  API-->>App: 202 ScanRunDto running
+  loop polling
+    App->>API: GET /api/v1/scan-runs/{id}
+    API-->>App: ScanRunDto
+  end
+  Scan-->>API: exit code, bounded stdout/stderr
+  API->>API: parse summary, redact warnings
+  App->>API: GET /api/v1/offers
+```
+
+`scan.mjs` only finds job links and writes `data/pipeline.md` and
+`data/scan-history.tsv`. Offers found from the phone show
+`evaluationStatus: "notEvaluated"` until an AI evaluation runs, on the desktop
+or through the evaluation lifecycle below.
+
+### AI Evaluation Lifecycle
+
+Off unless the desktop sets `CAREER_OPS_EVALUATION_PROVIDER=claude`. The phone
+sends only an `offerId`; it cannot pick the provider, model, prompt, URL, or
+any flag. Design: `docs/superpowers/specs/2026-10-31-ai-offer-evaluation-design.md`.
+
+```mermaid
+sequenceDiagram
+  participant App as Android app
+  participant API as Wrapper
+  participant Web as Job posting URL
+  participant CLI as claude -p (no tools)
+  participant WS as Career Ops workspace
+  App->>API: POST /api/v1/evaluations {offerId}
+  API->>API: one active slot, fresh readiness (CLI logged in), offer notEvaluated
+  API-->>App: 202 EvaluationDto running
+  API->>Web: GET offer URL (SSRF guard, 2 MiB, 20 s)
+  API->>CLI: fixed argv, env allowlist, empty temp cwd, prompt on stdin
+  CLI-->>API: one JSON object (validated with Zod)
+  API->>WS: reserve-report-num.mjs, write reports/NNN-…md, release
+  API->>WS: merge-tracker.mjs (one row, private additions dir)
+  loop polling
+    App->>API: GET /api/v1/evaluations/{id}
+  end
+  App->>API: GET /api/v1/offers (now evaluated)
+```
+
+Security boundary:
+
+- The model gets **no tools** (`--tools ""`, `--strict-mcp-config`,
+  `--safe-mode`, `--permission-mode dontAsk`, `--permission-prompts none`).
+  It cannot read files, run commands, browse, or write. The wrapper does all
+  disk and network work itself.
+- The child env is an allowlist (`HOME`, `USER`, `LOGNAME`, `PATH`, `SHELL`,
+  `TMPDIR`, `LANG`, `LC_*`), so the pairing token and API keys never reach it;
+  the CLI uses the desktop's subscription login.
+- The posting and the scan metadata are untrusted: every prompt block is
+  fenced with a random nonce and its closing-tag text removed. The report
+  header, file name and tracker cells come from the projection, not the model.
+- Writes: one new `reports/NNN-<slug>-<date>.md` (create-only), the
+  `reserve-report-num.mjs` sentinel, and `data/applications.md` through
+  `merge-tracker.mjs`. Nothing in `output/`.
+- Clients only ever see fixed sentences; CLI output, the prompt, the posting
+  and paths are never returned or logged.
+- One evaluation at a time; a scan may run at the same time (different
+  files). Cancel works until the write step starts.
+
+### Runtime Configuration
 
 Wrapper config order:
 
@@ -101,15 +245,18 @@ Defaults:
 CAREER_OPS_HOST=127.0.0.1
 CAREER_OPS_PORT=3000
 CAREER_OPS_PAIRING_TOKEN=
+CAREER_OPS_EVALUATION_PROVIDER=          # unset = AI evaluation off; `claude`
+CAREER_OPS_EVALUATION_TIMEOUT_MS=900000  # 60000–3600000
+CAREER_OPS_EVALUATION_CLI=               # optional absolute path; default `claude` on PATH
 ```
 
-Android dev flavor points to:
+An Android emulator reaches it at:
 
 ```text
 http://10.0.2.2:3000
 ```
 
-## API Surface
+### API Surface
 
 Current wrapper route families:
 
@@ -118,29 +265,33 @@ Current wrapper route families:
 - Profile config read/write.
 - Portal config read/write.
 - Scan readiness.
+- Scan run start/status (`/scan-runs`).
+- AI evaluation start/status/cancel (`/evaluations`).
+- Offers projection (`/offers`).
+- Reports (`/reports`) and artifacts (`/artifacts`, PDF download).
 - API docs/OpenAPI.
 
-Planned route families:
-
-- Scan run start/status.
-- Offers projection.
-- Reports and artifacts.
-
-## Key Architecture Decisions
+### Key Architecture Decisions
 
 - Wrapper over direct Android workspace access.
 - Career Ops workspace as source of truth.
-- Android Room as app state/projection cache.
+- Android Room as a cache of API data; no screen reads it yet.
 - Fastify + Zod as API boundary.
 - Polling is acceptable for MVP scan lifecycle.
 - Local Pairing Token protects LAN/private wrapper use.
-- Opaque backend IDs should be used for future reports/artifacts/offers.
+- Opaque backend IDs for offers (`offer_<hash>`), reports (`report_NNN`),
+  artifacts (`artifact_<hash>`), and scan runs (`scan_<time>_<hex>`).
+- Scan runs and evaluations are kept in memory; a wrapper restart forgets them.
+- AI evaluation runs the desktop's logged-in CLI with no tools; the wrapper
+  fetches and writes (owner decisions, 2026-10-31).
 
-## Risk Areas
+### Risk Areas
 
 - Contract drift between wrapper DTOs and Android DTOs.
 - Accidental raw path exposure.
 - Cleartext dev networking leaking into prod.
 - Workspace writes that fail to preserve unknown fields.
-- Scan execution becoming generic command execution.
+- Scan or evaluation execution becoming generic command execution.
+- AI CLI flag changes in a CLI update (the argv test pins the exact list; an
+  unknown flag fails closed).
 - Android cache diverging from Career Ops workspace without freshness labels.

@@ -1,0 +1,5221 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "JobFlow API",
+    "version": "0.1.0-draft",
+    "description": "The hosted JobFlow API. Generated from packages/contract; do not edit by hand."
+  },
+  "paths": {
+    "/api/v1/health": {
+      "get": {
+        "operationId": "getHealth",
+        "summary": "Whether the service can answer.",
+        "x-phase": 1,
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "The service is healthy.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthDto"
+                },
+                "examples": {
+                  "health.ok": {
+                    "value": {
+                      "status": "ok",
+                      "checks": {
+                        "database": "ok"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests from this address.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.rate-limited": {
+                    "value": {
+                      "error": {
+                        "code": "RATE_LIMITED",
+                        "message": "Too many requests. Try again soon.",
+                        "details": {
+                          "retryAfterSeconds": 30
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "A dependency is down.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthDto"
+                },
+                "examples": {
+                  "health.degraded": {
+                    "value": {
+                      "status": "degraded",
+                      "checks": {
+                        "database": "failed"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/guest": {
+      "post": {
+        "operationId": "signInGuest",
+        "summary": "Start or resume a guest account. Needs an anonymous token. Safe to retry.",
+        "x-phase": 1,
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The guest account, created on the first call.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MeDto"
+                },
+                "examples": {
+                  "me.guest": {
+                    "value": {
+                      "userId": "user_02",
+                      "isAnonymous": true,
+                      "createdAt": "2026-11-02T08:00:00.000Z"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The token is missing or not valid. The app signs in again.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.unauthorized": {
+                    "value": {
+                      "error": {
+                        "code": "UNAUTHORIZED",
+                        "message": "Sign in again."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The token is not anonymous: this user is already signed in.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.conflict": {
+                    "value": {
+                      "error": {
+                        "code": "CONFLICT",
+                        "message": "This conflicts with the current state."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.rate-limited": {
+                    "value": {
+                      "error": {
+                        "code": "RATE_LIMITED",
+                        "message": "Too many requests. Try again soon.",
+                        "details": {
+                          "retryAfterSeconds": 30
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "An unexpected error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.unexpected-error": {
+                    "value": {
+                      "error": {
+                        "code": "UNEXPECTED_ERROR",
+                        "message": "Something went wrong."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "A dependency is down. This is not a sign-in problem; the app retries and keeps the user signed in.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.auth-unavailable": {
+                    "value": {
+                      "error": {
+                        "code": "AUTH_UNAVAILABLE",
+                        "message": "Sign-in could not be checked right now."
+                      }
+                    }
+                  },
+                  "errors.unavailable": {
+                    "value": {
+                      "error": {
+                        "code": "UNAVAILABLE",
+                        "message": "The service is temporarily unavailable."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/sso": {
+      "post": {
+        "operationId": "signInSso",
+        "summary": "Finish a sign-in. Needs a token that is not anonymous, and the account always comes from that token. With guestToken, moves that guest's data to this account and closes the guest, whose token then gets 401. Linking happens in Firebase on the device: never send a Google ID token. Safe to retry.",
+        "x-phase": 1,
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SsoRequest"
+              },
+              "examples": {
+                "requests.auth-sso": {
+                  "value": {
+                    "guestToken": "synthetic-guest-token"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Signed in. guestMerged is false when no merge can be reported: no guestToken, a token that is expired, invalid or not anonymous (an expired token says nothing about an earlier merge), the same user as this account (Firebase linked it, so the data is already here), a user linked to a real account, a guest the server never saw (it has no data), or a guest already merged elsewhere or deleted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SsoResponseDto"
+                },
+                "examples": {
+                  "auth-sso.merged": {
+                    "value": {
+                      "account": {
+                        "userId": "user_01",
+                        "isAnonymous": false,
+                        "createdAt": "2026-11-02T08:00:00.000Z"
+                      },
+                      "guestMerged": true
+                    }
+                  },
+                  "auth-sso.not-merged": {
+                    "value": {
+                      "account": {
+                        "userId": "user_01",
+                        "isAnonymous": false,
+                        "createdAt": "2026-11-02T08:00:00.000Z"
+                      },
+                      "guestMerged": false
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request is not valid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.validation-error": {
+                    "value": {
+                      "error": {
+                        "code": "VALIDATION_ERROR",
+                        "message": "The request is not valid.",
+                        "details": {
+                          "fields": [
+                            "roles"
+                          ]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The token is missing or not valid. The app signs in again.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.unauthorized": {
+                    "value": {
+                      "error": {
+                        "code": "UNAUTHORIZED",
+                        "message": "Sign in again."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token is anonymous.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.sign-in-required": {
+                    "value": {
+                      "error": {
+                        "code": "SIGN_IN_REQUIRED",
+                        "message": "Sign in with Google to use this."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.rate-limited": {
+                    "value": {
+                      "error": {
+                        "code": "RATE_LIMITED",
+                        "message": "Too many requests. Try again soon.",
+                        "details": {
+                          "retryAfterSeconds": 30
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "An unexpected error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.unexpected-error": {
+                    "value": {
+                      "error": {
+                        "code": "UNEXPECTED_ERROR",
+                        "message": "Something went wrong."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "A dependency is down. This is not a sign-in problem; the app retries and keeps the user signed in.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.auth-unavailable": {
+                    "value": {
+                      "error": {
+                        "code": "AUTH_UNAVAILABLE",
+                        "message": "Sign-in could not be checked right now."
+                      }
+                    }
+                  },
+                  "errors.unavailable": {
+                    "value": {
+                      "error": {
+                        "code": "UNAVAILABLE",
+                        "message": "The service is temporarily unavailable."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/logout": {
+      "post": {
+        "operationId": "logOut",
+        "summary": "Stop sending push to this installation for the caller, and forget its FCM token. Other installations stay signed in, so this revokes no token. Safe to retry. installationId is opaque to the server.",
+        "x-phase": 1,
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LogoutRequest"
+              },
+              "examples": {
+                "requests.auth-logout": {
+                  "value": {
+                    "installationId": "installation_01"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Removed, or was not registered."
+          },
+          "400": {
+            "description": "The request is not valid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.validation-error": {
+                    "value": {
+                      "error": {
+                        "code": "VALIDATION_ERROR",
+                        "message": "The request is not valid.",
+                        "details": {
+                          "fields": [
+                            "roles"
+                          ]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The token is missing or not valid. The app signs in again.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.unauthorized": {
+                    "value": {
+                      "error": {
+                        "code": "UNAUTHORIZED",
+                        "message": "Sign in again."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.rate-limited": {
+                    "value": {
+                      "error": {
+                        "code": "RATE_LIMITED",
+                        "message": "Too many requests. Try again soon.",
+                        "details": {
+                          "retryAfterSeconds": 30
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "An unexpected error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.unexpected-error": {
+                    "value": {
+                      "error": {
+                        "code": "UNEXPECTED_ERROR",
+                        "message": "Something went wrong."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "A dependency is down. This is not a sign-in problem; the app retries and keeps the user signed in.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.auth-unavailable": {
+                    "value": {
+                      "error": {
+                        "code": "AUTH_UNAVAILABLE",
+                        "message": "Sign-in could not be checked right now."
+                      }
+                    }
+                  },
+                  "errors.unavailable": {
+                    "value": {
+                      "error": {
+                        "code": "UNAVAILABLE",
+                        "message": "The service is temporarily unavailable."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/me": {
+      "get": {
+        "operationId": "getMe",
+        "summary": "The signed-in user. Creates the user on the first call.",
+        "x-phase": 1,
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The user.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MeDto"
+                },
+                "examples": {
+                  "me.valid": {
+                    "value": {
+                      "userId": "user_01",
+                      "isAnonymous": false,
+                      "createdAt": "2026-11-02T08:00:00.000Z"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The token is missing or not valid. The app signs in again.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.unauthorized": {
+                    "value": {
+                      "error": {
+                        "code": "UNAUTHORIZED",
+                        "message": "Sign in again."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.rate-limited": {
+                    "value": {
+                      "error": {
+                        "code": "RATE_LIMITED",
+                        "message": "Too many requests. Try again soon.",
+                        "details": {
+                          "retryAfterSeconds": 30
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "An unexpected error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.unexpected-error": {
+                    "value": {
+                      "error": {
+                        "code": "UNEXPECTED_ERROR",
+                        "message": "Something went wrong."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "A dependency is down. This is not a sign-in problem; the app retries and keeps the user signed in.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.auth-unavailable": {
+                    "value": {
+                      "error": {
+                        "code": "AUTH_UNAVAILABLE",
+                        "message": "Sign-in could not be checked right now."
+                      }
+                    }
+                  },
+                  "errors.unavailable": {
+                    "value": {
+                      "error": {
+                        "code": "UNAVAILABLE",
+                        "message": "The service is temporarily unavailable."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteMe",
+        "summary": "Delete the account and all of the user's data, including any pending CV import.",
+        "x-phase": 3,
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Deletion has started."
+          },
+          "401": {
+            "description": "The token is missing or not valid. The app signs in again.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.unauthorized": {
+                    "value": {
+                      "error": {
+                        "code": "UNAUTHORIZED",
+                        "message": "Sign in again."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.rate-limited": {
+                    "value": {
+                      "error": {
+                        "code": "RATE_LIMITED",
+                        "message": "Too many requests. Try again soon.",
+                        "details": {
+                          "retryAfterSeconds": 30
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "An unexpected error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.unexpected-error": {
+                    "value": {
+                      "error": {
+                        "code": "UNEXPECTED_ERROR",
+                        "message": "Something went wrong."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "A dependency is down. This is not a sign-in problem; the app retries and keeps the user signed in.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.auth-unavailable": {
+                    "value": {
+                      "error": {
+                        "code": "AUTH_UNAVAILABLE",
+                        "message": "Sign-in could not be checked right now."
+                      }
+                    }
+                  },
+                  "errors.unavailable": {
+                    "value": {
+                      "error": {
+                        "code": "UNAVAILABLE",
+                        "message": "The service is temporarily unavailable."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/me/preferences": {
+      "get": {
+        "operationId": "getPreferences",
+        "summary": "What the user wants. A new user gets every list empty.",
+        "x-phase": 2,
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The preferences.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PreferencesDto"
+                },
+                "examples": {
+                  "preferences.valid": {
+                    "value": {
+                      "roles": [
+                        "Staff nurse",
+                        "Clinical lead"
+                      ],
+                      "keywordsInclude": [
+                        "pediatrics"
+                      ],
+                      "keywordsExclude": [
+                        "night shift only"
+                      ],
+                      "locations": [
+                        "Hanoi"
+                      ],
+                      "remotePolicies": [
+                        "hybrid",
+                        "onsite"
+                      ],
+                      "countries": [
+                        "VN",
+                        "SG"
+                      ],
+                      "minimumSalary": {
+                        "amount": 30000000,
+                        "currency": "VND",
+                        "period": "month"
+                      },
+                      "seniority": [
+                        "mid",
+                        "senior"
+                      ],
+                      "aim": "A senior role on a children's ward, with mentoring."
+                    }
+                  },
+                  "preferences.empty": {
+                    "value": {
+                      "roles": [],
+                      "keywordsInclude": [],
+                      "keywordsExclude": [],
+                      "locations": [],
+                      "remotePolicies": [],
+                      "countries": [],
+                      "minimumSalary": null,
+                      "seniority": [],
+                      "aim": null
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The token is missing or not valid. The app signs in again.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.unauthorized": {
+                    "value": {
+                      "error": {
+                        "code": "UNAUTHORIZED",
+                        "message": "Sign in again."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.rate-limited": {
+                    "value": {
+                      "error": {
+                        "code": "RATE_LIMITED",
+                        "message": "Too many requests. Try again soon.",
+                        "details": {
+                          "retryAfterSeconds": 30
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "An unexpected error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.unexpected-error": {
+                    "value": {
+                      "error": {
+                        "code": "UNEXPECTED_ERROR",
+                        "message": "Something went wrong."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "A dependency is down. This is not a sign-in problem; the app retries and keeps the user signed in.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.auth-unavailable": {
+                    "value": {
+                      "error": {
+                        "code": "AUTH_UNAVAILABLE",
+                        "message": "Sign-in could not be checked right now."
+                      }
+                    }
+                  },
+                  "errors.unavailable": {
+                    "value": {
+                      "error": {
+                        "code": "UNAVAILABLE",
+                        "message": "The service is temporarily unavailable."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "operationId": "putPreferences",
+        "summary": "Replace the preferences.",
+        "x-phase": 2,
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PreferencesDto"
+              },
+              "examples": {
+                "requests.preferences-update": {
+                  "value": {
+                    "roles": [
+                      "Staff nurse",
+                      "Clinical lead"
+                    ],
+                    "keywordsInclude": [
+                      "pediatrics"
+                    ],
+                    "keywordsExclude": [
+                      "night shift only"
+                    ],
+                    "locations": [
+                      "Hanoi"
+                    ],
+                    "remotePolicies": [
+                      "hybrid",
+                      "onsite"
+                    ],
+                    "countries": [
+                      "VN",
+                      "SG"
+                    ],
+                    "minimumSalary": {
+                      "amount": 30000000,
+                      "currency": "VND",
+                      "period": "month"
+                    },
+                    "seniority": [
+                      "mid",
+                      "senior"
+                    ],
+                    "aim": "A senior role on a children's ward, with mentoring."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The stored preferences.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PreferencesDto"
+                },
+                "examples": {
+                  "preferences.valid": {
+                    "value": {
+                      "roles": [
+                        "Staff nurse",
+                        "Clinical lead"
+                      ],
+                      "keywordsInclude": [
+                        "pediatrics"
+                      ],
+                      "keywordsExclude": [
+                        "night shift only"
+                      ],
+                      "locations": [
+                        "Hanoi"
+                      ],
+                      "remotePolicies": [
+                        "hybrid",
+                        "onsite"
+                      ],
+                      "countries": [
+                        "VN",
+                        "SG"
+                      ],
+                      "minimumSalary": {
+                        "amount": 30000000,
+                        "currency": "VND",
+                        "period": "month"
+                      },
+                      "seniority": [
+                        "mid",
+                        "senior"
+                      ],
+                      "aim": "A senior role on a children's ward, with mentoring."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request is not valid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.validation-error": {
+                    "value": {
+                      "error": {
+                        "code": "VALIDATION_ERROR",
+                        "message": "The request is not valid.",
+                        "details": {
+                          "fields": [
+                            "roles"
+                          ]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The token is missing or not valid. The app signs in again.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.unauthorized": {
+                    "value": {
+                      "error": {
+                        "code": "UNAUTHORIZED",
+                        "message": "Sign in again."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.rate-limited": {
+                    "value": {
+                      "error": {
+                        "code": "RATE_LIMITED",
+                        "message": "Too many requests. Try again soon.",
+                        "details": {
+                          "retryAfterSeconds": 30
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "An unexpected error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.unexpected-error": {
+                    "value": {
+                      "error": {
+                        "code": "UNEXPECTED_ERROR",
+                        "message": "Something went wrong."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "A dependency is down. This is not a sign-in problem; the app retries and keeps the user signed in.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.auth-unavailable": {
+                    "value": {
+                      "error": {
+                        "code": "AUTH_UNAVAILABLE",
+                        "message": "Sign-in could not be checked right now."
+                      }
+                    }
+                  },
+                  "errors.unavailable": {
+                    "value": {
+                      "error": {
+                        "code": "UNAVAILABLE",
+                        "message": "The service is temporarily unavailable."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/me/cv/import": {
+      "post": {
+        "operationId": "importCv",
+        "summary": "Extract a CV file (PDF or DOCX, at most 5 MiB) as Markdown for review. The file and text are held encrypted under importId for at most 24 hours, until PUT /me/cv uses them. A new import replaces the pending one. Pending imports are also capped per address and in total, because anonymous accounts are free. A file whose extracted text is over the CV limit gets 413.",
+        "x-phase": 2,
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-Integrity-Token",
+            "in": "header",
+            "required": false,
+            "description": "Play Integrity token. Optional in this draft. Phase 3, which ships Play Integrity, makes it required: a missing or failed token then gets 403 INTEGRITY_FAILED.",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "file"
+                ],
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "PDF or DOCX, at most 5242880 bytes."
+                  },
+                  "restructure": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Ask AI to restructure the text. Needs Google sign-in, and an entitlement or the trial. Without it, the server extracts plain text. AI ships in phase 3; until then, true gets 403 ENTITLEMENT_REQUIRED."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The extracted text.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CvImportDto"
+                },
+                "examples": {
+                  "cv-import.valid": {
+                    "value": {
+                      "importId": "import_01",
+                      "markdown": "# Sample Person\n\n## Experience\n\nStaff nurse, Example Hospital, 2020 to now.\n"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request is not valid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.validation-error": {
+                    "value": {
+                      "error": {
+                        "code": "VALIDATION_ERROR",
+                        "message": "The request is not valid.",
+                        "details": {
+                          "fields": [
+                            "roles"
+                          ]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The token is missing or not valid. The app signs in again.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.unauthorized": {
+                    "value": {
+                      "error": {
+                        "code": "UNAUTHORIZED",
+                        "message": "Sign in again."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Refused before any AI call: not signed in with Google, no entitlement or trial left, or a failed integrity check.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.sign-in-required": {
+                    "value": {
+                      "error": {
+                        "code": "SIGN_IN_REQUIRED",
+                        "message": "Sign in with Google to use this."
+                      }
+                    }
+                  },
+                  "errors.entitlement-required": {
+                    "value": {
+                      "error": {
+                        "code": "ENTITLEMENT_REQUIRED",
+                        "message": "This needs a plan or the free trial."
+                      }
+                    }
+                  },
+                  "errors.integrity-failed": {
+                    "value": {
+                      "error": {
+                        "code": "INTEGRITY_FAILED",
+                        "message": "This device could not be verified."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "The file, or the text extracted from it, is too large.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.payload-too-large": {
+                    "value": {
+                      "error": {
+                        "code": "PAYLOAD_TOO_LARGE",
+                        "message": "The file, or the text extracted from it, is too large."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Not a PDF or DOCX file.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.unsupported-media-type": {
+                    "value": {
+                      "error": {
+                        "code": "UNSUPPORTED_MEDIA_TYPE",
+                        "message": "Use a PDF or DOCX file."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "No text could be read, for example a scanned image.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.cv-unreadable": {
+                    "value": {
+                      "error": {
+                        "code": "CV_UNREADABLE",
+                        "message": "No text could be read. Use a text PDF."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The plan's quota is used up, or this address has too many pending imports.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.quota-exceeded": {
+                    "value": {
+                      "error": {
+                        "code": "QUOTA_EXCEEDED",
+                        "message": "This plan's quota is used up."
+                      }
+                    }
+                  },
+                  "errors.rate-limited": {
+                    "value": {
+                      "error": {
+                        "code": "RATE_LIMITED",
+                        "message": "Too many requests. Try again soon.",
+                        "details": {
+                          "retryAfterSeconds": 30
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "An unexpected error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.unexpected-error": {
+                    "value": {
+                      "error": {
+                        "code": "UNEXPECTED_ERROR",
+                        "message": "Something went wrong."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "A dependency is down. This is not a sign-in problem; the app retries and keeps the user signed in.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.auth-unavailable": {
+                    "value": {
+                      "error": {
+                        "code": "AUTH_UNAVAILABLE",
+                        "message": "Sign-in could not be checked right now."
+                      }
+                    }
+                  },
+                  "errors.unavailable": {
+                    "value": {
+                      "error": {
+                        "code": "UNAVAILABLE",
+                        "message": "The service is temporarily unavailable."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/me/cv": {
+      "get": {
+        "operationId": "getCv",
+        "summary": "The stored CV.",
+        "x-phase": 2,
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The CV.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CvDto"
+                },
+                "examples": {
+                  "cv.valid": {
+                    "value": {
+                      "markdown": "# Sample Person\n\n## Experience\n\nStaff nurse, Example Hospital, 2020 to now.\n",
+                      "updatedAt": "2026-11-02T08:00:00.000Z"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The token is missing or not valid. The app signs in again.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.unauthorized": {
+                    "value": {
+                      "error": {
+                        "code": "UNAUTHORIZED",
+                        "message": "Sign in again."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No CV yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.not-found": {
+                    "value": {
+                      "error": {
+                        "code": "NOT_FOUND",
+                        "message": "Resource was not found."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.rate-limited": {
+                    "value": {
+                      "error": {
+                        "code": "RATE_LIMITED",
+                        "message": "Too many requests. Try again soon.",
+                        "details": {
+                          "retryAfterSeconds": 30
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "An unexpected error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.unexpected-error": {
+                    "value": {
+                      "error": {
+                        "code": "UNEXPECTED_ERROR",
+                        "message": "Something went wrong."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "A dependency is down. This is not a sign-in problem; the app retries and keeps the user signed in.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.auth-unavailable": {
+                    "value": {
+                      "error": {
+                        "code": "AUTH_UNAVAILABLE",
+                        "message": "Sign-in could not be checked right now."
+                      }
+                    }
+                  },
+                  "errors.unavailable": {
+                    "value": {
+                      "error": {
+                        "code": "UNAVAILABLE",
+                        "message": "The service is temporarily unavailable."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "operationId": "putCv",
+        "summary": "Store the reviewed CV. importId is random and works only for the user who made the import.",
+        "x-phase": 2,
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CvUpdateRequest"
+              },
+              "examples": {
+                "requests.cv-update": {
+                  "value": {
+                    "importId": "import_01",
+                    "markdown": "# Sample Person\n\n## Experience\n\nStaff nurse, Example Hospital, 2020 to now.\n"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The stored CV.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CvDto"
+                },
+                "examples": {
+                  "cv.valid": {
+                    "value": {
+                      "markdown": "# Sample Person\n\n## Experience\n\nStaff nurse, Example Hospital, 2020 to now.\n",
+                      "updatedAt": "2026-11-02T08:00:00.000Z"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request is not valid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.validation-error": {
+                    "value": {
+                      "error": {
+                        "code": "VALIDATION_ERROR",
+                        "message": "The request is not valid.",
+                        "details": {
+                          "fields": [
+                            "roles"
+                          ]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The token is missing or not valid. The app signs in again.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.unauthorized": {
+                    "value": {
+                      "error": {
+                        "code": "UNAUTHORIZED",
+                        "message": "Sign in again."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "That import has expired, was already used, or is not this user's. All three get the same answer.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.conflict": {
+                    "value": {
+                      "error": {
+                        "code": "CONFLICT",
+                        "message": "This conflicts with the current state."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.rate-limited": {
+                    "value": {
+                      "error": {
+                        "code": "RATE_LIMITED",
+                        "message": "Too many requests. Try again soon.",
+                        "details": {
+                          "retryAfterSeconds": 30
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "An unexpected error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.unexpected-error": {
+                    "value": {
+                      "error": {
+                        "code": "UNEXPECTED_ERROR",
+                        "message": "Something went wrong."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "A dependency is down. This is not a sign-in problem; the app retries and keeps the user signed in.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.auth-unavailable": {
+                    "value": {
+                      "error": {
+                        "code": "AUTH_UNAVAILABLE",
+                        "message": "Sign-in could not be checked right now."
+                      }
+                    }
+                  },
+                  "errors.unavailable": {
+                    "value": {
+                      "error": {
+                        "code": "UNAVAILABLE",
+                        "message": "The service is temporarily unavailable."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/feed": {
+      "get": {
+        "operationId": "getFeed",
+        "summary": "Jobs that match the user, newest and best first, and why.",
+        "x-phase": 2,
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "description": "`nextCursor` from the previous page.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,199}$"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Page size.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "One page of matches.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeedPageDto"
+                },
+                "examples": {
+                  "feed.valid": {
+                    "value": {
+                      "items": [
+                        {
+                          "job": {
+                            "jobId": "job_01",
+                            "title": "Staff Nurse, Pediatrics",
+                            "company": "Example Hospital",
+                            "location": "Hanoi",
+                            "remotePolicy": "onsite",
+                            "salary": {
+                              "min": 30000000,
+                              "max": 45000000,
+                              "currency": "VND",
+                              "period": "month"
+                            },
+                            "url": "https://jobs.example.com/postings/1",
+                            "firstSeenAt": "2026-11-02T08:00:00.000Z",
+                            "closed": false
+                          },
+                          "reasons": [
+                            "Matches your role: Staff nurse",
+                            "In Hanoi",
+                            "Salary meets your minimum"
+                          ],
+                          "trackerStatus": null,
+                          "matchedAt": "2026-11-02T09:30:00.000Z"
+                        }
+                      ],
+                      "nextCursor": "cursor_01"
+                    }
+                  },
+                  "feed.empty": {
+                    "value": {
+                      "items": [],
+                      "nextCursor": null
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request is not valid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.validation-error": {
+                    "value": {
+                      "error": {
+                        "code": "VALIDATION_ERROR",
+                        "message": "The request is not valid.",
+                        "details": {
+                          "fields": [
+                            "roles"
+                          ]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The token is missing or not valid. The app signs in again.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.unauthorized": {
+                    "value": {
+                      "error": {
+                        "code": "UNAUTHORIZED",
+                        "message": "Sign in again."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.rate-limited": {
+                    "value": {
+                      "error": {
+                        "code": "RATE_LIMITED",
+                        "message": "Too many requests. Try again soon.",
+                        "details": {
+                          "retryAfterSeconds": 30
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "An unexpected error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.unexpected-error": {
+                    "value": {
+                      "error": {
+                        "code": "UNEXPECTED_ERROR",
+                        "message": "Something went wrong."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "A dependency is down. This is not a sign-in problem; the app retries and keeps the user signed in.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.auth-unavailable": {
+                    "value": {
+                      "error": {
+                        "code": "AUTH_UNAVAILABLE",
+                        "message": "Sign-in could not be checked right now."
+                      }
+                    }
+                  },
+                  "errors.unavailable": {
+                    "value": {
+                      "error": {
+                        "code": "UNAVAILABLE",
+                        "message": "The service is temporarily unavailable."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/jobs/{jobId}": {
+      "get": {
+        "operationId": "getJob",
+        "summary": "One job.",
+        "x-phase": 2,
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "jobId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,199}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The job.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobDto"
+                },
+                "examples": {
+                  "job.valid": {
+                    "value": {
+                      "jobId": "job_01",
+                      "title": "Staff Nurse, Pediatrics",
+                      "company": "Example Hospital",
+                      "location": "Hanoi",
+                      "remotePolicy": "onsite",
+                      "salary": {
+                        "min": 30000000,
+                        "max": 45000000,
+                        "currency": "VND",
+                        "period": "month"
+                      },
+                      "url": "https://jobs.example.com/postings/1",
+                      "firstSeenAt": "2026-11-02T08:00:00.000Z",
+                      "closed": false,
+                      "source": "example-board",
+                      "externalId": "posting-1",
+                      "acceptedCountries": [
+                        "VN"
+                      ],
+                      "acceptedTimezones": [
+                        "Asia/Ho_Chi_Minh"
+                      ],
+                      "descriptionText": "Example Hospital is hiring a staff nurse for its pediatrics ward.",
+                      "lastSeenAt": "2026-11-02T09:30:00.000Z"
+                    }
+                  },
+                  "job.closed": {
+                    "value": {
+                      "jobId": "job_02",
+                      "title": "Staff Nurse, Pediatrics",
+                      "company": "Example Hospital",
+                      "location": "Hanoi",
+                      "remotePolicy": "onsite",
+                      "salary": null,
+                      "url": "https://jobs.example.com/postings/1",
+                      "firstSeenAt": "2026-11-02T08:00:00.000Z",
+                      "closed": true,
+                      "source": "example-board",
+                      "externalId": null,
+                      "acceptedCountries": [],
+                      "acceptedTimezones": [],
+                      "descriptionText": "Example Hospital is hiring a staff nurse for its pediatrics ward.",
+                      "lastSeenAt": "2026-11-02T09:30:00.000Z"
+                    }
+                  },
+                  "job.hourly": {
+                    "value": {
+                      "jobId": "job_03",
+                      "title": "Home Care Aide",
+                      "company": "Example Hospital",
+                      "location": "Hanoi",
+                      "remotePolicy": "onsite",
+                      "salary": {
+                        "min": 22.5,
+                        "max": 28.75,
+                        "currency": null,
+                        "period": "hour"
+                      },
+                      "url": "https://jobs.example.com/postings/1",
+                      "firstSeenAt": "2026-11-02T08:00:00.000Z",
+                      "closed": false,
+                      "source": "example-board",
+                      "externalId": "posting 3/a",
+                      "acceptedCountries": [
+                        "VN"
+                      ],
+                      "acceptedTimezones": [
+                        "Asia/Ho_Chi_Minh"
+                      ],
+                      "descriptionText": "Example Hospital is hiring a staff nurse for its pediatrics ward.",
+                      "lastSeenAt": "2026-11-02T09:30:00.000Z"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request is not valid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.validation-error": {
+                    "value": {
+                      "error": {
+                        "code": "VALIDATION_ERROR",
+                        "message": "The request is not valid.",
+                        "details": {
+                          "fields": [
+                            "roles"
+                          ]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The token is missing or not valid. The app signs in again.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.unauthorized": {
+                    "value": {
+                      "error": {
+                        "code": "UNAUTHORIZED",
+                        "message": "Sign in again."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found, or not this user's.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.not-found": {
+                    "value": {
+                      "error": {
+                        "code": "NOT_FOUND",
+                        "message": "Resource was not found."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.rate-limited": {
+                    "value": {
+                      "error": {
+                        "code": "RATE_LIMITED",
+                        "message": "Too many requests. Try again soon.",
+                        "details": {
+                          "retryAfterSeconds": 30
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "An unexpected error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.unexpected-error": {
+                    "value": {
+                      "error": {
+                        "code": "UNEXPECTED_ERROR",
+                        "message": "Something went wrong."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "A dependency is down. This is not a sign-in problem; the app retries and keeps the user signed in.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.auth-unavailable": {
+                    "value": {
+                      "error": {
+                        "code": "AUTH_UNAVAILABLE",
+                        "message": "Sign-in could not be checked right now."
+                      }
+                    }
+                  },
+                  "errors.unavailable": {
+                    "value": {
+                      "error": {
+                        "code": "UNAVAILABLE",
+                        "message": "The service is temporarily unavailable."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/jobs/{jobId}/tracker": {
+      "put": {
+        "operationId": "putTracker",
+        "summary": "Mark a job. The app never applies for the user.",
+        "x-phase": 2,
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "jobId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,199}$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TrackerUpdateRequest"
+              },
+              "examples": {
+                "requests.tracker-update": {
+                  "value": {
+                    "status": "applied"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The stored mark.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrackerEntryDto"
+                },
+                "examples": {
+                  "tracker-entry.valid": {
+                    "value": {
+                      "job": {
+                        "jobId": "job_01",
+                        "title": "Staff Nurse, Pediatrics",
+                        "company": "Example Hospital",
+                        "location": "Hanoi",
+                        "remotePolicy": "onsite",
+                        "salary": {
+                          "min": 30000000,
+                          "max": 45000000,
+                          "currency": "VND",
+                          "period": "month"
+                        },
+                        "url": "https://jobs.example.com/postings/1",
+                        "firstSeenAt": "2026-11-02T08:00:00.000Z",
+                        "closed": false
+                      },
+                      "status": "applied",
+                      "updatedAt": "2026-11-02T09:30:00.000Z"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request is not valid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.validation-error": {
+                    "value": {
+                      "error": {
+                        "code": "VALIDATION_ERROR",
+                        "message": "The request is not valid.",
+                        "details": {
+                          "fields": [
+                            "roles"
+                          ]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The token is missing or not valid. The app signs in again.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.unauthorized": {
+                    "value": {
+                      "error": {
+                        "code": "UNAUTHORIZED",
+                        "message": "Sign in again."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found, or not this user's.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.not-found": {
+                    "value": {
+                      "error": {
+                        "code": "NOT_FOUND",
+                        "message": "Resource was not found."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.rate-limited": {
+                    "value": {
+                      "error": {
+                        "code": "RATE_LIMITED",
+                        "message": "Too many requests. Try again soon.",
+                        "details": {
+                          "retryAfterSeconds": 30
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "An unexpected error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.unexpected-error": {
+                    "value": {
+                      "error": {
+                        "code": "UNEXPECTED_ERROR",
+                        "message": "Something went wrong."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "A dependency is down. This is not a sign-in problem; the app retries and keeps the user signed in.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.auth-unavailable": {
+                    "value": {
+                      "error": {
+                        "code": "AUTH_UNAVAILABLE",
+                        "message": "Sign-in could not be checked right now."
+                      }
+                    }
+                  },
+                  "errors.unavailable": {
+                    "value": {
+                      "error": {
+                        "code": "UNAVAILABLE",
+                        "message": "The service is temporarily unavailable."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteTracker",
+        "summary": "Remove the mark from a job.",
+        "x-phase": 2,
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "jobId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,199}$"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Removed, or was not marked."
+          },
+          "400": {
+            "description": "The request is not valid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.validation-error": {
+                    "value": {
+                      "error": {
+                        "code": "VALIDATION_ERROR",
+                        "message": "The request is not valid.",
+                        "details": {
+                          "fields": [
+                            "roles"
+                          ]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The token is missing or not valid. The app signs in again.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.unauthorized": {
+                    "value": {
+                      "error": {
+                        "code": "UNAUTHORIZED",
+                        "message": "Sign in again."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found, or not this user's.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.not-found": {
+                    "value": {
+                      "error": {
+                        "code": "NOT_FOUND",
+                        "message": "Resource was not found."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.rate-limited": {
+                    "value": {
+                      "error": {
+                        "code": "RATE_LIMITED",
+                        "message": "Too many requests. Try again soon.",
+                        "details": {
+                          "retryAfterSeconds": 30
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "An unexpected error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.unexpected-error": {
+                    "value": {
+                      "error": {
+                        "code": "UNEXPECTED_ERROR",
+                        "message": "Something went wrong."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "A dependency is down. This is not a sign-in problem; the app retries and keeps the user signed in.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.auth-unavailable": {
+                    "value": {
+                      "error": {
+                        "code": "AUTH_UNAVAILABLE",
+                        "message": "Sign-in could not be checked right now."
+                      }
+                    }
+                  },
+                  "errors.unavailable": {
+                    "value": {
+                      "error": {
+                        "code": "UNAVAILABLE",
+                        "message": "The service is temporarily unavailable."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tracker": {
+      "get": {
+        "operationId": "getTracker",
+        "summary": "The jobs the user has marked, most recently changed first.",
+        "x-phase": 2,
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "description": "`nextCursor` from the previous page.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,199}$"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Page size.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "One page of marked jobs.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrackerPageDto"
+                },
+                "examples": {
+                  "tracker.valid": {
+                    "value": {
+                      "items": [
+                        {
+                          "job": {
+                            "jobId": "job_01",
+                            "title": "Staff Nurse, Pediatrics",
+                            "company": "Example Hospital",
+                            "location": "Hanoi",
+                            "remotePolicy": "onsite",
+                            "salary": {
+                              "min": 30000000,
+                              "max": 45000000,
+                              "currency": "VND",
+                              "period": "month"
+                            },
+                            "url": "https://jobs.example.com/postings/1",
+                            "firstSeenAt": "2026-11-02T08:00:00.000Z",
+                            "closed": false
+                          },
+                          "status": "applied",
+                          "updatedAt": "2026-11-02T09:30:00.000Z"
+                        }
+                      ],
+                      "nextCursor": null
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request is not valid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.validation-error": {
+                    "value": {
+                      "error": {
+                        "code": "VALIDATION_ERROR",
+                        "message": "The request is not valid.",
+                        "details": {
+                          "fields": [
+                            "roles"
+                          ]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The token is missing or not valid. The app signs in again.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.unauthorized": {
+                    "value": {
+                      "error": {
+                        "code": "UNAUTHORIZED",
+                        "message": "Sign in again."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.rate-limited": {
+                    "value": {
+                      "error": {
+                        "code": "RATE_LIMITED",
+                        "message": "Too many requests. Try again soon.",
+                        "details": {
+                          "retryAfterSeconds": 30
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "An unexpected error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.unexpected-error": {
+                    "value": {
+                      "error": {
+                        "code": "UNEXPECTED_ERROR",
+                        "message": "Something went wrong."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "A dependency is down. This is not a sign-in problem; the app retries and keeps the user signed in.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.auth-unavailable": {
+                    "value": {
+                      "error": {
+                        "code": "AUTH_UNAVAILABLE",
+                        "message": "Sign-in could not be checked right now."
+                      }
+                    }
+                  },
+                  "errors.unavailable": {
+                    "value": {
+                      "error": {
+                        "code": "UNAVAILABLE",
+                        "message": "The service is temporarily unavailable."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/companies": {
+      "post": {
+        "operationId": "addCompany",
+        "summary": "Add a company careers page to the shared job index. Needs Google sign-in, and each user has a cap, because this adds work for the server.",
+        "x-phase": 2,
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CompanyCreateRequest"
+              },
+              "examples": {
+                "requests.company-create": {
+                  "value": {
+                    "careersUrl": "https://careers.example.com"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The company.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompanyDto"
+                },
+                "examples": {
+                  "company.valid": {
+                    "value": {
+                      "companyId": "company_01",
+                      "name": "Example Hospital",
+                      "careersUrl": "https://careers.example.com"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request is not valid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.validation-error": {
+                    "value": {
+                      "error": {
+                        "code": "VALIDATION_ERROR",
+                        "message": "The request is not valid.",
+                        "details": {
+                          "fields": [
+                            "roles"
+                          ]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The token is missing or not valid. The app signs in again.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.unauthorized": {
+                    "value": {
+                      "error": {
+                        "code": "UNAUTHORIZED",
+                        "message": "Sign in again."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Anonymous users cannot add companies.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.sign-in-required": {
+                    "value": {
+                      "error": {
+                        "code": "SIGN_IN_REQUIRED",
+                        "message": "Sign in with Google to use this."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "This user has added too many companies.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.quota-exceeded": {
+                    "value": {
+                      "error": {
+                        "code": "QUOTA_EXCEEDED",
+                        "message": "This plan's quota is used up."
+                      }
+                    }
+                  },
+                  "errors.rate-limited": {
+                    "value": {
+                      "error": {
+                        "code": "RATE_LIMITED",
+                        "message": "Too many requests. Try again soon.",
+                        "details": {
+                          "retryAfterSeconds": 30
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "An unexpected error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.unexpected-error": {
+                    "value": {
+                      "error": {
+                        "code": "UNEXPECTED_ERROR",
+                        "message": "Something went wrong."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "A dependency is down. This is not a sign-in problem; the app retries and keeps the user signed in.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.auth-unavailable": {
+                    "value": {
+                      "error": {
+                        "code": "AUTH_UNAVAILABLE",
+                        "message": "Sign-in could not be checked right now."
+                      }
+                    }
+                  },
+                  "errors.unavailable": {
+                    "value": {
+                      "error": {
+                        "code": "UNAVAILABLE",
+                        "message": "The service is temporarily unavailable."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/me/devices/{installationId}": {
+      "put": {
+        "operationId": "putDevice",
+        "summary": "Register this installation's FCM token for the caller. Rows are per user and installation, so another user's id changes nothing of theirs. Other users' rows with the same FCM token are removed, because only that phone holds it; a phone that changes user keeps getting push for the new user only. A user has at most 10 devices; the oldest is removed.",
+        "x-phase": 2,
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "installationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,199}$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeviceUpdateRequest"
+              },
+              "examples": {
+                "requests.device-update": {
+                  "value": {
+                    "fcmToken": "synthetic-fcm-token"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Registered."
+          },
+          "400": {
+            "description": "The request is not valid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.validation-error": {
+                    "value": {
+                      "error": {
+                        "code": "VALIDATION_ERROR",
+                        "message": "The request is not valid.",
+                        "details": {
+                          "fields": [
+                            "roles"
+                          ]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The token is missing or not valid. The app signs in again.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.unauthorized": {
+                    "value": {
+                      "error": {
+                        "code": "UNAUTHORIZED",
+                        "message": "Sign in again."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.rate-limited": {
+                    "value": {
+                      "error": {
+                        "code": "RATE_LIMITED",
+                        "message": "Too many requests. Try again soon.",
+                        "details": {
+                          "retryAfterSeconds": 30
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "An unexpected error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.unexpected-error": {
+                    "value": {
+                      "error": {
+                        "code": "UNEXPECTED_ERROR",
+                        "message": "Something went wrong."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "A dependency is down. This is not a sign-in problem; the app retries and keeps the user signed in.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.auth-unavailable": {
+                    "value": {
+                      "error": {
+                        "code": "AUTH_UNAVAILABLE",
+                        "message": "Sign-in could not be checked right now."
+                      }
+                    }
+                  },
+                  "errors.unavailable": {
+                    "value": {
+                      "error": {
+                        "code": "UNAVAILABLE",
+                        "message": "The service is temporarily unavailable."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteDevice",
+        "summary": "Stop sending push to this installation.",
+        "x-phase": 2,
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "installationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,199}$"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Removed, or was not registered."
+          },
+          "400": {
+            "description": "The request is not valid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.validation-error": {
+                    "value": {
+                      "error": {
+                        "code": "VALIDATION_ERROR",
+                        "message": "The request is not valid.",
+                        "details": {
+                          "fields": [
+                            "roles"
+                          ]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The token is missing or not valid. The app signs in again.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.unauthorized": {
+                    "value": {
+                      "error": {
+                        "code": "UNAUTHORIZED",
+                        "message": "Sign in again."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.rate-limited": {
+                    "value": {
+                      "error": {
+                        "code": "RATE_LIMITED",
+                        "message": "Too many requests. Try again soon.",
+                        "details": {
+                          "retryAfterSeconds": 30
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "An unexpected error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.unexpected-error": {
+                    "value": {
+                      "error": {
+                        "code": "UNEXPECTED_ERROR",
+                        "message": "Something went wrong."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "A dependency is down. This is not a sign-in problem; the app retries and keeps the user signed in.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.auth-unavailable": {
+                    "value": {
+                      "error": {
+                        "code": "AUTH_UNAVAILABLE",
+                        "message": "Sign-in could not be checked right now."
+                      }
+                    }
+                  },
+                  "errors.unavailable": {
+                    "value": {
+                      "error": {
+                        "code": "UNAVAILABLE",
+                        "message": "The service is temporarily unavailable."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/jobs/{jobId}/evaluations": {
+      "post": {
+        "operationId": "startEvaluation",
+        "summary": "Start an AI evaluation of one job against the user's CV.",
+        "x-phase": 3,
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "jobId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,199}$"
+            }
+          },
+          {
+            "name": "X-Integrity-Token",
+            "in": "header",
+            "required": true,
+            "description": "Play Integrity token. Required, because this request costs money. A missing or failed token gets 403 INTEGRITY_FAILED, before any AI call.",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Queued. Progress also arrives by push.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvaluationDto"
+                },
+                "examples": {
+                  "evaluation.queued": {
+                    "value": {
+                      "evaluationId": "evaluation_01",
+                      "jobId": "job_01",
+                      "createdAt": "2026-11-02T08:00:00.000Z",
+                      "updatedAt": "2026-11-02T08:00:00.000Z",
+                      "result": null,
+                      "failureMessage": null,
+                      "stage": "queued"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request is not valid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.validation-error": {
+                    "value": {
+                      "error": {
+                        "code": "VALIDATION_ERROR",
+                        "message": "The request is not valid.",
+                        "details": {
+                          "fields": [
+                            "roles"
+                          ]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The token is missing or not valid. The app signs in again.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.unauthorized": {
+                    "value": {
+                      "error": {
+                        "code": "UNAUTHORIZED",
+                        "message": "Sign in again."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Refused before any AI call: not signed in with Google, no entitlement or trial left, or a failed integrity check.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.sign-in-required": {
+                    "value": {
+                      "error": {
+                        "code": "SIGN_IN_REQUIRED",
+                        "message": "Sign in with Google to use this."
+                      }
+                    }
+                  },
+                  "errors.entitlement-required": {
+                    "value": {
+                      "error": {
+                        "code": "ENTITLEMENT_REQUIRED",
+                        "message": "This needs a plan or the free trial."
+                      }
+                    }
+                  },
+                  "errors.integrity-failed": {
+                    "value": {
+                      "error": {
+                        "code": "INTEGRITY_FAILED",
+                        "message": "This device could not be verified."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found, or not this user's.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.not-found": {
+                    "value": {
+                      "error": {
+                        "code": "NOT_FOUND",
+                        "message": "Resource was not found."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The plan's quota is used up.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.quota-exceeded": {
+                    "value": {
+                      "error": {
+                        "code": "QUOTA_EXCEEDED",
+                        "message": "This plan's quota is used up."
+                      }
+                    }
+                  },
+                  "errors.rate-limited": {
+                    "value": {
+                      "error": {
+                        "code": "RATE_LIMITED",
+                        "message": "Too many requests. Try again soon.",
+                        "details": {
+                          "retryAfterSeconds": 30
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "An unexpected error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.unexpected-error": {
+                    "value": {
+                      "error": {
+                        "code": "UNEXPECTED_ERROR",
+                        "message": "Something went wrong."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "A dependency is down. This is not a sign-in problem; the app retries and keeps the user signed in.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.auth-unavailable": {
+                    "value": {
+                      "error": {
+                        "code": "AUTH_UNAVAILABLE",
+                        "message": "Sign-in could not be checked right now."
+                      }
+                    }
+                  },
+                  "errors.unavailable": {
+                    "value": {
+                      "error": {
+                        "code": "UNAVAILABLE",
+                        "message": "The service is temporarily unavailable."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/evaluations/{evaluationId}": {
+      "get": {
+        "operationId": "getEvaluation",
+        "summary": "One evaluation: its stage, and its result when done.",
+        "x-phase": 3,
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "evaluationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,199}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The evaluation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvaluationDto"
+                },
+                "examples": {
+                  "evaluation.queued": {
+                    "value": {
+                      "evaluationId": "evaluation_01",
+                      "jobId": "job_01",
+                      "createdAt": "2026-11-02T08:00:00.000Z",
+                      "updatedAt": "2026-11-02T08:00:00.000Z",
+                      "result": null,
+                      "failureMessage": null,
+                      "stage": "queued"
+                    }
+                  },
+                  "evaluation.analyzing": {
+                    "value": {
+                      "evaluationId": "evaluation_01",
+                      "jobId": "job_01",
+                      "createdAt": "2026-11-02T08:00:00.000Z",
+                      "updatedAt": "2026-11-02T09:30:00.000Z",
+                      "result": null,
+                      "failureMessage": null,
+                      "stage": "analyzing"
+                    }
+                  },
+                  "evaluation.done": {
+                    "value": {
+                      "evaluationId": "evaluation_01",
+                      "jobId": "job_01",
+                      "createdAt": "2026-11-02T08:00:00.000Z",
+                      "updatedAt": "2026-11-02T09:30:00.000Z",
+                      "result": {
+                        "score": 82,
+                        "summary": "A strong fit for the role; the posting does not state pay.",
+                        "reportMarkdown": "# Evaluation\n\nThis report was not checked against outside sources.\n",
+                        "aiGenerated": true
+                      },
+                      "failureMessage": null,
+                      "stage": "done"
+                    }
+                  },
+                  "evaluation.failed": {
+                    "value": {
+                      "evaluationId": "evaluation_01",
+                      "jobId": "job_01",
+                      "createdAt": "2026-11-02T08:00:00.000Z",
+                      "updatedAt": "2026-11-02T09:30:00.000Z",
+                      "result": null,
+                      "failureMessage": "The job posting could not be fetched.",
+                      "stage": "failed"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request is not valid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.validation-error": {
+                    "value": {
+                      "error": {
+                        "code": "VALIDATION_ERROR",
+                        "message": "The request is not valid.",
+                        "details": {
+                          "fields": [
+                            "roles"
+                          ]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The token is missing or not valid. The app signs in again.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.unauthorized": {
+                    "value": {
+                      "error": {
+                        "code": "UNAUTHORIZED",
+                        "message": "Sign in again."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found, or not this user's.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.not-found": {
+                    "value": {
+                      "error": {
+                        "code": "NOT_FOUND",
+                        "message": "Resource was not found."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.rate-limited": {
+                    "value": {
+                      "error": {
+                        "code": "RATE_LIMITED",
+                        "message": "Too many requests. Try again soon.",
+                        "details": {
+                          "retryAfterSeconds": 30
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "An unexpected error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.unexpected-error": {
+                    "value": {
+                      "error": {
+                        "code": "UNEXPECTED_ERROR",
+                        "message": "Something went wrong."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "A dependency is down. This is not a sign-in problem; the app retries and keeps the user signed in.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.auth-unavailable": {
+                    "value": {
+                      "error": {
+                        "code": "AUTH_UNAVAILABLE",
+                        "message": "Sign-in could not be checked right now."
+                      }
+                    }
+                  },
+                  "errors.unavailable": {
+                    "value": {
+                      "error": {
+                        "code": "UNAVAILABLE",
+                        "message": "The service is temporarily unavailable."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/me/entitlement": {
+      "get": {
+        "operationId": "getEntitlement",
+        "summary": "The user's plan, features and quota counters.",
+        "x-phase": 3,
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The entitlement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EntitlementDto"
+                },
+                "examples": {
+                  "entitlement.free": {
+                    "value": {
+                      "plan": "free",
+                      "features": [
+                        "feed",
+                        "tracker"
+                      ],
+                      "quotas": [
+                        {
+                          "feature": "evaluation",
+                          "used": 1,
+                          "limit": 3,
+                          "resetsAt": null
+                        }
+                      ]
+                    }
+                  },
+                  "entitlement.paid": {
+                    "value": {
+                      "plan": "paid",
+                      "features": [
+                        "feed",
+                        "tracker",
+                        "evaluation"
+                      ],
+                      "quotas": [
+                        {
+                          "feature": "evaluation",
+                          "used": 4,
+                          "limit": 50,
+                          "resetsAt": "2026-12-01T00:00:00.000Z"
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The token is missing or not valid. The app signs in again.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.unauthorized": {
+                    "value": {
+                      "error": {
+                        "code": "UNAUTHORIZED",
+                        "message": "Sign in again."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.rate-limited": {
+                    "value": {
+                      "error": {
+                        "code": "RATE_LIMITED",
+                        "message": "Too many requests. Try again soon.",
+                        "details": {
+                          "retryAfterSeconds": 30
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "An unexpected error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.unexpected-error": {
+                    "value": {
+                      "error": {
+                        "code": "UNEXPECTED_ERROR",
+                        "message": "Something went wrong."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "A dependency is down. This is not a sign-in problem; the app retries and keeps the user signed in.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.auth-unavailable": {
+                    "value": {
+                      "error": {
+                        "code": "AUTH_UNAVAILABLE",
+                        "message": "Sign-in could not be checked right now."
+                      }
+                    }
+                  },
+                  "errors.unavailable": {
+                    "value": {
+                      "error": {
+                        "code": "UNAVAILABLE",
+                        "message": "The service is temporarily unavailable."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/me/purchases": {
+      "post": {
+        "operationId": "recordPurchase",
+        "summary": "Verify a Google Play purchase with Google and store the entitlement.",
+        "x-phase": 3,
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PurchaseRequest"
+              },
+              "examples": {
+                "requests.purchase-create": {
+                  "value": {
+                    "productId": "example_plan_monthly",
+                    "purchaseToken": "synthetic-purchase-token"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated entitlement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EntitlementDto"
+                },
+                "examples": {
+                  "entitlement.paid": {
+                    "value": {
+                      "plan": "paid",
+                      "features": [
+                        "feed",
+                        "tracker",
+                        "evaluation"
+                      ],
+                      "quotas": [
+                        {
+                          "feature": "evaluation",
+                          "used": 4,
+                          "limit": 50,
+                          "resetsAt": "2026-12-01T00:00:00.000Z"
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request is not valid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.validation-error": {
+                    "value": {
+                      "error": {
+                        "code": "VALIDATION_ERROR",
+                        "message": "The request is not valid.",
+                        "details": {
+                          "fields": [
+                            "roles"
+                          ]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The token is missing or not valid. The app signs in again.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.unauthorized": {
+                    "value": {
+                      "error": {
+                        "code": "UNAUTHORIZED",
+                        "message": "Sign in again."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "That purchase belongs to another account.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.conflict": {
+                    "value": {
+                      "error": {
+                        "code": "CONFLICT",
+                        "message": "This conflicts with the current state."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.rate-limited": {
+                    "value": {
+                      "error": {
+                        "code": "RATE_LIMITED",
+                        "message": "Too many requests. Try again soon.",
+                        "details": {
+                          "retryAfterSeconds": 30
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "An unexpected error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.unexpected-error": {
+                    "value": {
+                      "error": {
+                        "code": "UNEXPECTED_ERROR",
+                        "message": "Something went wrong."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "A dependency is down. This is not a sign-in problem; the app retries and keeps the user signed in.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.auth-unavailable": {
+                    "value": {
+                      "error": {
+                        "code": "AUTH_UNAVAILABLE",
+                        "message": "Sign-in could not be checked right now."
+                      }
+                    }
+                  },
+                  "errors.unavailable": {
+                    "value": {
+                      "error": {
+                        "code": "UNAVAILABLE",
+                        "message": "The service is temporarily unavailable."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    },
+    "schemas": {
+      "CompanyCreateRequest": {
+        "type": "object",
+        "properties": {
+          "careersUrl": {
+            "type": "string",
+            "maxLength": 2048,
+            "pattern": "^[Hh][Tt][Tt][Pp][Ss]?:\\/\\/[^/\\\\?#@\\s]+(?:[/?#][^\\u0000-\\u001f\\u007f]*)?$"
+          }
+        },
+        "required": [
+          "careersUrl"
+        ],
+        "additionalProperties": false
+      },
+      "CompanyDto": {
+        "type": "object",
+        "properties": {
+          "companyId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,199}$"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200,
+                "pattern": "^[^\\u0000]*$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "careersUrl": {
+            "type": "string",
+            "maxLength": 2048,
+            "pattern": "^[Hh][Tt][Tt][Pp][Ss]?:\\/\\/[^/\\\\?#@\\s]+(?:[/?#][^\\u0000-\\u001f\\u007f]*)?$"
+          }
+        },
+        "required": [
+          "companyId",
+          "name",
+          "careersUrl"
+        ],
+        "additionalProperties": false
+      },
+      "CvDto": {
+        "type": "object",
+        "properties": {
+          "markdown": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200000,
+            "pattern": "^[^\\u0000]*$"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+          }
+        },
+        "required": [
+          "markdown",
+          "updatedAt"
+        ],
+        "additionalProperties": false
+      },
+      "CvImportDto": {
+        "type": "object",
+        "properties": {
+          "importId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,199}$"
+          },
+          "markdown": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200000,
+            "pattern": "^[^\\u0000]*$"
+          }
+        },
+        "required": [
+          "importId",
+          "markdown"
+        ],
+        "additionalProperties": false
+      },
+      "CvUpdateRequest": {
+        "type": "object",
+        "properties": {
+          "importId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,199}$"
+          },
+          "markdown": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200000,
+            "pattern": "^[^\\u0000]*$"
+          }
+        },
+        "required": [
+          "markdown"
+        ],
+        "additionalProperties": false
+      },
+      "DeviceUpdateRequest": {
+        "type": "object",
+        "properties": {
+          "fcmToken": {
+            "type": "string",
+            "pattern": "^[^\\s\\u0000]{1,4096}$"
+          }
+        },
+        "required": [
+          "fcmToken"
+        ],
+        "additionalProperties": false
+      },
+      "EntitlementDto": {
+        "type": "object",
+        "properties": {
+          "plan": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "pattern": "^[^\\u0000]*$"
+          },
+          "features": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200,
+              "pattern": "^[^\\u0000]*$"
+            }
+          },
+          "quotas": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "feature": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200,
+                  "pattern": "^[^\\u0000]*$"
+                },
+                "used": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "limit": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "resetsAt": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "feature",
+                "used",
+                "limit",
+                "resetsAt"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "plan",
+          "features",
+          "quotas"
+        ],
+        "additionalProperties": false
+      },
+      "ErrorCode": {
+        "type": "string",
+        "enum": [
+          "VALIDATION_ERROR",
+          "UNAUTHORIZED",
+          "SIGN_IN_REQUIRED",
+          "ENTITLEMENT_REQUIRED",
+          "INTEGRITY_FAILED",
+          "NOT_FOUND",
+          "CONFLICT",
+          "PAYLOAD_TOO_LARGE",
+          "UNSUPPORTED_MEDIA_TYPE",
+          "CV_UNREADABLE",
+          "RATE_LIMITED",
+          "QUOTA_EXCEEDED",
+          "UNEXPECTED_ERROR",
+          "AUTH_UNAVAILABLE",
+          "UNAVAILABLE"
+        ]
+      },
+      "ErrorDto": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "$ref": "#/components/schemas/ErrorCode"
+          },
+          "message": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "details": {
+            "type": "object",
+            "properties": {
+              "fields": {
+                "maxItems": 50,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                }
+              },
+              "retryAfterSeconds": {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "code",
+          "message"
+        ],
+        "additionalProperties": false
+      },
+      "ErrorResponseDto": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "$ref": "#/components/schemas/ErrorDto"
+          }
+        },
+        "required": [
+          "error"
+        ],
+        "additionalProperties": false
+      },
+      "EvaluationDto": {
+        "type": "object",
+        "properties": {
+          "evaluationId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,199}$"
+          },
+          "jobId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,199}$"
+          },
+          "stage": {
+            "$ref": "#/components/schemas/EvaluationStage"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+          },
+          "result": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "score": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 100
+                  },
+                  "summary": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 2000,
+                    "pattern": "^[^\\u0000]*$"
+                  },
+                  "reportMarkdown": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200000,
+                    "pattern": "^[^\\u0000]*$"
+                  },
+                  "aiGenerated": {
+                    "type": "boolean",
+                    "const": true
+                  }
+                },
+                "required": [
+                  "score",
+                  "summary",
+                  "reportMarkdown",
+                  "aiGenerated"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "failureMessage": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500,
+                "pattern": "^[^\\u0000]*$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "evaluationId",
+          "jobId",
+          "stage",
+          "createdAt",
+          "updatedAt",
+          "result",
+          "failureMessage"
+        ],
+        "additionalProperties": false
+      },
+      "EvaluationStage": {
+        "type": "string",
+        "enum": [
+          "queued",
+          "fetching_job",
+          "analyzing",
+          "writing_report",
+          "done",
+          "failed"
+        ]
+      },
+      "FeedItemDto": {
+        "type": "object",
+        "properties": {
+          "job": {
+            "$ref": "#/components/schemas/JobSummaryDto"
+          },
+          "reasons": {
+            "minItems": 1,
+            "maxItems": 10,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200,
+              "pattern": "^[^\\u0000]*$"
+            }
+          },
+          "trackerStatus": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TrackerStatus"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "matchedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+          }
+        },
+        "required": [
+          "job",
+          "reasons",
+          "trackerStatus",
+          "matchedAt"
+        ],
+        "additionalProperties": false
+      },
+      "FeedPageDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FeedItemDto"
+            }
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,199}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "additionalProperties": false
+      },
+      "HealthDto": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "degraded"
+            ]
+          },
+          "checks": {
+            "type": "object",
+            "properties": {
+              "database": {
+                "type": "string",
+                "enum": [
+                  "ok",
+                  "failed"
+                ]
+              }
+            },
+            "required": [
+              "database"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "status",
+          "checks"
+        ],
+        "additionalProperties": false
+      },
+      "JobDto": {
+        "type": "object",
+        "properties": {
+          "jobId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,199}$"
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "pattern": "^[^\\u0000]*$"
+          },
+          "company": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "pattern": "^[^\\u0000]*$"
+          },
+          "location": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200,
+                "pattern": "^[^\\u0000]*$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "remotePolicy": {
+            "$ref": "#/components/schemas/JobRemotePolicy"
+          },
+          "salary": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "min": {
+                    "anyOf": [
+                      {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1000000000000
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "max": {
+                    "anyOf": [
+                      {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1000000000000
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "currency": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "pattern": "^[A-Z]{3}$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "period": {
+                    "anyOf": [
+                      {
+                        "$ref": "#/components/schemas/SalaryPeriod"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "min",
+                  "max",
+                  "currency",
+                  "period"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "url": {
+            "type": "string",
+            "maxLength": 2048,
+            "pattern": "^[Hh][Tt][Tt][Pp][Ss]?:\\/\\/[^/\\\\?#@\\s]+(?:[/?#][^\\u0000-\\u001f\\u007f]*)?$"
+          },
+          "firstSeenAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+          },
+          "closed": {
+            "type": "boolean"
+          },
+          "source": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "pattern": "^[^\\u0000]*$"
+          },
+          "externalId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200,
+                "pattern": "^[^\\u0000]*$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "acceptedCountries": {
+            "maxItems": 250,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[A-Z]{2}$"
+            }
+          },
+          "acceptedTimezones": {
+            "maxItems": 50,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200,
+              "pattern": "^[^\\u0000]*$"
+            }
+          },
+          "descriptionText": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100000,
+            "pattern": "^[^\\u0000]*$"
+          },
+          "lastSeenAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+          }
+        },
+        "required": [
+          "jobId",
+          "title",
+          "company",
+          "location",
+          "remotePolicy",
+          "salary",
+          "url",
+          "firstSeenAt",
+          "closed",
+          "source",
+          "externalId",
+          "acceptedCountries",
+          "acceptedTimezones",
+          "descriptionText",
+          "lastSeenAt"
+        ],
+        "additionalProperties": false
+      },
+      "JobRemotePolicy": {
+        "type": "string",
+        "enum": [
+          "remote",
+          "hybrid",
+          "onsite",
+          "unknown"
+        ]
+      },
+      "JobSummaryDto": {
+        "type": "object",
+        "properties": {
+          "jobId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,199}$"
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "pattern": "^[^\\u0000]*$"
+          },
+          "company": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "pattern": "^[^\\u0000]*$"
+          },
+          "location": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200,
+                "pattern": "^[^\\u0000]*$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "remotePolicy": {
+            "$ref": "#/components/schemas/JobRemotePolicy"
+          },
+          "salary": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "min": {
+                    "anyOf": [
+                      {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1000000000000
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "max": {
+                    "anyOf": [
+                      {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1000000000000
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "currency": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "pattern": "^[A-Z]{3}$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "period": {
+                    "anyOf": [
+                      {
+                        "$ref": "#/components/schemas/SalaryPeriod"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "min",
+                  "max",
+                  "currency",
+                  "period"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "url": {
+            "type": "string",
+            "maxLength": 2048,
+            "pattern": "^[Hh][Tt][Tt][Pp][Ss]?:\\/\\/[^/\\\\?#@\\s]+(?:[/?#][^\\u0000-\\u001f\\u007f]*)?$"
+          },
+          "firstSeenAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+          },
+          "closed": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "jobId",
+          "title",
+          "company",
+          "location",
+          "remotePolicy",
+          "salary",
+          "url",
+          "firstSeenAt",
+          "closed"
+        ],
+        "additionalProperties": false
+      },
+      "LogoutRequest": {
+        "type": "object",
+        "properties": {
+          "installationId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,199}$"
+          }
+        },
+        "required": [
+          "installationId"
+        ],
+        "additionalProperties": false
+      },
+      "MeDto": {
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,199}$"
+          },
+          "isAnonymous": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+          }
+        },
+        "required": [
+          "userId",
+          "isAnonymous",
+          "createdAt"
+        ],
+        "additionalProperties": false
+      },
+      "PreferencesDto": {
+        "type": "object",
+        "properties": {
+          "roles": {
+            "maxItems": 50,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200,
+              "pattern": "^[^\\u0000]*$"
+            }
+          },
+          "keywordsInclude": {
+            "maxItems": 50,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200,
+              "pattern": "^[^\\u0000]*$"
+            }
+          },
+          "keywordsExclude": {
+            "maxItems": 50,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200,
+              "pattern": "^[^\\u0000]*$"
+            }
+          },
+          "locations": {
+            "maxItems": 50,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200,
+              "pattern": "^[^\\u0000]*$"
+            }
+          },
+          "remotePolicies": {
+            "maxItems": 3,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RemotePolicy"
+            }
+          },
+          "countries": {
+            "maxItems": 50,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[A-Z]{2}$"
+            }
+          },
+          "minimumSalary": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "amount": {
+                    "type": "number",
+                    "exclusiveMinimum": 0,
+                    "maximum": 1000000000000
+                  },
+                  "currency": {
+                    "type": "string",
+                    "pattern": "^[A-Z]{3}$"
+                  },
+                  "period": {
+                    "$ref": "#/components/schemas/SalaryPeriod"
+                  }
+                },
+                "required": [
+                  "amount",
+                  "currency",
+                  "period"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "seniority": {
+            "maxItems": 6,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Seniority"
+            }
+          },
+          "aim": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1000,
+                "pattern": "^[^\\u0000]*$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "roles",
+          "keywordsInclude",
+          "keywordsExclude",
+          "locations",
+          "remotePolicies",
+          "countries",
+          "minimumSalary",
+          "seniority",
+          "aim"
+        ],
+        "additionalProperties": false
+      },
+      "PurchaseRequest": {
+        "type": "object",
+        "properties": {
+          "productId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,199}$"
+          },
+          "purchaseToken": {
+            "type": "string",
+            "pattern": "^[^\\s\\u0000]{1,4096}$"
+          }
+        },
+        "required": [
+          "productId",
+          "purchaseToken"
+        ],
+        "additionalProperties": false
+      },
+      "RemotePolicy": {
+        "type": "string",
+        "enum": [
+          "remote",
+          "hybrid",
+          "onsite"
+        ]
+      },
+      "SalaryPeriod": {
+        "type": "string",
+        "enum": [
+          "hour",
+          "day",
+          "week",
+          "month",
+          "year"
+        ]
+      },
+      "Seniority": {
+        "type": "string",
+        "enum": [
+          "intern",
+          "junior",
+          "mid",
+          "senior",
+          "lead",
+          "executive"
+        ]
+      },
+      "SsoRequest": {
+        "type": "object",
+        "properties": {
+          "guestToken": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "SsoResponseDto": {
+        "type": "object",
+        "properties": {
+          "account": {
+            "$ref": "#/components/schemas/MeDto"
+          },
+          "guestMerged": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "account",
+          "guestMerged"
+        ],
+        "additionalProperties": false
+      },
+      "TrackerEntryDto": {
+        "type": "object",
+        "properties": {
+          "job": {
+            "$ref": "#/components/schemas/JobSummaryDto"
+          },
+          "status": {
+            "$ref": "#/components/schemas/TrackerStatus"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+          }
+        },
+        "required": [
+          "job",
+          "status",
+          "updatedAt"
+        ],
+        "additionalProperties": false
+      },
+      "TrackerPageDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TrackerEntryDto"
+            }
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,199}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "additionalProperties": false
+      },
+      "TrackerStatus": {
+        "type": "string",
+        "enum": [
+          "applied",
+          "interview",
+          "rejected",
+          "skipped"
+        ]
+      },
+      "TrackerUpdateRequest": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/TrackerStatus"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "additionalProperties": false
+      }
+    }
+  }
+}

@@ -6,13 +6,15 @@
     "detected": true,
     "careerOpsVersion": null,
     "missingRequirements": [],
-    "messages": ["Career Ops workspace is ready."]
+    "messages": [
+      "Career Ops workspace is ready."
+    ]
   },
   "careerOps": {
     "status": "ready",
     "executionMode": "local-script-runner",
     "providerApiKeyRequired": false,
-    "aiCliRequired": false,
+    "aiCliRequired": true,
     "scanner": {
       "status": "ready",
       "commandType": "local-script",
@@ -31,7 +33,14 @@
           "status": "ready"
         }
       ],
-      "messages": ["Local Career Ops scan script prerequisites are present."]
+      "messages": [
+        "Local Career Ops scan script prerequisites are present."
+      ]
+    },
+    "evaluator": {
+      "status": "ready",
+      "provider": "claude",
+      "missingRequirements": []
     }
   },
   "capabilities": {
@@ -42,7 +51,8 @@
     "reports": false,
     "artifacts": false,
     "cvConversion": false,
-    "geminiEvaluation": false
+    "geminiEvaluation": false,
+    "aiEvaluation": true
   },
   "serverTime": "2026-06-15T10:30:00.000Z"
 }

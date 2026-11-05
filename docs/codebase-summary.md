@@ -2,11 +2,19 @@
 
 ## Repository Shape
 
-JobFlow is a two-project workspace:
+JobFlow has an Android app and a frozen local wrapper today. The hosted backend
+is being built (`docs/superpowers/plans/2026-11-02-hosted-backend-phase-1.md`); the folders marked below
+do not exist until its tasks land.
 
 ```text
 jobflow/
 ├── android/
+├── backend/             # hosted API and worker: auth, rate limits, sign-in API, /me, health, queue
+├── packages/safety/     # SSRF-guarded fetch, HTML to text, redaction
+├── packages/contract/   # hosted API schemas and the OpenAPI generator
+├── contracts/           # hosted API examples, generated OpenAPI, mock guide
+├── vendor/career-ops/   # vendored Career Ops parts, pinned and not run yet
+├── scripts/             # sync-career-ops: updates vendor/career-ops
 ├── career-ops-wrapper/
 ├── docs/
 ├── README.md
@@ -15,7 +23,9 @@ jobflow/
 
 Generated/cache directories such as `android/build/`,
 `career-ops-wrapper/dist/`, `.gradle/`, `.idea/`, `.agents/`, `.claude/`, and
-`.kiro/` are not source-of-truth code.
+`.kiro/` are not source-of-truth code. The one tracked exception is
+`.claude/skills/review-change/`, the multi-layer review skill used in step 5
+of `docs/workflow/backend-delivery.md`.
 
 ## Android
 
@@ -24,38 +34,51 @@ The Android app is a single-module native app.
 | Area | Files |
 | --- | --- |
 | Build | `android/settings.gradle.kts`, `android/build.gradle.kts`, `android/app/build.gradle.kts`, `android/gradle/libs.versions.toml` |
-| App root | `JobFlowApplication.kt`, `AppContainer.kt`, `MainActivity.kt` |
-| Core | `core/either.kt` |
-| Data | `data/database/`, `data/datasource/`, `data/models/`, `data/remote/`, `data/repository/` |
-| Domain | `domain/model/`, `domain/repository/`, `domain/usecase/` |
-| UI | `presentation/`, `presentation/component/`, `ui/theme/` |
-| Tests | `app/src/test/java/me/dthuy/jobflow/` |
+| App root | `MainApplication.kt` (Hilt), `MainActivity.kt` |
+| Core | `core/common/` (`Either`, `AppError`, `ApiErrorCode`), `core/mvi/` |
+| Data | `data/remote/` (`JobFlowApi`, DTOs, `toApiError`), `data/local/` (Room cache), `data/repository/impl/` |
+| Domain | `domain/model/`, `domain/repository/` |
+| UI | `ui/home/`, `ui/inputs/`, `ui/settings/`, shared `ui/components/`, `ui/health/`, `ui/theme/`; `navigation/` |
+| DI | `di/` Hilt modules |
+| Tests | `app/src/test/kotlin/me/dthuy/jobflow/` |
 
 Key implementation facts:
 
-- Compose + Material 3 UI.
-- MVI-style arena screen using immutable state, intents, and effects.
-- Room stores task arena data in `task_arena_database`.
-- Retrofit/OkHttp/kotlinx.serialization are used for wrapper API calls.
+- Rebuilt from android-agentic-starter (`android/docs/decisions/0008-rebuild-jobflow-android-from-starter.md`).
+- Compose + Material 3 UI with the JobFlow soft palette and a glass bottom bar.
+- Home is MVI; Settings is MVVM-lite; three Navigation 3 tabs keep Home at the
+  bottom of the stack.
+- Retrofit/OkHttp/kotlinx.serialization call the hosted API; contract tests parse
+  `contracts/examples` and `contracts/error-codes.json`.
+- Errors: `Either<AppError, T>`, one mapper per data source, one UI mapper.
+- Konsist enforces layers; detekt and ktlint run in the verify command and CI.
 - `dev` and `prod` product flavors exist; `dev` allows cleartext access to
   `10.0.2.2`.
+- Room 3 caches the feed in `data/local`; no screen reads it yet.
 - Release signing reads environment variables.
 
 ## Career Ops Wrapper
 
-The wrapper is a local TypeScript API.
+The wrapper is a local TypeScript API, frozen as a development and self-host
+tool. The hosted backend reuses its modules through shared packages.
 
 | Area | Files |
 | --- | --- |
 | Runtime | `src/server.ts`, `src/config/` |
 | Routes | `src/api/` |
 | Contracts | `src/contracts/`, `contracts/examples/` |
-| Services | `src/services/` |
+| Services | `src/services/` (incl. `career-ops-projection.ts`) |
+| Parsers | `src/parsers/` |
+| Scan engine | `src/career-ops-engine/`, `src/runs/` |
+| AI evaluation | `src/evaluation/` (prompt, fixed CLI command, output parsing, writer), `src/services/evaluation-*.ts` |
+| Child processes | `src/process/bounded-process.ts` (no shell, process group, timeout, bounded output) |
 | Workspace IO | `src/workspace/` |
-| Security | `src/security/` |
+| Output PDFs | `src/outputs/` |
+| Security | `src/security/`, `@jobflow/safety` |
 | Errors | `src/errors/` |
 | API docs | `src/openapi/openapi-document.ts`, `src/api/docs-routes.ts` |
 | Tests | `test/` |
+| Fixtures | `fixtures/workspaces/` (synthetic only) |
 
 Implemented route families:
 
@@ -64,6 +87,11 @@ Implemented route families:
 - `GET /api/v1/profile`, `PUT /api/v1/profile`
 - `GET /api/v1/portals`, `PUT /api/v1/portals`
 - `GET /api/v1/scan-readiness`
+- `POST /api/v1/scan-runs`, `GET /api/v1/scan-runs/latest`, `GET /api/v1/scan-runs/{id}`
+- `POST /api/v1/evaluations`, `GET /api/v1/evaluations/latest`, `GET /api/v1/evaluations/{id}`, `POST /api/v1/evaluations/{id}/cancel`
+- `GET /api/v1/offers`, `GET /api/v1/offers/{id}`
+- `GET /api/v1/reports`, `GET /api/v1/reports/{id}`
+- `GET /api/v1/artifacts`, `GET /api/v1/artifacts/{id}/download`
 - `GET /docs`
 - `GET /openapi.json`
 
@@ -76,6 +104,14 @@ Security and safety mechanisms:
 - Safe file adapter writes through temp files, keeps backups when possible, and
   verifies written content.
 - Error mapping returns stable API error codes.
+- Scan execution spawns only `scan.mjs` with `--dry-run`/`--company`, no shell,
+  a timeout, and bounded output. Raw stdout/stderr never reach clients: scan
+  warnings and failures are fixed sentences built from `portals.yml` company
+  names, an error category, and counts (`scan-diagnostics.ts`).
+- Reads of `data/`, `reports/`, and `output/` are size-capped and skip
+  symlinks that leave the workspace.
+- `test/security-boundaries.test.ts` checks token enforcement on every
+  documented route, traversal IDs, and path/token leakage.
 
 ## Commands
 
@@ -83,9 +119,7 @@ Android:
 
 ```bash
 cd android
-./gradlew testDevDebugUnitTest
-./gradlew assembleDevDebug
-./gradlew lintDevDebug
+./gradlew assembleDevDebug testDevDebugUnitTest lintDevDebug detekt ktlintCheck
 ```
 
 Wrapper:

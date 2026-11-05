@@ -1,0 +1,223 @@
+{
+  "repository": "https://github.com/career-ops-hq/career-ops.git",
+  "commit": "1ebef70d1292c89c10bf02f1955e6583d25a4423",
+  "entries": [
+    "LICENSE",
+    "TRADEMARK.md",
+    "data-static/aggregator-domains.txt",
+    "modes/_shared.md",
+    "modes/oferta.md",
+    "modes/oferta-signals/*",
+    "providers/ADDING_A_PROVIDER.md",
+    "providers/_types.js",
+    "providers/greenhouse.mjs",
+    "providers/lever.mjs",
+    "providers/ashby.mjs",
+    "providers/workable.mjs",
+    "providers/workday.mjs",
+    "providers/smartrecruiters.mjs",
+    "providers/recruitee.mjs",
+    "providers/remoteok.mjs",
+    "providers/remotive.mjs",
+    "providers/workingnomads.mjs",
+    "providers/glints.mjs",
+    "providers/jobstreet.mjs",
+    "providers/arbeitsagentur.mjs",
+    "providers/solidjobs.mjs",
+    "templates/portals.example.yml"
+  ],
+  "files": [
+    {
+      "path": "LICENSE",
+      "sha256": "51989d2589b2aa87ca6cbb253391bcb476a21cbafdc71eea4410548538510870"
+    },
+    {
+      "path": "TRADEMARK.md",
+      "sha256": "e14e762518c7d2f6d3ce89a050038f2854cf33b6c89a4f11ec90ec54d102fe33"
+    },
+    {
+      "path": "data-static/aggregator-domains.txt",
+      "sha256": "818e4626d30f8446959427980148353f1dd91ff520ff81b9fe0c15b2c9829e70"
+    },
+    {
+      "path": "lib/linkedin-url.mjs",
+      "sha256": "7bfa9339a2dbca4ae54aee59e8986fa6988b47b579ba98c39a1ec234e77aa844"
+    },
+    {
+      "path": "modes/_shared.md",
+      "sha256": "453620de83756bf6b57fc8a2b27117596d1fc0ec6aedbd3311d25b148bb1933b"
+    },
+    {
+      "path": "modes/oferta-signals/08-benefits-employment-terminology-country-mismatch.md",
+      "sha256": "5c56d7288ca06c9f783396c62441891ccf861333129f14ff8a7c72588e2ddff2"
+    },
+    {
+      "path": "modes/oferta-signals/09-third-party-platform-location-tag-vs-employer-s-own-posting-mismatch.md",
+      "sha256": "a729eb59fbbcbae6c37f8d2b3190a16891d7ca1d77cdeeb801e9298af867c78e"
+    },
+    {
+      "path": "modes/oferta-signals/10-agency-licensing-check.md",
+      "sha256": "a38f9b617f0a2958e815c8ddabb09847380b0960343b0a04c02f8e4038d5a770"
+    },
+    {
+      "path": "modes/oferta-signals/11-immigration-status-requirement-overreach.md",
+      "sha256": "bc68fad9f498b635240901780557fc16ea93fced83db2d758b1bea3f7d069a5b"
+    },
+    {
+      "path": "modes/oferta-signals/12-jurisdiction-prohibited-content.md",
+      "sha256": "b347752d6bf61f683007113412c7c092e60b5454c3479a771174c0272e31b759"
+    },
+    {
+      "path": "modes/oferta-signals/13-pay-transparency-range-width-check.md",
+      "sha256": "80a98ef7243eece7dd2901ca9ad3b8ead8d8344f01a07a62d8aa66ceca0a4e9d"
+    },
+    {
+      "path": "modes/oferta-signals/14-minimum-wage-lawyer-question.md",
+      "sha256": "bf80bbfc13b871bc3fa84a86ae187febbd6ce9661581ba879b425e3f895e7f5a"
+    },
+    {
+      "path": "modes/oferta-signals/15-ai-screening-disclosure.md",
+      "sha256": "6c99ae11362d7bf885b60a6a7136a5f526c1cab3061c44e7ddb18d63a805e3c3"
+    },
+    {
+      "path": "modes/oferta-signals/16-fixed-term-contract-disclosure.md",
+      "sha256": "b4d0647e5862fd204bb5814885898d0a8e28733591352892ea992c3ad5ec5e6b"
+    },
+    {
+      "path": "modes/oferta-signals/17-relocation-purchasing-power.md",
+      "sha256": "ce7aaf1e4b25b2595bb8adcc417887096ee8b98808dcae94fcb148d438b689b7"
+    },
+    {
+      "path": "modes/oferta-signals/19-vacancy-status-disclosure.md",
+      "sha256": "d3b87b563fb1204394a9827d4621f01fe1b2c53b832f36b04e20c3a5e0c5bd29"
+    },
+    {
+      "path": "modes/oferta-signals/20-unpaid-placement.md",
+      "sha256": "cd304188e72001d21332102fec35f52ea1c99c6ecf5017a5772e07eaae642526"
+    },
+    {
+      "path": "modes/oferta-signals/21-candidate-paid-fees.md",
+      "sha256": "1053585c5bfa87819f765f77ac1d4bd3a4072764811713258f41356e422cc3f1"
+    },
+    {
+      "path": "modes/oferta-signals/22-accommodation-notice.md",
+      "sha256": "70a1cbd7403298dd4fbdf0606942432d371927de3bd00324ff9bb1df2f82bf33"
+    },
+    {
+      "path": "modes/oferta.md",
+      "sha256": "2c7ffad4c965b18109cb127b80d6e0243e35c33c07392af6a10d9a0171d81dda"
+    },
+    {
+      "path": "providers/ADDING_A_PROVIDER.md",
+      "sha256": "086357c9affd06a952ebb8e82f123dfad2f2a2988a3d5c342dc7e08aa44644c8"
+    },
+    {
+      "path": "providers/_config-utils.mjs",
+      "sha256": "f00472b51a5ae3c4f6e3dee0a150ed413300f5e4bba544a5c6e44b0f458bd8f1"
+    },
+    {
+      "path": "providers/_connection-scope.mjs",
+      "sha256": "86a2d0262ecafdffa6cc3ce765c72a99428a6a5b3786b1d53c4321b6cca53e89"
+    },
+    {
+      "path": "providers/_dns-cache.mjs",
+      "sha256": "9a0c52c5cc806e7901affdcd89159389af8792f43a57b050064bb9e11407a7c3"
+    },
+    {
+      "path": "providers/_html-entities.mjs",
+      "sha256": "acf4f43bf31118d4166444d0f3e5dd067d6a8999ce96906b30f679e376905726"
+    },
+    {
+      "path": "providers/_html-to-text.mjs",
+      "sha256": "87bdfa58c9522f85a88ecdf9507d4757008330364d7055c9ca5edf5fb5bbce75"
+    },
+    {
+      "path": "providers/_http.mjs",
+      "sha256": "8f43afbfa0235b780b116d3a5d3cbd6812053c812ec30ede9699ad8100afde01"
+    },
+    {
+      "path": "providers/_ids.mjs",
+      "sha256": "ddc72b042292577a7b22c2a6eb7ac467ac3bfaef15d91669953ed2457b45881b"
+    },
+    {
+      "path": "providers/_ip-guard.mjs",
+      "sha256": "2ba0149affe098f159d2fe1f1ee97f66229c6578d84f9249db8dd85fd163d61e"
+    },
+    {
+      "path": "providers/_safe-url.mjs",
+      "sha256": "b09aee8a0a6f2c0a81769639d5f4a426850b1db13ddc8aa4625c85e30f72f050"
+    },
+    {
+      "path": "providers/_types.js",
+      "sha256": "203a86e85c5cb3042f62e2afae435b4c5001b13dbd4a181a58b7449832b15d59"
+    },
+    {
+      "path": "providers/arbeitsagentur.mjs",
+      "sha256": "eb922db635a2ac26be479423ad9130118a623408ddb18955b16c5238169b4370"
+    },
+    {
+      "path": "providers/ashby.mjs",
+      "sha256": "db85801e806605c8b99649194c2939df5a18c1a9c1b532526a3f8daad85cbe44"
+    },
+    {
+      "path": "providers/glints.mjs",
+      "sha256": "07c23f66391707bbf25ecfdf054d1315ee1160b28af15b5d924a74b0cb0770a4"
+    },
+    {
+      "path": "providers/greenhouse.mjs",
+      "sha256": "1489443d590763015facd925b53f85db9f54e31772e340f1c606dded8eefbcd6"
+    },
+    {
+      "path": "providers/jobstreet.mjs",
+      "sha256": "f738cb81bed5936de3e93116b355403a7bc3f8613e2a64d7d9ac724e9feb1bc4"
+    },
+    {
+      "path": "providers/lever.mjs",
+      "sha256": "d61d0f836c751c68d18b232c91c8b8ddb71d8873c18eebabda5d68b8599f98f3"
+    },
+    {
+      "path": "providers/recruitee.mjs",
+      "sha256": "9ba8dbb0e9c68fd3b2e472bd00e6240bd6d9c20f277db59da0be064bb162b744"
+    },
+    {
+      "path": "providers/remoteok.mjs",
+      "sha256": "c104b5896aaa3b2140675bab75f4e0d7547340e83bf6e2c39661d57b01ebb822"
+    },
+    {
+      "path": "providers/remotive.mjs",
+      "sha256": "508326a97863d391fb03d2e5328ebf5b4e7ba069210e12e82595a9b499fd6fc3"
+    },
+    {
+      "path": "providers/smartrecruiters.mjs",
+      "sha256": "e636cf2d3d386c5cfa7ed0df9474f562a278d67d1f3180e0585a59737e786cf7"
+    },
+    {
+      "path": "providers/solidjobs.mjs",
+      "sha256": "bcd19db094a264b5fd3f2d80d242edc40835b52319cf6a34ba0cbfc4c4e95205"
+    },
+    {
+      "path": "providers/workable.mjs",
+      "sha256": "2e4c88ac04a421cce325478c79937f42f91b7f1dde31836345db909f9d5ab6e0"
+    },
+    {
+      "path": "providers/workday.mjs",
+      "sha256": "bcae37ba2ae950815ed0d572dabf7255b08c249aa931cadc727cf9cba7e3eef6"
+    },
+    {
+      "path": "providers/workingnomads.mjs",
+      "sha256": "34cd70489b9b75ce07a723d31ffca84b3ca4986a1be4d8b15893d951bfba8fe5"
+    },
+    {
+      "path": "templates/portals.example.yml",
+      "sha256": "8030631d00ac7f4d7554881adf85b39b99e8d81bbb371da0d2f87fff4aab6ff4"
+    },
+    {
+      "path": "url-key.mjs",
+      "sha256": "7e000ed6d242565689b2498bbe7d619de340f8cc428008d7898a11ff63223fc2"
+    },
+    {
+      "path": "user-agent.mjs",
+      "sha256": "5cfe6248115d0db0cb11ba5e658642e49482700d687c19dec36c0616428a5649"
+    }
+  ]
+}

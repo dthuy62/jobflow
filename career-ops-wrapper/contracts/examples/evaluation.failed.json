@@ -1,0 +1,16 @@
+{
+  "id": "eval_20261031093000_a1b2c3",
+  "offerId": "offer_a1461f4e3225f9ea",
+  "provider": "claude",
+  "status": "failed",
+  "stage": "failed",
+  "active": false,
+  "startedAt": "2026-10-31T09:30:00.000Z",
+  "finishedAt": "2026-10-31T09:30:05.000Z",
+  "result": null,
+  "warnings": [],
+  "failure": {
+    "code": "CLI_NOT_LOGGED_IN",
+    "message": "The AI CLI on the desktop is not logged in."
+  }
+}

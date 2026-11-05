@@ -1,0 +1,30 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "apply_patch|Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$(git rev-parse --show-toplevel)/tools/agents/hooks/guard_generated.py\"",
+            "timeout": 10,
+            "statusMessage": "Checking for generated files"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "apply_patch|Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$(git rev-parse --show-toplevel)/tools/agents/hooks/file_length.py\"",
+            "timeout": 10,
+            "statusMessage": "Checking file length"
+          }
+        ]
+      }
+    ]
+  }
+}

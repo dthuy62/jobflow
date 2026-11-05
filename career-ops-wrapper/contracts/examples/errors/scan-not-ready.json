@@ -1,0 +1,12 @@
+{
+  "error": {
+    "code": "WORKSPACE_UNHEALTHY",
+    "message": "Career Ops scan is not ready.",
+    "details": {
+      "reason": "scan-not-ready",
+      "missingRequirements": [
+        "portal.missing"
+      ]
+    }
+  }
+}

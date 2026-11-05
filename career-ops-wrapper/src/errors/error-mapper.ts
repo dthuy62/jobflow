@@ -6,12 +6,13 @@ export interface MappedApiError {
   readonly body: ErrorResponseDto;
 }
 
-const errorStatusByCode = {
+export const errorStatusByCode = {
   VALIDATION_ERROR: 400,
   UNAUTHORIZED: 401,
   WORKSPACE_UNHEALTHY: 503,
   NOT_FOUND: 404,
   SCAN_ALREADY_RUNNING: 409,
+  EVALUATION_ALREADY_RUNNING: 409,
   COMMAND_FAILED: 502,
   PARSER_FAILED: 422,
   PATH_OUTSIDE_WORKSPACE: 403,

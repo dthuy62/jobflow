@@ -1,0 +1,15 @@
+# Allowlist: the build context holds only what the image needs, so a local secret cannot slip in.
+*
+!package.json
+!package-lock.json
+!tsconfig.base.json
+!packages/contract
+!packages/safety/package.json
+!career-ops-wrapper/package.json
+!backend
+**/node_modules
+**/dist
+**/.env
+**/.env.*
+!backend/.env.example
+backend/test

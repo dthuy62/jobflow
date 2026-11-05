@@ -1,0 +1,6 @@
+url	first_seen	portal	title	company	status	location
+https://jobs.example.com/acme-robotics/senior-android	2026-06-18	greenhouse-api	Senior Android Engineer	Acme Robotics	added	Remote (EU)
+https://jobs.example.com/globex-labs/mobile-platform	2026-06-19	lever-api	Mobile Platform Engineer	Globex Labs	added	Berlin (Hybrid)
+https://Jobs.Example.com/hooli/kotlin-dev/	2026-06-25	ashby-api	Kotlin Developer	Hooli	added	Da Nang
+https://jobs.example.com/vandelay/ios-engineer	2026-06-26	greenhouse-api	iOS Engineer	Vandelay Industries	added	On-site, Hanoi
+https://jobs.example.com/expired/old-role	2026-06-10	greenhouse-api	Old Role	Defunct Corp	skipped_expired	

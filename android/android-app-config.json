@@ -6,16 +6,14 @@
       "applicationIdSuffix": ".dev",
       "appName": "[DEV] JobFlow",
       "buildConfigFields": {
-        "CAREER_OPS_ENVIRONMENT": "dev",
-        "CAREER_OPS_DEFAULT_BASE_URL": "http://10.0.2.2:3000"
+        "API_BASE_URL": "http://10.0.2.2:4010"
       }
     },
     "prod": {
       "applicationIdSuffix": "",
       "appName": "JobFlow",
       "buildConfigFields": {
-        "CAREER_OPS_ENVIRONMENT": "prod",
-        "CAREER_OPS_DEFAULT_BASE_URL": "http://10.0.2.2:3000"
+        "API_BASE_URL": "https://api.jobflow.invalid"
       }
     }
   },

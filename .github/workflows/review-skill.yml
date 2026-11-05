@@ -1,0 +1,36 @@
+name: Review skill
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".claude/skills/**"
+      - "package-lock.json"
+      - ".github/workflows/review-skill.yml"
+  pull_request:
+    paths:
+      - ".claude/skills/**"
+      - "package-lock.json"
+      - ".github/workflows/review-skill.yml"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+      # impact-map.mjs loads the TypeScript compiler the workspace pins.
+      - run: npm ci
+      - run: node --test '.claude/skills/review-change/scripts/*.test.mjs'

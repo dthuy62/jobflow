@@ -1,0 +1,9 @@
+{
+  "error": {
+    "code": "EVALUATION_ALREADY_RUNNING",
+    "message": "An evaluation is already running.",
+    "details": {
+      "activeEvaluationId": "eval_20261031093000_a1b2c3"
+    }
+  }
+}

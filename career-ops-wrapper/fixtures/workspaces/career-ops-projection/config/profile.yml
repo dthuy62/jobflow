@@ -1,0 +1,10 @@
+target_roles:
+  primary: ["Senior Android Engineer"]
+  archetypes:
+    - level: "Senior"
+narrative:
+  superpowers: ["Kotlin"]
+compensation:
+  location_flexibility: "Remote"
+location:
+  city: "Da Nang"

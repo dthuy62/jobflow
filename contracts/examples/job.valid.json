@@ -1,0 +1,26 @@
+{
+  "jobId": "job_01",
+  "title": "Staff Nurse, Pediatrics",
+  "company": "Example Hospital",
+  "location": "Hanoi",
+  "remotePolicy": "onsite",
+  "salary": {
+    "min": 30000000,
+    "max": 45000000,
+    "currency": "VND",
+    "period": "month"
+  },
+  "url": "https://jobs.example.com/postings/1",
+  "firstSeenAt": "2026-11-02T08:00:00.000Z",
+  "closed": false,
+  "source": "example-board",
+  "externalId": "posting-1",
+  "acceptedCountries": [
+    "VN"
+  ],
+  "acceptedTimezones": [
+    "Asia/Ho_Chi_Minh"
+  ],
+  "descriptionText": "Example Hospital is hiring a staff nurse for its pediatrics ward.",
+  "lastSeenAt": "2026-11-02T09:30:00.000Z"
+}

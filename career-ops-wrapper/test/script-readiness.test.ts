@@ -24,7 +24,6 @@ describe("Career Ops local script readiness", () => {
       status: "ready",
       executionMode: "local-script-runner",
       providerApiKeyRequired: false,
-      aiCliRequired: false,
       scanner: {
         status: "ready",
         commandType: "local-script",

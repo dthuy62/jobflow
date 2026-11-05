@@ -1,0 +1,33 @@
+{
+  "items": [
+    {
+      "id": "report_003",
+      "offerId": null,
+      "title": "Interview notes for Umbrella Mobile",
+      "kind": "unknown",
+      "createdAt": null,
+      "updatedAt": "2026-06-22T08:00:00.000Z",
+      "sourceRevision": "report_sha256_6641e2d4"
+    },
+    {
+      "id": "report_002",
+      "offerId": "offer_f641be5376bd2c10",
+      "title": "Globex Labs — Mobile Platform Engineer",
+      "kind": "evaluation",
+      "createdAt": "2026-06-21T00:00:00.000Z",
+      "updatedAt": "2026-06-22T08:00:00.000Z",
+      "sourceRevision": "report_sha256_98fa2fa5"
+    },
+    {
+      "id": "report_001",
+      "offerId": "offer_a1461f4e3225f9ea",
+      "title": "Acme Robotics — Senior Android Engineer",
+      "kind": "evaluation",
+      "createdAt": "2026-06-20T00:00:00.000Z",
+      "updatedAt": "2026-06-22T08:00:00.000Z",
+      "sourceRevision": "report_sha256_65a47347"
+    }
+  ],
+  "syncedAt": "2026-10-30T10:20:00.000Z",
+  "sourceRevision": "reports_sha256_1c2d3e4f"
+}

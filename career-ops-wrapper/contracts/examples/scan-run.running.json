@@ -1,0 +1,15 @@
+{
+  "id": "scan_20261030101500_a1b2c3",
+  "status": "running",
+  "stage": "executing",
+  "startedAt": "2026-10-30T10:15:00.000Z",
+  "finishedAt": null,
+  "exitCode": null,
+  "active": true,
+  "summary": {
+    "offersFound": 0,
+    "offersProjected": 0,
+    "warnings": []
+  },
+  "failure": null
+}

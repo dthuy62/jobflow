@@ -1,0 +1,71 @@
+# Development only. Every password here is public and never used anywhere else.
+services:
+  postgres:
+    image: pgvector/pgvector:pg17@sha256:7d0a41464797aeb9862dfdc0bbf1526b82cfd324cdd8036df19e3545f4a9ccb8
+    environment:
+      POSTGRES_PASSWORD: dev-only-superuser
+    volumes:
+      - ./docker/postgres-init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - postgres-data:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "psql -U postgres -d jobflow -c 'select 1'"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  migrate:
+    image: jobflow-backend:dev
+    # Only this service builds: several building one tag at once fail with "already exists".
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    command: ["node", "backend/dist/db/migrate-cli.js"]
+    environment:
+      JOBFLOW_ENV: development
+      DATABASE_MIGRATION_URL: postgres://jobflow_owner:dev-only-owner@postgres:5432/jobflow
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  api:
+    image: jobflow-backend:dev
+    environment:
+      JOBFLOW_ENV: development
+      HOST: 0.0.0.0
+      PORT: "8080"
+      DATABASE_URL: postgres://jobflow_app:dev-only-app@postgres:5432/jobflow
+      FIREBASE_PROJECT_ID: demo-jobflow
+    ports:
+      - "127.0.0.1:8080:8080"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  worker:
+    image: jobflow-backend:dev
+    command: ["node", "backend/dist/worker.js"]
+    # Longer than the worker's own 30-second wait for running jobs.
+    stop_grace_period: 35s
+    environment:
+      JOBFLOW_ENV: development
+      DATABASE_URL: postgres://jobflow_app:dev-only-app@postgres:5432/jobflow
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  mock:
+    profiles: [mock]
+    # The image is published for amd64 only; Docker Desktop on Apple Silicon emulates it.
+    image: stoplight/prism:5@sha256:3f6d29e31bfe0b99587f0f6f79c423858dd6a2ea7e1e4658273ed930a78a9acf
+    platform: linux/amd64
+    # Prism's multiprocess mode crashes in this image.
+    command: mock -h 0.0.0.0 --multiprocess=false /contracts/openapi.json
+    volumes:
+      - ./contracts/openapi.json:/contracts/openapi.json:ro
+    ports:
+      - "127.0.0.1:4010:4010"
+
+volumes:
+  postgres-data:

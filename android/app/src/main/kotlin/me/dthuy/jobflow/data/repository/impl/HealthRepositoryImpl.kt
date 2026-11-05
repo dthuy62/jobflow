@@ -1,0 +1,52 @@
+package me.dthuy.jobflow.data.repository.impl
+
+import java.time.Clock
+import java.time.Duration
+import javax.inject.Inject
+import javax.inject.Singleton
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import me.dthuy.jobflow.core.common.Either
+import me.dthuy.jobflow.core.common.catch
+import me.dthuy.jobflow.core.common.getOrNull
+import me.dthuy.jobflow.core.common.map
+import me.dthuy.jobflow.data.remote.JobFlowApi
+import me.dthuy.jobflow.data.remote.dto.toDomain
+import me.dthuy.jobflow.data.remote.healthOrThrow
+import me.dthuy.jobflow.data.remote.toApiError
+import me.dthuy.jobflow.domain.model.HealthSnapshot
+import me.dthuy.jobflow.domain.model.HealthStatus
+import me.dthuy.jobflow.domain.repository.HealthRepository
+
+/**
+ * App-scoped so every screen shares one cache. Only an OK answer is reused: a failure or a degraded answer is
+ * checked again on the next refresh, so reopening the app (or tapping "Check again") recovers.
+ */
+@Singleton
+class HealthRepositoryImpl @Inject constructor(private val api: JobFlowApi, private val clock: Clock) :
+    HealthRepository {
+    private val _latest = MutableStateFlow<HealthSnapshot?>(null)
+    override val latest: StateFlow<HealthSnapshot?> = _latest.asStateFlow()
+
+    // Concurrent callers wait for the in-flight check and then reuse its result.
+    private val mutex = Mutex()
+
+    override suspend fun refresh(force: Boolean): HealthSnapshot = mutex.withLock {
+        _latest.value?.takeIf { !force && it.isFreshReady() }
+            ?: HealthSnapshot(
+                result = Either.catch(onError = Throwable::toApiError) { api.getHealth().healthOrThrow() }
+                    .map { it.toDomain() },
+                checkedAt = clock.instant(),
+            ).also { _latest.value = it }
+    }
+
+    private fun HealthSnapshot.isFreshReady(): Boolean = result.getOrNull()?.status == HealthStatus.OK &&
+        Duration.between(checkedAt, clock.instant()).toMillis() <= FRESHNESS_WINDOW_MILLIS
+
+    companion object {
+        const val FRESHNESS_WINDOW_MILLIS: Long = 3 * 60 * 60 * 1_000L
+    }
+}
