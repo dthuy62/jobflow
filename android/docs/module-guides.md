@@ -38,6 +38,9 @@ firebase emulators:start --only auth --project demo-jobflow
 ./gradlew connectedDevDebugAndroidTest
 ```
 
+Gradle runs these on every connected device, and uninstalls the app from each afterwards. With a phone plugged in, set
+`ANDROID_SERIAL` to the emulator: on a phone they cannot reach the Auth emulator at `10.0.2.2`.
+
 | Case | Result | Proven by |
 |---|---|---|
 | First open | `SignedOut`, no user created | Auth emulator, unit |
