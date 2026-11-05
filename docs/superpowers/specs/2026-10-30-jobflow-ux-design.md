@@ -117,31 +117,34 @@ One screen, two states. See canvas **F · Đăng nhập**.
   becomes two, with no screen change. A chevron collapses it, as does system Back.
 - **Options:** "Tiếp tục với Google" and "Tiếp tục với tư cách khách" (Firebase
   anonymous auth). The owner decided Apple comes later, with iOS, as the hosted
-  design says. The layout has room for a third button.
+  design says. The layout has room for a third button. A guest starts once per
+  install, so after that guest, including after signing out, the sheet offers only
+  Google.
 - A new account or guest goes to Get Started. An account that already has
-  preferences goes straight to Job. A guest who signs in later has the anonymous
-  account linked, so nothing is lost.
-- If that sign-in belongs to an account that already exists (common after a
-  reinstall), Firebase refuses the link, so the **server merges the guest into that
-  account as part of signing in**. The user sees normal sign-in and nothing about a
-  merge (owner's decision). Signing in is all or nothing: if any step fails, nothing
-  changes, the user is still the same guest with all their data, and sign-in shows an
-  error and can be retried. Rules:
-  - One rule for everything (preferences, CV, tracker): what the account already has
-    stays, and the guest's data fills only what is missing.
-  - The guest's leftovers, including the stored CV, are deleted after the merge.
-  - One request carries both Firebase ID tokens: the real account's and the guest's.
-    The server verifies both signatures, checks that the guest token is anonymous and
-    that the two users differ, then merges in one database transaction. Firebase signs
-    these tokens, so a request cannot name someone else's guest account. Merging twice
-    changes nothing. It grants nothing else, since guests have no AI usage or trial to
-    carry over.
-  - Files in object storage cannot join a database transaction, so deleting the
-    guest's stored CV is queued inside that transaction and runs after it commits.
-  - To keep "all or nothing", the app stays signed in as the guest until the server
-    succeeds, and gets the real account's token without switching (for example through
-    a second Firebase app instance). The guest's session is therefore still alive for
-    a retry. Confirm this on a real device when building.
+  preferences goes straight to Job. A guest who picks a new Google account has it
+  linked: the user ID stays the same and there is nothing to merge.
+- A guest who picks a Google account already used here (common after a reinstall) is
+  **merged into that account as part of signing in**, and sees nothing about a merge
+  (owner's decision):
+  - The app signs in to the existing account, then calls `POST /auth/sso` with the
+    guest's Firebase ID token as `guestToken`. The backend already does this: it
+    verifies both tokens and merges in one transaction, and a retry is safe. Firebase
+    signs the tokens, so a request cannot name someone else's guest.
+  - Merge rules are the hosted design's: preferences keep the account's and the guest's
+    only fill gaps; tracker entries combine and the newer wins for the same job; a CV
+    moves only if the account has none.
+- **Login is all or nothing for the user:** it counts only after both Firebase and the
+  API succeed, and the session is held back until then. If the API fails, the app rolls
+  back with a client-only sign-out, the sheet shows an error, and the user can retry.
+  There is no half-signed-in state. A user who is already signed in is never signed
+  out by a network failure, a 5xx or an API 401.
+- **Known limit of that rollback:** it ends the guest's Firebase session for good, and
+  a guest starts only once per install. To keep the data reachable, the app keeps the
+  guest token captured before sign-in and sends it again on the next Google sign-in.
+  The token lasts about an hour. After that the sign-in still works but `guestMerged`
+  is false, and the guest's server data stays behind with no way to reach it. This only
+  happens when the API fails during a merge and the user does not retry within the
+  hour. Keeping the token is not in the Android auth design yet and must be added.
 
 ### Get Started: one sentence
 
@@ -285,8 +288,9 @@ jobs leave the feed. The contract's states are `applied`, `interview`, `rejected
 | Sign-in needed | `SIGN_IN_REQUIRED` or guest action | Sign-in sheet | sign in, or dismiss |
 | Plan or trial used up | `ENTITLEMENT_REQUIRED`, `QUOTA_EXCEEDED` | Paywall sheet with remaining quota | buy, or dismiss |
 | Device check failed | `INTEGRITY_FAILED` | Plain sentence, no technical words | dismiss |
-| Session expired | `UNAUTHORIZED` | Silent refresh, then the sign-in sheet | sign in |
-| Sign-in failed | Google, network, or merge error | Sheet stays open with a short error. Still the same guest, nothing changed | Thử lại |
+| API rejected the token | `UNAUTHORIZED` | Session kept, short error. Never signs the user out | Thử lại |
+| Account gone | Firebase no longer accepts the account (deleted or disabled) | Session ends, Welcome screen | sign in |
+| Sign-in failed | Google or network error, or the API fails after Firebase succeeds | Sheet stays open with a short error. Not signed in. A guest's token is kept for the retry | Thử lại |
 | Rate limited | `RATE_LIMITED` | "Thử lại sau N giây" from `retryAfterSeconds` | wait |
 | Server down | `UNAVAILABLE`, `AUTH_UNAVAILABLE`, `UNEXPECTED_ERROR` | Cached data if any, plus a retry | retry |
 
@@ -413,7 +417,6 @@ Each is additive. None is built yet.
 | "Đã xét 1.240 job" | nothing | Return total jobs considered with the first feed page, or drop the line |
 | Headline count and time, thin feed | `FeedPageDto` has only `items` and `nextCursor` | Add new count, total count and last scan time; the server remembers when the feed was last opened |
 | "Matching" versus "no matches" | An empty page looks the same for both | Add a matching state to the feed page. Matching may run in a worker |
-| Guest signs in to an existing account | No merge operation; Firebase refuses the link | Add one operation, authorised by the real account's token, that takes the guest's token and merges (phase 2, with sign-in) |
 | Match reasons in the app's language | `reasons` is free English text | Send a reason code and its values (for example "role", "Nurse"); the app writes the sentence |
 | Evaluation failure in the app's language | `failureMessage` is free English text | Add a failure code. Error responses already have `code`, so the app maps those and ignores `message` |
 
@@ -424,8 +427,9 @@ Each is additive. None is built yet.
   (builder's call on the exact pair), and adding a language must not need a server
   change.
 - Sign-in on Android: Google and guest. Apple ships with iOS.
-- A guest's data is never lost when signing in, including into an existing account.
-  The merge is invisible, happens within sign-in, and fails as a whole.
+- A guest's data follows them when signing in, including into an existing account.
+  The merge is invisible and happens within sign-in, through `POST /auth/sso`. See the
+  known limit under [Welcome and sign-in](#welcome-and-sign-in).
 - No "Quan tâm" (save for later) status: the tracker stays `applied`, `interview`,
   `rejected`, `skipped`. Rows in the canvas were updated to match.
 - Get Started is the one-sentence flow in canvas row H, not the steps in row G.
