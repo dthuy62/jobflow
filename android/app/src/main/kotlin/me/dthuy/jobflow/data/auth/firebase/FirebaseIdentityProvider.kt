@@ -14,8 +14,6 @@ import com.google.firebase.auth.GoogleAuthProvider
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.IOException
 import java.util.concurrent.ExecutionException
-import java.util.concurrent.TimeUnit
-import java.util.concurrent.TimeoutException
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.channels.BufferOverflow
@@ -33,8 +31,6 @@ import me.dthuy.jobflow.domain.auth.AuthError
 import me.dthuy.jobflow.domain.auth.IdToken
 import me.dthuy.jobflow.domain.auth.Uid
 import timber.log.Timber
-
-private const val TIMEOUT_SECONDS = 15L
 
 /** The only class that calls Firebase Auth. It never creates a user unless asked: fetching a token only reads. */
 @Singleton
@@ -119,15 +115,13 @@ class FirebaseIdentityProvider @Inject constructor(
             if (error.cause !is FirebaseAuthInvalidUserException) throw IOException(error)
             _rejected.tryEmit(Uid(user.uid))
             null
-        } catch (error: TimeoutException) {
-            throw IOException(error)
         } catch (error: InterruptedException) {
             Thread.currentThread().interrupt()
             throw IOException(error)
         }
     }
 
-    private fun <T> Task<T>.awaitBlocking(): T = Tasks.await(this, TIMEOUT_SECONDS, TimeUnit.SECONDS)
+    private fun <T> Task<T>.awaitBlocking(): T = Tasks.await(this)
 }
 
 private fun FirebaseUser.toIdentityUser() = IdentityUser(uid = Uid(uid), isAnonymous = isAnonymous)

@@ -8,8 +8,6 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
-import kotlinx.coroutines.test.advanceTimeBy
-import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import me.dthuy.jobflow.core.common.Either
 import me.dthuy.jobflow.domain.auth.AuthError
@@ -30,8 +28,6 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
-
-private const val LOGOUT_WAIT_MS = 6_000L
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class AuthenticationServiceImplTest {
@@ -420,20 +416,6 @@ class AuthenticationServiceImplTest {
         service.signOut()
 
         assertEquals(signedOutFresh, service.session.value)
-    }
-
-    @Test
-    fun `signing out does not wait forever for the backend`() = runTest {
-        val service = service()
-        identity.publish(OTHER_USER)
-        api.gate = CompletableDeferred()
-
-        launch { service.signOut() }
-        // The service works on the app's scope, which here is the test's background: advanceUntilIdle skips that.
-        advanceTimeBy(LOGOUT_WAIT_MS)
-        runCurrent()
-
-        assertEquals(1, identity.signOuts)
     }
 
     @Test

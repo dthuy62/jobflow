@@ -2,7 +2,6 @@ package me.dthuy.jobflow.data.auth
 
 import javax.inject.Inject
 import javax.inject.Singleton
-import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -11,7 +10,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import kotlinx.coroutines.withTimeoutOrNull
 import me.dthuy.jobflow.core.common.ApplicationScope
 import me.dthuy.jobflow.core.common.Either
 import me.dthuy.jobflow.core.common.catch
@@ -22,8 +20,6 @@ import me.dthuy.jobflow.domain.auth.SessionObserver
 import me.dthuy.jobflow.domain.auth.SignInMethod
 import me.dthuy.jobflow.domain.auth.Uid
 import timber.log.Timber
-
-private const val LOGOUT_TIMEOUT_MS = 5_000L
 
 @Singleton
 class AuthenticationServiceImpl @Inject constructor(
@@ -122,12 +118,10 @@ class AuthenticationServiceImpl @Inject constructor(
         }
     }
 
-    // Best effort and bounded: signing out must work offline. Only removes this device's push registration.
+    // Best effort: signing out must work offline. Only removes this device's push registration.
     private suspend fun tellTheBackend() {
-        withTimeoutOrNull(LOGOUT_TIMEOUT_MS.milliseconds) {
-            Either.catch(onError = { Timber.w(it, "Could not tell the backend about the sign-out") }) {
-                installations.id()?.let { api.logout(LogoutRequest(it)) }
-            }
+        Either.catch(onError = { Timber.w(it, "Could not tell the backend about the sign-out") }) {
+            installations.id()?.let { api.logout(LogoutRequest(it)) }
         }
     }
 
