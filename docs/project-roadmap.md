@@ -13,6 +13,7 @@ Status: in progress. Plan: `docs/superpowers/plans/2026-11-02-hosted-backend-pha
 - [x] Contract draft and mock server.
 - [x] Backend skeleton, database, Compose and CI.
 - [x] Authentication, authorization and rate limits.
+- [x] Sign-in API: guest, SSO with guest merge, logout.
 - [x] Queue and worker.
 - [x] Vendor Career Ops.
 - [ ] Android: base URL, auth layer, Room.

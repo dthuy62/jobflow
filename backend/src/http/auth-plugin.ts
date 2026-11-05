@@ -1,5 +1,5 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest, RouteOptions } from "fastify";
-import { AuthUnavailableError, InvalidTokenError, type UserId } from "../core/identity.js";
+import { AuthUnavailableError, InvalidTokenError, type UserId, type VerifiedIdentity } from "../core/identity.js";
 import type { AuthVerifier, UserRepository } from "../core/ports.js";
 import { ApiError } from "./errors.js";
 
@@ -35,7 +35,7 @@ export function registerAuth(server: FastifyInstance, { authVerifier, users, obs
       const token = bearerToken(request.headers.authorization);
       if (token === undefined) throw new InvalidTokenError();
       const identity = await authVerifier.verify(token);
-      const user = await resolveUser(request, identity.subject);
+      const user = await resolveUser(request, identity);
       if (user.deleted) throw new InvalidTokenError();
       request.auth = { userId: user.id, isAnonymous: identity.isAnonymous, createdAt: user.createdAt };
     } catch (error) {
@@ -51,9 +51,9 @@ export function registerAuth(server: FastifyInstance, { authVerifier, users, obs
     }
   }
 
-  async function resolveUser(request: FastifyRequest, subject: string) {
+  async function resolveUser(request: FastifyRequest, { subject, isAnonymous }: VerifiedIdentity) {
     try {
-      return await users.resolve(subject);
+      return await users.resolve(subject, isAnonymous);
     } catch (error) {
       request.log.error({ err: error }, "user lookup failed");
       throw new ApiError(503, "UNAVAILABLE", "The service is temporarily unavailable.");

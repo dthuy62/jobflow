@@ -30,6 +30,35 @@ Main rules:
 - One container image runs on any host, configured by environment.
 - The contract in root `contracts/` is the boundary with Android.
 
+### Sign-in
+
+Firebase signs in and links on the device; the backend only verifies Firebase ID tokens.
+Nothing here is public, and a wrong kind of token gets 403 or 409, never the 401 that makes
+the app sign out.
+
+| Route | Token | Does |
+| --- | --- | --- |
+| `POST /auth/guest` | anonymous | Returns the account |
+| `POST /auth/sso` | not anonymous | Returns the account and `guestMerged`; with `guestToken`, merges that guest |
+| `POST /auth/logout` | any | Removes the caller's device row for one `installationId` |
+
+The auth hook still creates a missing user on any route, so a failed call here cannot lock
+the app out. The two systems share no transaction, so the routes are idempotent and the app
+retries them.
+
+A merge runs in one transaction in `pg-user-repository.ts`: it locks the guest row, runs
+`GUEST_MERGE_STEPS` (one step per table with user data), then sets `deleted_at` and
+`merged_into`. `merged_into` gives a retry the same answer, and stops a guest merging twice.
+`linked_at`, set the first time any route sees a token that is not anonymous, stops an anonymous
+token from before Firebase linked an account from closing that account. A guest the server never
+saw has no data, so a merge creates no row for it, and its token keeps working until it expires:
+a closed row for that uid could lock out a real account Firebase linked to it. A token that cannot be checked gets 503, not
+`guestMerged: false`, so the app retries instead of giving up on the guest's data.
+
+Known limit: if Firebase has linked a user and no new token has reached this server yet, the row
+looks like any guest, so that user's old anonymous token can still close it for up to an hour.
+Closing this would need a lookup of the user's providers in Firebase.
+
 ## Wrapper (frozen)
 
 The rest of this document describes `career-ops-wrapper/`. It is frozen as a

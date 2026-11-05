@@ -4,7 +4,7 @@ import { createPool } from "../src/db/pool.js";
 import { migrateUp } from "../src/db/migrate.js";
 import { createServer } from "../src/server.js";
 import { withTestDatabase, type TestDatabase } from "./support/database.js";
-import { createMemoryUsers, stubAuthVerifier, testConfig } from "./support/server.js";
+import { createMemoryUsers, memoryDevices, stubAuthVerifier, testConfig } from "./support/server.js";
 
 describe("createPool", () => {
   it("gives up on a silent connection, because a server-side timeout cannot fire when packets stop", async () => {
@@ -30,13 +30,13 @@ describe("database roles", () => {
     await database.drop();
   });
 
-  it("migrate applies 0001 and running it twice is a no-op", async () => {
+  it("migrate applies every migration and running it twice is a no-op", async () => {
     await migrateUp(database.ownerUrl);
     const owner = new pg.Client({ connectionString: database.ownerUrl });
     await owner.connect();
     const { rows } = await owner.query("select name from pgmigrations");
     await owner.end();
-    expect(rows.map((row: { name: string }) => row.name)).toEqual(["0001_users"]);
+    expect(rows.map((row: { name: string }) => row.name)).toEqual(["0001_users", "0002_auth"]);
   });
 
   it("the app role can read and write users", async () => {
@@ -65,7 +65,7 @@ describe("database roles", () => {
 
   it("health answers ok against the real database with the app role", async () => {
     const pool = createPool(database.appUrl, () => undefined);
-    const server = await createServer({ config: testConfig, pool, authVerifier: stubAuthVerifier, users: createMemoryUsers() });
+    const server = await createServer({ config: testConfig, pool, authVerifier: stubAuthVerifier, users: createMemoryUsers(), devices: memoryDevices });
     const response = await server.inject({ url: "/api/v1/health" });
     expect(response.json()).toEqual({ status: "ok", checks: { database: "ok" } });
     await server.close();

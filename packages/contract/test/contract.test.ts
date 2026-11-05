@@ -17,9 +17,12 @@ import {
   EvaluationDtoSchema,
   HealthDtoSchema,
   JobDtoSchema,
+  LogoutRequestSchema,
   MeDtoSchema,
   PreferencesDtoSchema,
   PurchaseRequestSchema,
+  SsoRequestSchema,
+  SsoResponseDtoSchema,
   operations,
   type Operation
 } from "../src/index.js";
@@ -56,6 +59,9 @@ describe("operations", () => {
     expect(operations.map(operationName).sort()).toEqual(
       [
         "GET /api/v1/health",
+        "POST /api/v1/auth/guest",
+        "POST /api/v1/auth/sso",
+        "POST /api/v1/auth/logout",
         "GET /api/v1/me",
         "DELETE /api/v1/me",
         "GET /api/v1/me/preferences",
@@ -171,6 +177,17 @@ describe("operations", () => {
     expect(summary).toContain("10");
   });
 
+  it("keeps wrong-kind tokens away from 401, which would make the app sign out", () => {
+    expect(find("POST /api/v1/auth/guest").responses[409]?.examples).toEqual(["errors/conflict"]);
+    expect(find("POST /api/v1/auth/sso").responses[403]?.examples).toEqual(["errors/sign-in-required"]);
+  });
+
+  it("answers a logout with no body and no 404, like DELETE on a device", () => {
+    const logout = find("POST /api/v1/auth/logout");
+    expect(logout.responses[204]?.schema).toBeNull();
+    expect(logout.responses[404]).toBeUndefined();
+  });
+
   it("gives one answer for an import that is expired, used or another user's", () => {
     const putCv = find("PUT /api/v1/me/cv");
     expect(putCv.responses[409]?.description).toMatch(/not this user's/i);
@@ -269,6 +286,30 @@ describe("schemas", () => {
   it("reject unknown fields in a sample of schemas", () => {
     expect(() => MeDtoSchema.parse({ userId: "user_1", isAnonymous: true, createdAt: "2026-11-02T00:00:00.000Z", email: "a@example.com" })).toThrow(z.ZodError);
     expect(() => CvUpdateRequestSchema.parse({ markdown: "# CV", extra: 1 })).toThrow(z.ZodError);
+  });
+
+  it("take the account only from the token: a sign-in body cannot name one", () => {
+    expect(() => SsoRequestSchema.parse({ userId: "user_2" })).toThrow(z.ZodError);
+    expect(SsoRequestSchema.parse({})).toEqual({});
+  });
+
+  it("let a guest token that is malformed reach the verifier, so it cannot fail the sign-in", () => {
+    for (const guestToken of ["", "not a token", "a\nb"]) expect(SsoRequestSchema.parse({ guestToken })).toEqual({ guestToken });
+    expect(SsoRequestSchema.parse({ guestToken: "x".repeat(4097) }).guestToken).toHaveLength(4097);
+    expect(SsoRequestSchema.safeParse({ guestToken: 1 }).success).toBe(false);
+  });
+
+  it("say whether a merge happened", () => {
+    const account = loadExample(examplesDir, "me.valid");
+    expect(SsoResponseDtoSchema.safeParse({ account }).success).toBe(false);
+    expect(SsoResponseDtoSchema.parse(loadExample(examplesDir, "auth-sso.merged")).guestMerged).toBe(true);
+    expect(SsoResponseDtoSchema.parse(loadExample(examplesDir, "auth-sso.not-merged")).guestMerged).toBe(false);
+  });
+
+  it("hold an installation id to the opaque id pattern", () => {
+    expect(LogoutRequestSchema.parse({ installationId: "fid_1-a.b" }).installationId).toBe("fid_1-a.b");
+    for (const installationId of ["", "../x", "a b", "x".repeat(201)]) expect(LogoutRequestSchema.safeParse({ installationId }).success).toBe(false);
+    expect(LogoutRequestSchema.safeParse({}).success).toBe(false);
   });
 
   it("tie health status to its checks", () => {

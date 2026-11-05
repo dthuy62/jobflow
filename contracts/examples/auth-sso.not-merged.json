@@ -1,0 +1,8 @@
+{
+  "account": {
+    "userId": "user_01",
+    "isAnonymous": false,
+    "createdAt": "2026-11-02T08:00:00.000Z"
+  },
+  "guestMerged": false
+}
