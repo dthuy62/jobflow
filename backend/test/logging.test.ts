@@ -3,6 +3,18 @@ import { Writable } from "node:stream";
 import { LOG_TEXT_MAX_CHARS, createWorkerLogger, describeFailure, describeJobFailure, redactLogText, serializeError } from "../src/logging.js";
 import { asUser, createTestServer } from "./support/server.js";
 
+/** CPU time leaves out waiting for a core and the least leaves out a GC pause, so a busy machine cannot fail a timing test. */
+function leastCpuMs(run: () => void): number {
+  let least = Infinity;
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const before = process.cpuUsage();
+    run();
+    const { user, system } = process.cpuUsage(before);
+    least = Math.min(least, (user + system) / 1000);
+  }
+  return least;
+}
+
 describe("request logs", () => {
   it("a request's Authorization header, query and body are not logged", async () => {
     const { server, logs } = await createTestServer({
@@ -165,12 +177,20 @@ describe("redactLogText", () => {
     ["repeated headers", "Authorization: ".repeat(50_000)],
     ["a header and spaces", `authorization:${" ".repeat(16_370)}`],
     ["a quoted header and spaces", `authorization:${" ".repeat(16_369)}"`],
-    ["a long token and a space past the cap", `${"a".repeat(16_382)} b${"c".repeat(100)}`],
-    ["repeated schemes", "x://a:".repeat(5_000)]
+    ["a long token and a space past the cap", `${"a".repeat(16_382)} b${"c".repeat(100)}`]
   ])("stays fast on %s", (_name, text) => {
-    const started = performance.now();
-    redactLogText(text);
-    expect(performance.now() - started).toBeLessThan(100);
+    expect(leastCpuMs(() => redactLogText(text))).toBeLessThan(100);
+  });
+
+  it("stays fast on repeated schemes", () => {
+    const schemes = (length: number) => "x://a:".repeat(Math.ceil(length / 6)).slice(0, length);
+    const short = schemes(LOG_TEXT_MAX_CHARS / 4);
+    const long = schemes(LOG_TEXT_MAX_CHARS * 8);
+    const shortMs = leastCpuMs(() => redactLogText(short));
+    const longMs = leastCpuMs(() => redactLogText(long));
+    // Long text is cut, so it costs about 5x short text. A password pattern with no bound costs 20x, and no cut costs more.
+    expect(longMs / shortMs).toBeLessThan(10);
+    expect(longMs).toBeLessThan(100);
   });
 });
 
