@@ -65,6 +65,14 @@ class AuthenticationServiceImplTest {
     }
 
     @Test
+    fun `a session that cannot be read at start shows as signed out, not loading forever`() = test {
+        store.session = storedSession(GUEST_ID, isGuest = true)
+        store.canRead = false
+
+        assertTrue(service().session.value is Session.SignedOut)
+    }
+
+    @Test
     fun `observers finish before anyone sees the new session`() = test {
         var sessionDuringObserver: Session? = null
         lateinit var service: AuthenticationServiceImpl

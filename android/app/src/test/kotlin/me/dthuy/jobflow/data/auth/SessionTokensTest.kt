@@ -11,6 +11,7 @@ import kotlinx.coroutines.test.runTest
 import me.dthuy.jobflow.testing.FIXED_CLOCK
 import me.dthuy.jobflow.testing.FakeAuthApi
 import me.dthuy.jobflow.testing.FakeSessionStore
+import me.dthuy.jobflow.testing.GUEST_ID
 import me.dthuy.jobflow.testing.MEMBER_ID
 import me.dthuy.jobflow.testing.storedSession
 import me.dthuy.jobflow.testing.tokens
@@ -75,6 +76,16 @@ class SessionTokensTest {
 
         assertNull(tokens.refreshedAccessToken("access_of_the_user_before"))
         assertTrue(api.refreshes.isEmpty())
+    }
+
+    @Test
+    fun `a refused token replaced before someone else signed in is not retried as them`() {
+        store.session = member()
+        tokens.refreshedAccessToken("access_${MEMBER_ID.value}")
+        store.session = storedSession(GUEST_ID, isGuest = true)
+
+        assertNull(tokens.refreshedAccessToken("access_${MEMBER_ID.value}"))
+        assertEquals(1, api.refreshes.size)
     }
 
     @Test
