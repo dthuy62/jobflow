@@ -10,6 +10,8 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.serializer
+import me.dthuy.jobflow.core.network.ErrorDto
+import me.dthuy.jobflow.core.network.ErrorResponseDto
 import me.dthuy.jobflow.data.auth.GuestResponseDto
 import me.dthuy.jobflow.data.auth.LogoutRequest
 import me.dthuy.jobflow.data.auth.MeDto

@@ -43,7 +43,9 @@ class ArchitectureTest {
 
     @Test
     fun `exceptions are only caught at data boundaries`() {
-        val allowed = listOf("core.common", "data.remote", "data.local", "data.auth").map { "$root.$it" }
+        val allowed = listOf("core.common", "core.network", "data.remote", "data.local", "data.auth").map {
+            "$root.$it"
+        }
         Konsist.scopeFromProduction().files
             .filterNot { file -> allowed.any { file.packagee?.name?.startsWith(it) == true } }
             .assertFalse { file -> CATCHING.containsMatchIn(file.text) }
@@ -63,12 +65,12 @@ class ArchitectureTest {
         )
     }
 
-    // What keeps auth movable to another project: it needs only itself and core/common.
+    // What keeps auth movable to another project: it needs only itself and core, which any project copies along.
     @Test
     fun `auth depends on nothing else in the app`() {
         val allowedByLayer = mapOf(
             "domain.auth" to listOf("domain.auth", "core.common"),
-            "data.auth" to listOf("data.auth", "domain.auth", "core.common"),
+            "data.auth" to listOf("data.auth", "domain.auth", "core.common", "core.network"),
             "ui.auth" to listOf("ui.auth", "domain.auth", "core.common", "core.mvi", "R"),
         )
         allowedByLayer.forEach { (layer, allowed) ->

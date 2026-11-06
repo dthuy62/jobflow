@@ -12,19 +12,13 @@ sealed interface AuthError {
     /** Google sign-in cannot run on this device or build. */
     data object GoogleUnavailable : AuthError
 
-    /** Google or Firebase refused or was interrupted, and the session did not change: trying again can work. */
+    /** Refused, interrupted or unexpected (already logged), and the session did not change: trying again can work. */
     data object SignInFailed : AuthError
 
     data object TooManyAttempts : AuthError
 
     data object AccountDisabled : AuthError
 
-    /** The backend ended the session: signed out elsewhere, merged or deleted. */
-    data object SessionEnded : AuthError
-
     /** This install already had its guest. */
     data object GuestAlreadyUsed : AuthError
-
-    /** Something unexpected, already logged. */
-    data object Unknown : AuthError
 }

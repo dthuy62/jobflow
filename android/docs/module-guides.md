@@ -87,21 +87,24 @@ skill `new-feature`.
    `contractFixture(...)` from the test `testing` package). Never copy the JSON into Android.
 3. Declare the call in `JobFlowApi` (path relative, e.g. `@GET("api/v1/cv")`).
 4. Implement the domain port in `data/repository/impl` with
-   `Either.catch(onError = Throwable::toApiError) { api.getCv() }.map { it.toDomain() }`.
+   `Either.catch(onError = Throwable::toRemoteError) { api.getCv() }.map { it.toDomain() }`.
 5. If an API error code means something to this feature, intercept it in the repository: a normal branch goes into
    the success type. If the UI shows it as an error, give the feature its own error type, as in
    [Add a feature error type](#add-a-feature-error-type).
 
 ## Add a feature error type
 
-Only for a feature with failures of its own ([ADR 14](decisions/0014-give-a-feature-its-own-error-type-when-it-has-its-own-failures.md));
-otherwise keep `AppError`. Auth is the model.
+Only for a feature with failures of its own ([ADR 16](decisions/0016-translate-errors-at-three-boundaries.md));
+otherwise keep `DataSourceError`. Auth is the model.
 
 1. Define a sealed `<Feature>Error`. Each case must change what the user sees or can do.
 2. Return `Either<<Feature>Error, T>` from the repository.
-3. Write one `<Source>ErrorMapper` object per data source, used as `Either.catch(onError = FirebaseAuthErrorMapper::map)`.
-   It matches known exception types, rethrows `CancellationException` and sends the rest to `unexpected()`.
-4. Write an exhaustive `toUiError()` with no `else` in the feature's UI code, and test each case's action and message.
+3. For the API or Room, translate the shared error with a pure exhaustive `when`, as `DataSourceError.toAuthError()`
+   does, and use it as `Either.catch(onError = Throwable::toRemoteError) { ... }.mapLeft(DataSourceError::toXError)`.
+4. For an SDK only this feature uses, write one `Throwable.toXError()` in its adapter, as `data/auth/firebase` does. It
+   matches known exception types, rethrows `CancellationException` and sends the rest to `unexpected()`. If a second
+   feature starts using that SDK, move it into a new `DataSourceError` group instead.
+5. Write an exhaustive `toUiError()` with no `else` in the feature's UI code, and test each case's action and message.
 
 ## Share logic between features
 
@@ -128,7 +131,7 @@ to Room. Data that is not cached, like health, goes straight from DTO to domain.
 1. Add an entity in `data/local/entity` and a DAO in `data/local/dao`, list the entity in `JobFlowDatabase`, and provide
    the DAO in `DatabaseModule`. Per-user data has `ownerUserId` in its key; public data like a job does not.
 2. Keep wire enums as strings in the entity and parse them in `toDomain()`. Parse timestamps to epoch millis in
-   `toEntity()`, and call `toEntity()` inside `Either.catch(onError = Throwable::toApiError) { ... }`, not in a later
+   `toEntity()`, and call `toEntity()` inside `Either.catch(onError = Throwable::toRemoteError) { ... }`, not in a later
    `.map`, so a malformed one becomes `InvalidResponse` and reading a row cannot fail.
 3. Wrap suspend calls with `Either.catch(onError = Throwable::toLocalError) { ... }`. That does not cover a DAO's `Flow`,
    which fails when collected: map it to `Either` and add `.catch { emit(Either.Left(it.toLocalError())) }`.

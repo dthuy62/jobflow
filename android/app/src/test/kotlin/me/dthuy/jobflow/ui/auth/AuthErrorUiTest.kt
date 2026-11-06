@@ -13,9 +13,7 @@ class AuthErrorUiTest {
         AuthError.SignInFailed to ErrorAction.Retry,
         AuthError.TooManyAttempts to ErrorAction.Retry,
         AuthError.AccountDisabled to ErrorAction.None,
-        AuthError.SessionEnded to ErrorAction.SignIn,
         AuthError.GuestAlreadyUsed to ErrorAction.SignIn,
-        AuthError.Unknown to ErrorAction.Retry,
     )
 
     @Test

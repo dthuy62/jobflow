@@ -3,7 +3,7 @@ package me.dthuy.jobflow.ui.health
 import java.time.Instant
 import java.time.ZoneId
 import me.dthuy.jobflow.core.common.ApiErrorCode
-import me.dthuy.jobflow.core.common.AppError
+import me.dthuy.jobflow.core.common.DataSourceError
 import me.dthuy.jobflow.core.common.Either
 import me.dthuy.jobflow.core.common.left
 import me.dthuy.jobflow.domain.model.DependencyStatus
@@ -51,20 +51,23 @@ class HealthUiMapperTest {
 
     @Test
     fun `unreachable maps to unreachable`() {
-        assertEquals(HealthUiKind.UNREACHABLE, failure(AppError.Unreachable).toHealthUiState(zone).kind)
+        assertEquals(HealthUiKind.UNREACHABLE, failure(DataSourceError.Remote.Unreachable).toHealthUiState(zone).kind)
     }
 
     @Test
     fun `unauthorized asks the user to sign in`() {
-        assertEquals(HealthUiKind.SIGN_IN_REQUIRED, failure(AppError.Unauthorized).toHealthUiState(zone).kind)
+        assertEquals(
+            HealthUiKind.SIGN_IN_REQUIRED,
+            failure(DataSourceError.Remote.Unauthorized).toHealthUiState(zone).kind,
+        )
     }
 
     @Test
     fun `a refusal or a server failure reads as unreachable, which can be retried`() {
         listOf(
-            AppError.Rejected(ApiErrorCode.RATE_LIMITED),
-            AppError.Rejected(ApiErrorCode.AUTH_UNAVAILABLE),
-            AppError.ServerFailure(500),
+            DataSourceError.Remote.Rejected(ApiErrorCode.RATE_LIMITED),
+            DataSourceError.Remote.Rejected(ApiErrorCode.AUTH_UNAVAILABLE),
+            DataSourceError.Remote.ServerFailure(500),
         ).forEach { error ->
             assertEquals(error.toString(), HealthUiKind.UNREACHABLE, failure(error).toHealthUiState(zone).kind)
         }
@@ -72,7 +75,7 @@ class HealthUiMapperTest {
 
     @Test
     fun `invalid and unknown map to invalid response`() {
-        listOf(AppError.InvalidResponse, AppError.Unknown).forEach { error ->
+        listOf(DataSourceError.Remote.InvalidResponse, DataSourceError.Unknown).forEach { error ->
             val state = failure(error).toHealthUiState(zone)
             assertEquals(error.toString(), HealthUiKind.INVALID_RESPONSE, state.kind)
             assertNull(state.databaseStatus)
@@ -81,7 +84,7 @@ class HealthUiMapperTest {
 
     @Test
     fun `checked at is formatted in local time`() {
-        assertEquals("09:05", failure(AppError.Unreachable).toHealthUiState(zone).checkedAtLabel)
+        assertEquals("09:05", failure(DataSourceError.Remote.Unreachable).toHealthUiState(zone).checkedAtLabel)
     }
 
     private fun snapshotOf(fixture: String) = HealthSnapshot(
@@ -89,5 +92,5 @@ class HealthUiMapperTest {
         checkedAt = checkedAt,
     )
 
-    private fun failure(error: AppError) = HealthSnapshot(result = error.left(), checkedAt = checkedAt)
+    private fun failure(error: DataSourceError) = HealthSnapshot(result = error.left(), checkedAt = checkedAt)
 }

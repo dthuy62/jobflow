@@ -23,7 +23,7 @@ class FirebaseIdentityProvider @Inject constructor(
     @ApplicationContext private val context: Context,
 ) : IdentityProvider {
     override suspend fun signInWithGoogle(idToken: IdToken): Either<AuthError, IdToken> =
-        Either.catch(onError = FirebaseAuthErrorMapper::map) {
+        Either.catch(onError = Throwable::toAuthError) {
             try {
                 val credential = GoogleAuthProvider.getCredential(idToken.value, null)
                 val user = checkNotNull(auth.signInWithCredential(credential).await().user) { "No user after sign-in" }

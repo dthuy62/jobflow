@@ -66,7 +66,7 @@ sequenceDiagram
     else stale, failed, not ready or forced
         R->>A: GET api/v1/health
         A-->>R: HealthDto or exception
-        R->>R: Either.catch(Throwable::toApiError), toDomain(), checkedAt = clock
+        R->>R: Either.catch(Throwable::toRemoteError), toDomain(), checkedAt = clock
         R-->>V: HealthSnapshot (also published on latest)
     end
     V-->>S: state.health, showUnhealthyDialog (once)
@@ -155,24 +155,32 @@ sequenceDiagram
 
 ## Errors
 
-Expected failures are values: repositories return `Either<AppError, T>` (Left is the error)
-([ADR 10](decisions/0010-use-either-and-two-boundary-error-mapping.md)). Errors change shape at exactly two places:
+Expected failures are values (`Either`, Left is the error). They change shape at three boundaries, and each layer keeps
+only what it decides something with ([ADR 16](decisions/0016-translate-errors-at-three-boundaries.md)):
 
 ```mermaid
 flowchart LR
-    X["Exception in data/<br/>(IO, HTTP, serialization)"] --> M["source mapper<br/>Throwable.toApiError()"]
-    M --> L["Either.Left(AppError)"]
-    L --> P["repository / ViewModel<br/>pass through, intercept business cases"]
-    P --> U["AppError.toUiError()<br/>string resource + action"]
+    X["Exception from an SDK"] --> M["one mapper per SDK<br/>Throwable.toRemoteError() / toLocalError()"]
+    M --> D["DataSourceError<br/>Remote, Local, Unknown"]
+    D --> F["feature translation, if it has its own failures<br/>DataSourceError.toAuthError()"]
+    O["SDK only one feature uses<br/>Firebase, Credential Manager"] --> F2["Throwable.toAuthError()"]
+    F --> E["AuthError"]
+    F2 --> E
+    D --> U["toUiError()<br/>string resource + action"]
+    E --> U
 ```
 
-- One mapper per data **source**, not per feature. It knows the SDK's exception types and nothing else does. Unknown
-  exceptions go to `unexpected()`: rethrown in debug, logged and mapped to `AppError.Unknown` in release.
-- `AppError` holds no `Throwable`, so states compare equal and exception text never reaches the UI.
+- One mapper per **SDK**. It knows the SDK's exception types and nothing else does. Unknown exceptions go to
+  `unexpected()`: rethrown in debug, logged and mapped to `DataSourceError.Unknown` in release.
+- A source shared by several features is a group in `DataSourceError`; a source one feature uses maps straight to that
+  feature's error.
+- A feature translation is a pure exhaustive `when`; it never sees an exception. A feature without failures of its own
+  passes `DataSourceError` through.
+- Every `toUiError()` is exhaustive with no `else`: errors that show the same thing share a branch, and "show nothing"
+  is a branch.
+- No error holds a `Throwable`, so states compare equal and exception text never reaches the UI.
 - An API error code (`ApiErrorCode`, mirrored from `contracts/error-codes.json` and checked by `ApiErrorCodeContractTest`) that
   is a normal branch of a flow becomes part of the success type.
-- A feature with failures of its own has its own sealed error type and mappers instead of `AppError`
-  ([ADR 14](decisions/0014-give-a-feature-its-own-error-type-when-it-has-its-own-failures.md)). Auth is the first.
 - `CancellationException` is always rethrown. Konsist fails the build if `ui/` or `domain/` catches exceptions.
 
 ## Dependency injection and lifetimes

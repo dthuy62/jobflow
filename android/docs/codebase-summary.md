@@ -7,13 +7,14 @@ done with `mobile-app-config`.
 
 | Package                     | Holds                                                                   | Never holds                            |
 |-----------------------------|-------------------------------------------------------------------------|----------------------------------------|
-| `core/common`               | `Either`, `AppError`, `UiError`, `ApiErrorCode`, `unexpected`, `DispatcherProvider` | Android UI imports        |
+| `core/common`               | `Either`, `DataSourceError`, `UiError`, `ApiErrorCode`, `unexpected`, `DispatcherProvider` | Android UI imports        |
 | `core/mvi`                  | `MviViewModel`, `CollectEffects`                                        | feature logic                          |
 | `domain/model`              | plain data classes and enums (`Health`, `HealthSnapshot`, `Job`, `FeedItem`)               | annotations from Room or serialization |
 | `domain/repository`         | interfaces (ports): `HealthRepository`                                  | implementations                        |
 | `domain/auth`               | `AuthenticationService`, `Session`, `SignInMethod`, `AuthError`, `SessionObserver` | Firebase or Android types              |
 | `data/auth`                 | Session source and store, sign-in strategies, token refresh, bearer token; Firebase only in `firebase/` | anything outside auth and `core/common` |
-| `data/remote`               | `JobFlowApi`, `ApiJson`, `toApiError`, `healthOrThrow`, `normalizeBaseUrl` | UI types              |
+| `core/network`              | `ApiJson`, the API error body, `toRemoteError` | UI or feature types        |
+| `data/remote`               | `JobFlowApi`, `healthOrThrow`, `normalizeBaseUrl` | UI types              |
 | `data/remote/dto`           | `@Serializable` API DTOs and their `toDomain()` mappers             | domain rules                           |
 | `data/local`                | Room 3: `JobFlowDatabase`, `toLocalError`, `StringListConverter`         | UI types and domain rules |
 | `data/local/dao`            | `FeedDao`                                                                | UI types and domain rules |

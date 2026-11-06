@@ -1,4 +1,4 @@
-package me.dthuy.jobflow.data.remote
+package me.dthuy.jobflow.core.network
 
 import java.io.IOException
 import java.time.Instant
@@ -6,7 +6,7 @@ import java.time.format.DateTimeParseException
 import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.SerializationException
 import me.dthuy.jobflow.core.common.ApiErrorCode
-import me.dthuy.jobflow.core.common.AppError
+import me.dthuy.jobflow.core.common.DataSourceError
 import me.dthuy.jobflow.testing.contractFixture
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.ResponseBody.Companion.toResponseBody
@@ -16,54 +16,57 @@ import org.junit.Test
 import retrofit2.HttpException
 import retrofit2.Response
 
-class ApiErrorsTest {
+class RemoteErrorsTest {
     @Test
     fun `io exception maps to Unreachable`() {
-        assertEquals(AppError.Unreachable, IOException().toApiError())
+        assertEquals(DataSourceError.Remote.Unreachable, IOException().toRemoteError())
     }
 
     @Test
     fun `http 401 maps to Unauthorized`() {
-        assertEquals(AppError.Unauthorized, httpError(401, errorBody("UNAUTHORIZED")).toApiError())
+        assertEquals(DataSourceError.Remote.Unauthorized, httpError(401, errorBody("UNAUTHORIZED")).toRemoteError())
     }
 
     @Test
     fun `http 401 means sign in again, whatever its body says`() {
-        assertEquals(AppError.Unauthorized, httpError(401, "oops").toApiError())
+        assertEquals(DataSourceError.Remote.Unauthorized, httpError(401, "oops").toRemoteError())
     }
 
     @Test
     fun `http 4xx carries the API error code`() {
         assertEquals(
-            AppError.Rejected(ApiErrorCode.CONFLICT),
-            httpError(409, errorBody("CONFLICT")).toApiError(),
+            DataSourceError.Remote.Rejected(ApiErrorCode.CONFLICT),
+            httpError(409, errorBody("CONFLICT")).toRemoteError(),
         )
         assertEquals(
-            AppError.Rejected(ApiErrorCode.SIGN_IN_REQUIRED),
-            httpError(403, contractFixture("errors/sign-in-required.json")).toApiError(),
+            DataSourceError.Remote.Rejected(ApiErrorCode.SIGN_IN_REQUIRED),
+            httpError(403, contractFixture("errors/sign-in-required.json")).toRemoteError(),
         )
     }
 
     @Test
     fun `http 4xx with an unparseable body is rejected with UNKNOWN`() {
-        assertEquals(AppError.Rejected(ApiErrorCode.UNKNOWN), httpError(400, "oops").toApiError())
+        assertEquals(DataSourceError.Remote.Rejected(ApiErrorCode.UNKNOWN), httpError(400, "oops").toRemoteError())
     }
 
     @Test
     fun `unknown API code maps to the UNKNOWN entry`() {
-        assertEquals(AppError.Rejected(ApiErrorCode.UNKNOWN), httpError(422, errorBody("FUTURE_CODE")).toApiError())
+        assertEquals(
+            DataSourceError.Remote.Rejected(ApiErrorCode.UNKNOWN),
+            httpError(422, errorBody("FUTURE_CODE")).toRemoteError(),
+        )
     }
 
     @Test
     fun `http 5xx without an API code maps to ServerFailure`() {
-        assertEquals(AppError.ServerFailure(503), httpError(503, "oops").toApiError())
+        assertEquals(DataSourceError.Remote.ServerFailure(503), httpError(503, "oops").toRemoteError())
     }
 
     @Test
     fun `http 5xx with an API code is rejected with that code`() {
         assertEquals(
-            AppError.Rejected(ApiErrorCode.AUTH_UNAVAILABLE),
-            httpError(503, contractFixture("errors/auth-unavailable.json")).toApiError(),
+            DataSourceError.Remote.Rejected(ApiErrorCode.AUTH_UNAVAILABLE),
+            httpError(503, contractFixture("errors/auth-unavailable.json")).toRemoteError(),
         )
     }
 
@@ -71,22 +74,22 @@ class ApiErrorsTest {
     fun `a timestamp the contract did not promise maps to InvalidResponse`() {
         val malformed = assertThrows(DateTimeParseException::class.java) { Instant.parse("yesterday") }
 
-        assertEquals(AppError.InvalidResponse, malformed.toApiError())
+        assertEquals(DataSourceError.Remote.InvalidResponse, malformed.toRemoteError())
     }
 
     @Test
     fun `serialization exception maps to InvalidResponse`() {
-        assertEquals(AppError.InvalidResponse, SerializationException("bad json").toApiError())
+        assertEquals(DataSourceError.Remote.InvalidResponse, SerializationException("bad json").toRemoteError())
     }
 
     @Test
     fun `cancellation is rethrown`() {
-        assertThrows(CancellationException::class.java) { CancellationException().toApiError() }
+        assertThrows(CancellationException::class.java) { CancellationException().toRemoteError() }
     }
 
     @Test
     fun `unexpected exception is rethrown in debug`() {
-        assertThrows(IllegalStateException::class.java) { IllegalStateException().toApiError() }
+        assertThrows(IllegalStateException::class.java) { IllegalStateException().toRemoteError() }
     }
 
     private fun errorBody(code: String) = """{"error":{"code":"$code","message":"x"}}"""

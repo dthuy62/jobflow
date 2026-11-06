@@ -6,7 +6,7 @@ import retrofit2.http.GET
 
 /**
  * Endpoints of the hosted API (`contracts/` at the repo root). Calls throw on failure; repositories wrap them with
- * `Either.catch(onError = Throwable::toApiError) { ... }`.
+ * `Either.catch(onError = Throwable::toRemoteError) { ... }`.
  */
 interface JobFlowApi {
     /** A [Response], because health answers 503 with a normal body when a dependency is down: see [healthOrThrow]. */

@@ -12,6 +12,6 @@ class UnexpectedTest {
 
     @Test
     fun `returns Unknown in release builds`() {
-        assertEquals(AppError.Unknown, unexpected(IllegalStateException(), rethrow = false))
+        assertEquals(DataSourceError.Unknown, unexpected(IllegalStateException(), rethrow = false))
     }
 }

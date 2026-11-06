@@ -12,17 +12,17 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertThrows
 import org.junit.Test
 
-class FirebaseAuthErrorMapperTest {
+class FirebaseAuthErrorsTest {
     @Test
     fun `a network failure says so`() {
-        assertEquals(AuthError.Network, FirebaseAuthErrorMapper.map(FirebaseNetworkException("x")))
+        assertEquals(AuthError.Network, FirebaseNetworkException("x").toAuthError())
     }
 
     @Test
     fun `a Google account Firebase no longer knows can be retried`() {
         assertEquals(
             AuthError.SignInFailed,
-            FirebaseAuthErrorMapper.map(FirebaseAuthInvalidUserException("ERROR_USER_NOT_FOUND", "x")),
+            FirebaseAuthInvalidUserException("ERROR_USER_NOT_FOUND", "x").toAuthError(),
         )
     }
 
@@ -30,7 +30,7 @@ class FirebaseAuthErrorMapperTest {
     fun `a disabled account does not ask for a sign-in that would fail again`() {
         assertEquals(
             AuthError.AccountDisabled,
-            FirebaseAuthErrorMapper.map(FirebaseAuthInvalidUserException("ERROR_USER_DISABLED", "x")),
+            FirebaseAuthInvalidUserException("ERROR_USER_DISABLED", "x").toAuthError(),
         )
     }
 
@@ -38,28 +38,28 @@ class FirebaseAuthErrorMapperTest {
     fun `a Google token Firebase rejects can be retried, since no session has ended`() {
         assertEquals(
             AuthError.SignInFailed,
-            FirebaseAuthErrorMapper.map(FirebaseAuthInvalidCredentialsException("code", "x")),
+            FirebaseAuthInvalidCredentialsException("code", "x").toAuthError(),
         )
     }
 
     @Test
     fun `too many attempts says so`() {
-        assertEquals(AuthError.TooManyAttempts, FirebaseAuthErrorMapper.map(FirebaseTooManyRequestsException("x")))
+        assertEquals(AuthError.TooManyAttempts, FirebaseTooManyRequestsException("x").toAuthError())
     }
 
     @Test
     fun `any other Firebase failure can be retried, and keeps the session`() {
-        assertEquals(AuthError.SignInFailed, FirebaseAuthErrorMapper.map(FirebaseAuthException("code", "x")))
-        assertEquals(AuthError.SignInFailed, FirebaseAuthErrorMapper.map(FirebaseException("x")))
+        assertEquals(AuthError.SignInFailed, FirebaseAuthException("code", "x").toAuthError())
+        assertEquals(AuthError.SignInFailed, FirebaseException("x").toAuthError())
     }
 
     @Test
     fun `cancellation is rethrown`() {
-        assertThrows(CancellationException::class.java) { FirebaseAuthErrorMapper.map(CancellationException()) }
+        assertThrows(CancellationException::class.java) { CancellationException().toAuthError() }
     }
 
     @Test
     fun `an unexpected exception is rethrown in debug`() {
-        assertThrows(IllegalStateException::class.java) { FirebaseAuthErrorMapper.map(IllegalStateException()) }
+        assertThrows(IllegalStateException::class.java) { IllegalStateException().toAuthError() }
     }
 }

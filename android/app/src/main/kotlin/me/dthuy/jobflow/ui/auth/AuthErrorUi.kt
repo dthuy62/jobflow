@@ -13,7 +13,5 @@ fun AuthError.toUiError(): UiError = when (this) {
     AuthError.SignInFailed -> UiError(R.string.error_auth_sign_in_failed, ErrorAction.Retry)
     AuthError.TooManyAttempts -> UiError(R.string.error_auth_too_many_attempts, ErrorAction.Retry)
     AuthError.AccountDisabled -> UiError(R.string.error_auth_account_disabled, ErrorAction.None)
-    AuthError.SessionEnded -> UiError(R.string.error_auth_session_ended, ErrorAction.SignIn)
     AuthError.GuestAlreadyUsed -> UiError(R.string.error_auth_guest_already_used, ErrorAction.SignIn)
-    AuthError.Unknown -> UiError(R.string.error_auth_unknown, ErrorAction.Retry)
 }

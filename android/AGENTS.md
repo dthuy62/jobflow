@@ -19,7 +19,7 @@ A fresh clone needs `debug.keystore` and `app/google-services.json` first (`docs
   SDKs go through one adapter: Firebase only in `data/auth/firebase`.
 - Import `data/` from `ui/`, or Android, Room or DataStore types from `domain/`.
 - Import one `ui/<feature>` from another; navigation goes through callbacks in `navigation/NavGraph.kt`.
-- Catch exceptions outside `core/common` and data sources; map them with the source's mapper (`toApiError`).
+- Catch exceptions outside `core` and data sources; map them with the SDK's one mapper (`toRemoteError`, `toLocalError`).
 - Edit generated files (`build/`, `.gradle/`); a hook blocks it.
 - Change the package, applicationId or app name by hand; use the `mobile-app-config` plugin.
 - Put dependency versions anywhere but `gradle/libs.versions.toml`.

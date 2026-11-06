@@ -13,42 +13,41 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertThrows
 import org.junit.Test
 
-class GoogleCredentialErrorMapperTest {
-    private val mapper = GoogleCredentialErrorMapper
+class GoogleSignInErrorsTest {
 
     @Test
     fun `closing the Google sheet is no token and no error`() {
-        assertEquals(Either.Right(null), mapper.map(GetCredentialCancellationException()))
+        assertEquals(Either.Right(null), GetCredentialCancellationException().toGoogleSignInResult())
     }
 
     @Test
     fun `no Google account on the device says so`() {
-        assertEquals(Either.Left(AuthError.NoGoogleAccount), mapper.map(NoCredentialException()))
+        assertEquals(Either.Left(AuthError.NoGoogleAccount), NoCredentialException().toGoogleSignInResult())
     }
 
     @Test
     fun `a device or build that cannot run Google sign-in says so`() {
         val unavailable = Either.Left(AuthError.GoogleUnavailable)
 
-        assertEquals(unavailable, mapper.map(GetCredentialProviderConfigurationException()))
-        assertEquals(unavailable, mapper.map(GetCredentialUnsupportedException()))
+        assertEquals(unavailable, GetCredentialProviderConfigurationException().toGoogleSignInResult())
+        assertEquals(unavailable, GetCredentialUnsupportedException().toGoogleSignInResult())
     }
 
     @Test
     fun `other credential failures can be retried`() {
         val failed = Either.Left(AuthError.SignInFailed)
 
-        assertEquals(failed, mapper.map(GetCredentialInterruptedException()))
-        assertEquals(failed, mapper.map(GetCredentialUnknownException()))
+        assertEquals(failed, GetCredentialInterruptedException().toGoogleSignInResult())
+        assertEquals(failed, GetCredentialUnknownException().toGoogleSignInResult())
     }
 
     @Test
     fun `an unexpected exception is rethrown in debug`() {
-        assertThrows(IllegalStateException::class.java) { mapper.map(IllegalStateException()) }
+        assertThrows(IllegalStateException::class.java) { IllegalStateException().toGoogleSignInResult() }
     }
 
     @Test
     fun `cancellation is rethrown`() {
-        assertThrows(CancellationException::class.java) { mapper.map(CancellationException()) }
+        assertThrows(CancellationException::class.java) { CancellationException().toGoogleSignInResult() }
     }
 }

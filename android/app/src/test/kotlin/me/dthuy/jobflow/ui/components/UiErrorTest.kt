@@ -1,7 +1,7 @@
 package me.dthuy.jobflow.ui.components
 
 import me.dthuy.jobflow.core.common.ApiErrorCode
-import me.dthuy.jobflow.core.common.AppError
+import me.dthuy.jobflow.core.common.DataSourceError
 import me.dthuy.jobflow.core.common.ErrorAction
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -9,28 +9,31 @@ import org.junit.Test
 class UiErrorTest {
     @Test
     fun `unauthorized asks the user to sign in again`() {
-        assertEquals(ErrorAction.SignIn, AppError.Unauthorized.toUiError().action)
+        assertEquals(ErrorAction.SignIn, DataSourceError.Remote.Unauthorized.toUiError().action)
     }
 
     @Test
     fun `a storage failure offers retry`() {
-        assertEquals(ErrorAction.Retry, AppError.StorageFailure.toUiError().action)
+        assertEquals(ErrorAction.Retry, DataSourceError.Local.StorageFailure.toUiError().action)
     }
 
     @Test
     fun `auth unavailable offers retry and does not ask to sign in`() {
-        assertEquals(ErrorAction.Retry, AppError.Rejected(ApiErrorCode.AUTH_UNAVAILABLE).toUiError().action)
+        assertEquals(
+            ErrorAction.Retry,
+            DataSourceError.Remote.Rejected(ApiErrorCode.AUTH_UNAVAILABLE).toUiError().action,
+        )
     }
 
     @Test
     fun `transient failures offer retry`() {
-        assertEquals(ErrorAction.Retry, AppError.Unreachable.toUiError().action)
-        assertEquals(ErrorAction.Retry, AppError.ServerFailure(503).toUiError().action)
+        assertEquals(ErrorAction.Retry, DataSourceError.Remote.Unreachable.toUiError().action)
+        assertEquals(ErrorAction.Retry, DataSourceError.Remote.ServerFailure(503).toUiError().action)
     }
 
     @Test
     fun `every API error code has its own message`() {
-        val messages = ApiErrorCode.entries.map { AppError.Rejected(it).toUiError().message }
+        val messages = ApiErrorCode.entries.map { DataSourceError.Remote.Rejected(it).toUiError().message }
 
         assertEquals(ApiErrorCode.entries.size, messages.toSet().size)
     }
@@ -56,6 +59,11 @@ class UiErrorTest {
             ApiErrorCode.UNKNOWN to ErrorAction.Retry,
         )
 
-        assertEquals(expected, ApiErrorCode.entries.associateWith { AppError.Rejected(it).toUiError().action })
+        assertEquals(
+            expected,
+            ApiErrorCode.entries.associateWith {
+                DataSourceError.Remote.Rejected(it).toUiError().action
+            },
+        )
     }
 }

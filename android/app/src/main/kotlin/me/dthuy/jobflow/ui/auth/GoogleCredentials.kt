@@ -32,7 +32,7 @@ suspend fun requestGoogleIdToken(context: Context, webClientId: String): Either<
         val option = GetSignInWithGoogleOption.Builder(webClientId).build()
         val request = GetCredentialRequest.Builder().addCredentialOption(option).build()
         CredentialManager.create(context).getCredential(context, request).credential.googleIdToken()
-    }.fold(onLeft = GoogleCredentialErrorMapper::map, onRight = { Either.Right(it) })
+    }.fold(onLeft = Throwable::toGoogleSignInResult, onRight = { Either.Right(it) })
 
 private fun Credential.googleIdToken(): IdToken =
     if (this is CustomCredential && type == GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL) {
@@ -41,23 +41,24 @@ private fun Credential.googleIdToken(): IdToken =
         throw GetCredentialUnknownException("Google's sheet returned another type of credential")
     }
 
-/** Credential Manager's error mapper: the only code that knows its exception types. */
-object GoogleCredentialErrorMapper {
-    fun map(error: Throwable): Either<AuthError, IdToken?> = when (error) {
-        is CancellationException -> throw error
-        is GetCredentialCancellationException -> Either.Right(null)
-        is NoCredentialException -> Either.Left(AuthError.NoGoogleAccount)
-        is GetCredentialProviderConfigurationException, is GetCredentialUnsupportedException -> {
-            Timber.w(error, "Google sign-in is unavailable")
-            Either.Left(AuthError.GoogleUnavailable)
-        }
-        is GetCredentialException, is GoogleIdTokenParsingException -> {
-            Timber.w(error, "Google sign-in failed")
-            Either.Left(AuthError.SignInFailed)
-        }
-        else -> {
-            unexpected(error)
-            Either.Left(AuthError.Unknown)
-        }
+/**
+ * Credential Manager's error mapper: the only code that knows its exception types. Closing the sheet is not an error,
+ * so it answers with no token.
+ */
+fun Throwable.toGoogleSignInResult(): Either<AuthError, IdToken?> = when (this) {
+    is CancellationException -> throw this
+    is GetCredentialCancellationException -> Either.Right(null)
+    is NoCredentialException -> Either.Left(AuthError.NoGoogleAccount)
+    is GetCredentialProviderConfigurationException, is GetCredentialUnsupportedException -> {
+        Timber.w(this, "Google sign-in is unavailable")
+        Either.Left(AuthError.GoogleUnavailable)
+    }
+    is GetCredentialException, is GoogleIdTokenParsingException -> {
+        Timber.w(this, "Google sign-in failed")
+        Either.Left(AuthError.SignInFailed)
+    }
+    else -> {
+        unexpected(this)
+        Either.Left(AuthError.SignInFailed)
     }
 }

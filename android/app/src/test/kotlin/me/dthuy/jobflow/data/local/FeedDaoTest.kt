@@ -8,13 +8,13 @@ import androidx.room3.useWriterConnection
 import androidx.sqlite.driver.bundled.BundledSQLiteDriver
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
+import me.dthuy.jobflow.core.network.ApiJson
 import me.dthuy.jobflow.data.local.dao.FeedDao
 import me.dthuy.jobflow.data.local.entity.FeedItemEntity
 import me.dthuy.jobflow.data.local.entity.FeedItemWithJob
 import me.dthuy.jobflow.data.local.entity.JobEntity
 import me.dthuy.jobflow.data.local.entity.toDomain
 import me.dthuy.jobflow.data.local.entity.toEntity
-import me.dthuy.jobflow.data.remote.ApiJson
 import me.dthuy.jobflow.data.remote.dto.FeedPageDto
 import me.dthuy.jobflow.testing.contractFixture
 import org.junit.After

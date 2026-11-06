@@ -9,7 +9,7 @@ tracks the Android engineering baseline only.
       ([ADR 8](decisions/0008-rebuild-jobflow-android-from-starter.md))
 - [x] Retrofit + kotlinx.serialization network layer with contract tests
       ([ADR 9](decisions/0009-retrofit-kotlinx-serialization-network-layer.md))
-- [x] `Either<AppError, T>` error model with source and UI mappers and a mirrored `ApiErrorCode`
+- [x] `Either` error model with one mapper per SDK, feature translations, UI mappers and a mirrored `ApiErrorCode` (ADR 16)
       ([ADR 10](decisions/0010-use-either-and-two-boundary-error-mapping.md))
 - [x] Health on Home and Settings with a three-hour cache and a show-once unhealthy dialog
 - [x] Root CI workflows for Android and the wrapper

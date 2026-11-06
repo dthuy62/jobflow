@@ -37,9 +37,7 @@
     <string name="error_auth_sign_in_failed">Sign-in did not finish. Try again.</string>
     <string name="error_auth_too_many_attempts">Too many sign-in attempts. Try again later.</string>
     <string name="error_auth_account_disabled">This account has been disabled.</string>
-    <string name="error_auth_session_ended">Your session has ended. Sign in again.</string>
     <string name="error_auth_guest_already_used">Guest mode was already used on this device. Sign in with Google.</string>
-    <string name="error_auth_unknown">Something went wrong. Please try again.</string>
     <string name="error_code_validation_error">Some values are not valid. Check them and save again.</string>
     <string name="error_code_unauthorized">Your session has ended. Sign in again.</string>
     <string name="error_code_sign_in_required">Sign in with Google to use this.</string>

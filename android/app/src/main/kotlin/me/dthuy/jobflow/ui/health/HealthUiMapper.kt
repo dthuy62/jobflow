@@ -2,7 +2,7 @@ package me.dthuy.jobflow.ui.health
 
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
-import me.dthuy.jobflow.core.common.AppError
+import me.dthuy.jobflow.core.common.DataSourceError
 import me.dthuy.jobflow.core.common.fold
 import me.dthuy.jobflow.domain.model.Health
 import me.dthuy.jobflow.domain.model.HealthSnapshot
@@ -25,14 +25,14 @@ private fun Health.toHealthUiState(checkedAtLabel: String): HealthUiState = Heal
     databaseStatus = database.wireValue,
 )
 
-private fun AppError.toHealthUiKind(): HealthUiKind = when (this) {
-    AppError.Unauthorized -> HealthUiKind.SIGN_IN_REQUIRED
-    AppError.Unreachable,
-    is AppError.Rejected,
-    is AppError.ServerFailure,
+private fun DataSourceError.toHealthUiKind(): HealthUiKind = when (this) {
+    DataSourceError.Remote.Unauthorized -> HealthUiKind.SIGN_IN_REQUIRED
+    DataSourceError.Remote.Unreachable,
+    is DataSourceError.Remote.Rejected,
+    is DataSourceError.Remote.ServerFailure,
     -> HealthUiKind.UNREACHABLE
-    AppError.InvalidResponse,
-    AppError.StorageFailure,
-    AppError.Unknown,
+    DataSourceError.Remote.InvalidResponse,
+    DataSourceError.Local.StorageFailure,
+    DataSourceError.Unknown,
     -> HealthUiKind.INVALID_RESPONSE
 }

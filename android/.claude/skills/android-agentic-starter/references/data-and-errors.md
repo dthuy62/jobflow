@@ -1,15 +1,16 @@
 # Data, errors and coroutines
 
-- Repositories return `Either<AppError, T>` (Left is the error). Wrap each source call with
-  `Either.catch(onError = Throwable::toApiError) { api.call() }` from `core/common`; it rethrows `CancellationException`.
-- Errors change shape only at two boundaries: the source mapper (`toApiError` for the API, `toLocalError` for Room) and
-  `toUiError()` in the UI. Layers in between pass errors through.
-- Mappers match known exception types only and send anything else to `unexpected()`. Never put a `Throwable` or an
-  exception message in `AppError` or UI state; log it at the mapping boundary.
+- Repositories return `Either<DataSourceError, T>`, or a feature's own error (Left is the error). Wrap each API call with
+  `Either.catch(onError = Throwable::toRemoteError) { api.call() }` (`core/network`); it rethrows `CancellationException`.
+- Errors change shape at three boundaries (ADR 16): one mapper per SDK (`toRemoteError`, `toLocalError`, or a feature's
+  own SDK mapper in its adapter), a pure `when` for a feature with its own failures (`DataSourceError.toAuthError()`),
+  and an exhaustive `toUiError()` per error type. Layers in between pass errors through.
+- SDK mappers match known exception types only and send anything else to `unexpected()`. Never put a `Throwable` or an
+  exception message in an error or UI state; log it at the mapping boundary.
 - An API error code that is a normal branch (for example `CONFLICT`) goes into the success type. A feature with failures
-  of its own gets a sealed `<Feature>Error`, one `<Source>ErrorMapper` per source and an exhaustive `toUiError()`
-  (`docs/module-guides.md`, auth is the model). Other features keep `AppError`.
-- Only `core/common`, `data/remote`, `data/local` and `data/auth` may catch exceptions (Konsist enforces it).
+  of its own gets a sealed `<Feature>Error` whose every case changes what the user sees (`docs/module-guides.md`, auth
+  is the model). A source two features use becomes a `DataSourceError` group.
+- Only `core/common`, `core/network`, `data/remote`, `data/local` and `data/auth` may catch exceptions (Konsist).
 - Inject `DispatcherProvider`; never reference `Dispatchers.IO` directly.
 - Add a use case only for real logic or reuse. No pass-through use cases.
 - Interfaces go in `domain/repository`, implementations in `data/`, one `@Binds` in `di/RepositoryModule.kt`; network

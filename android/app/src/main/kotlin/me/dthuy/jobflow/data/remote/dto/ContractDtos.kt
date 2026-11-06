@@ -5,15 +5,6 @@ import kotlinx.serialization.Serializable
 // Mirrors of the hosted contract that no screen reads yet. Enums stay strings until a mapper needs them.
 
 @Serializable
-data class ErrorResponseDto(val error: ErrorDto)
-
-@Serializable
-data class ErrorDto(val code: String, val message: String, val details: ErrorDetailsDto? = null)
-
-@Serializable
-data class ErrorDetailsDto(val fields: List<String>? = null, val retryAfterSeconds: Long? = null)
-
-@Serializable
 data class PreferencesDto(
     val roles: List<String>,
     val keywordsInclude: List<String>,

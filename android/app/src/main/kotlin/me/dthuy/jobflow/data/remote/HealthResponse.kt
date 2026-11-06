@@ -1,6 +1,7 @@
 package me.dthuy.jobflow.data.remote
 
 import kotlinx.serialization.SerializationException
+import me.dthuy.jobflow.core.network.ApiJson
 import me.dthuy.jobflow.data.remote.dto.HealthDto
 import okhttp3.ResponseBody.Companion.toResponseBody
 import retrofit2.HttpException
@@ -11,7 +12,7 @@ private const val HTTP_FIRST_ERROR = 400
 
 /**
  * The health body, including the one a 503 carries when a dependency is down: that is an answer, not a failure.
- * Any other failure throws with its body intact, so `toApiError` can still read the error code. A success with no
+ * Any other failure throws with its body intact, so `toRemoteError` can still read the error code. A success with no
  * body, as a proxy might send, breaks the contract.
  */
 fun Response<HealthDto>.healthOrThrow(): HealthDto {

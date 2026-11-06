@@ -11,10 +11,10 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.test.runTest
 import me.dthuy.jobflow.core.common.ApiErrorCode
-import me.dthuy.jobflow.core.common.AppError
+import me.dthuy.jobflow.core.common.DataSourceError
 import me.dthuy.jobflow.core.common.Either
 import me.dthuy.jobflow.core.common.getOrNull
-import me.dthuy.jobflow.data.remote.ApiJson
+import me.dthuy.jobflow.core.network.ApiJson
 import me.dthuy.jobflow.data.remote.JobFlowApi
 import me.dthuy.jobflow.data.remote.dto.HealthDto
 import me.dthuy.jobflow.domain.model.HealthStatus
@@ -74,7 +74,7 @@ class HealthRepositoryImplTest {
         down = false
         val second = repository.refresh()
 
-        assertEquals(Either.Left(AppError.Unreachable), first.result)
+        assertEquals(Either.Left(DataSourceError.Remote.Unreachable), first.result)
         assertTrue(second.result is Either.Right)
         assertEquals(2, api.calls)
     }
@@ -109,7 +109,7 @@ class HealthRepositoryImplTest {
 
         val snapshot = HealthRepositoryImpl(api, clock).refresh()
 
-        assertEquals(Either.Left(AppError.Rejected(ApiErrorCode.AUTH_UNAVAILABLE)), snapshot.result)
+        assertEquals(Either.Left(DataSourceError.Remote.Rejected(ApiErrorCode.AUTH_UNAVAILABLE)), snapshot.result)
     }
 
     @Test
@@ -118,7 +118,7 @@ class HealthRepositoryImplTest {
 
         val snapshot = HealthRepositoryImpl(api, clock).refresh()
 
-        assertEquals(Either.Left(AppError.ServerFailure(503)), snapshot.result)
+        assertEquals(Either.Left(DataSourceError.Remote.ServerFailure(503)), snapshot.result)
     }
 
     @Test
@@ -127,7 +127,7 @@ class HealthRepositoryImplTest {
 
         val snapshot = HealthRepositoryImpl(api, clock).refresh()
 
-        assertEquals(Either.Left(AppError.ServerFailure(500)), snapshot.result)
+        assertEquals(Either.Left(DataSourceError.Remote.ServerFailure(500)), snapshot.result)
     }
 
     @Test
@@ -136,7 +136,7 @@ class HealthRepositoryImplTest {
 
         val snapshot = HealthRepositoryImpl(api, clock).refresh()
 
-        assertEquals(Either.Left(AppError.InvalidResponse), snapshot.result)
+        assertEquals(Either.Left(DataSourceError.Remote.InvalidResponse), snapshot.result)
     }
 
     @Test
@@ -145,7 +145,7 @@ class HealthRepositoryImplTest {
 
         val snapshot = HealthRepositoryImpl(api, clock).refresh()
 
-        assertEquals(Either.Left(AppError.Rejected(ApiErrorCode.RATE_LIMITED)), snapshot.result)
+        assertEquals(Either.Left(DataSourceError.Remote.Rejected(ApiErrorCode.RATE_LIMITED)), snapshot.result)
     }
 
     @Test
@@ -165,7 +165,7 @@ class HealthRepositoryImplTest {
         val snapshot = repository.refresh()
 
         assertEquals(snapshot, repository.latest.value)
-        assertEquals(Either.Left(AppError.Unreachable), snapshot.result)
+        assertEquals(Either.Left(DataSourceError.Remote.Unreachable), snapshot.result)
     }
 
     @Test

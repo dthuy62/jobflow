@@ -2,6 +2,8 @@
 
 Status: Accepted (2026-11-05)
 
+Its mapper layout is superseded by [ADR 16](0016-translate-errors-at-three-boundaries.md).
+
 ## Context
 
 ADR 10 sent every failure through `AppError`, with `AppError.Feature(FeatureError)` for a feature's own failures. No

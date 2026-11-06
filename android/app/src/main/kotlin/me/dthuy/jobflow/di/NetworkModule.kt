@@ -7,10 +7,10 @@ import dagger.hilt.components.SingletonComponent
 import java.util.concurrent.TimeUnit
 import javax.inject.Singleton
 import me.dthuy.jobflow.BuildConfig
+import me.dthuy.jobflow.core.network.ApiJson
 import me.dthuy.jobflow.data.auth.AccessTokenSource
 import me.dthuy.jobflow.data.auth.BearerTokenInterceptor
 import me.dthuy.jobflow.data.auth.TokenAuthenticator
-import me.dthuy.jobflow.data.remote.ApiJson
 import me.dthuy.jobflow.data.remote.JobFlowApi
 import me.dthuy.jobflow.data.remote.isPublicRoute
 import me.dthuy.jobflow.data.remote.normalizeBaseUrl

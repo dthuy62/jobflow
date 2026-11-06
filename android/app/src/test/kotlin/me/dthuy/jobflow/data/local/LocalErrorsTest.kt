@@ -2,7 +2,7 @@ package me.dthuy.jobflow.data.local
 
 import android.database.SQLException
 import kotlinx.coroutines.CancellationException
-import me.dthuy.jobflow.core.common.AppError
+import me.dthuy.jobflow.core.common.DataSourceError
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertThrows
 import org.junit.Test
@@ -10,7 +10,7 @@ import org.junit.Test
 class LocalErrorsTest {
     @Test
     fun `a SQLite failure maps to StorageFailure`() {
-        assertEquals(AppError.StorageFailure, SQLException().toLocalError())
+        assertEquals(DataSourceError.Local.StorageFailure, SQLException().toLocalError())
     }
 
     @Test

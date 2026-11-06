@@ -8,6 +8,6 @@
 - Collect with `collectAsStateWithLifecycle()`.
 - One-shot events (snackbar, navigation) are MVI effects collected with `CollectEffects`, never a state flag that
   the UI resets.
-- ViewModels expose `AppError`; the screen maps it to a string resource. ViewModels never hold `Throwable` or SDK
+- ViewModels expose `DataSourceError` or the feature's own error; the screen maps it to a string resource. ViewModels never hold `Throwable` or SDK
   types.
 - Screens take navigation callbacks (`onOpenSettings`, `onBack`); `navigation/NavGraph.kt` wires them.
