@@ -541,7 +541,7 @@
     "/api/v1/auth/logout": {
       "post": {
         "operationId": "logOut",
-        "summary": "End a member's session, so its tokens get 401, and forget this installation's FCM token. Other sessions stay signed in. A guest has no sign-out: it would lose the guest's data. installationId is opaque to the server.",
+        "summary": "End a member's session, so its tokens get 401, and forget this installation's FCM token when installationId is given. Other sessions stay signed in. A guest has no sign-out: it would lose the guest's data. installationId is opaque to the server.",
         "x-phase": 1,
         "security": [
           {
@@ -567,7 +567,7 @@
         },
         "responses": {
           "204": {
-            "description": "Signed out. The device row is removed, or was not registered."
+            "description": "Signed out. The device row is removed, was not registered, or no installationId was given."
           },
           "400": {
             "description": "The request is not valid.",
@@ -5083,9 +5083,6 @@
             "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,199}$"
           }
         },
-        "required": [
-          "installationId"
-        ],
         "additionalProperties": false
       },
       "MeDto": {

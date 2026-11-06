@@ -42,7 +42,7 @@ live in `core/auth-service.ts`; Firebase, the JWT library and PostgreSQL sit beh
 | `POST /auth/guest` | public, 10 per address a minute | Creates a guest and its session; returns the tokens and the account |
 | `POST /auth/sso` | public, `idToken` in the body | Finds or creates the member; with `guestRefreshToken`, merges that guest; returns the tokens, the account and `guestMerged` |
 | `POST /auth/refresh` | public, `refreshToken` in the body | Returns a new access token and the same refresh token |
-| `POST /auth/logout` | Bearer, members only | Revokes the caller's session and removes its device row for one `installationId`; a guest gets 403, because its session is the only way back to its data |
+| `POST /auth/logout` | Bearer, members only | Revokes the caller's session and removes its device row when it sends an `installationId`; a guest gets 403, because its session is the only way back to its data |
 
 Tokens:
 

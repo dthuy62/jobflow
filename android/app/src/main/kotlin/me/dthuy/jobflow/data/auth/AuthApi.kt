@@ -52,4 +52,4 @@ data class RefreshRequest(val refreshToken: String) {
 }
 
 @Serializable
-data class LogoutRequest(val installationId: String)
+data class LogoutRequest(val installationId: String? = null)

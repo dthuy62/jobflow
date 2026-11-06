@@ -362,14 +362,14 @@ class AuthenticationServiceImplTest {
     }
 
     @Test
-    fun `signing out works without an installation id`() = test {
+    fun `signing out without an installation id still ends the backend session`() = test {
         installationId = null
         store.session = storedSession(MEMBER_ID, isGuest = false)
         val service = service()
 
         service.signOut()
 
-        assertTrue(api.logouts.isEmpty())
+        assertEquals(listOf<String?>(null), api.logouts)
         assertEquals(signedOutFresh, service.session.value)
     }
 

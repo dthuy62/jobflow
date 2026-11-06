@@ -93,7 +93,7 @@ class FakeAuthApi : AuthApi {
     var gate: CompletableDeferred<Unit>? = null
     var guestCalls = 0
     val ssoRequests = mutableListOf<SsoRequest>()
-    val logouts = mutableListOf<String>()
+    val logouts = mutableListOf<String?>()
     var onLogout: () -> Unit = {}
     val refreshes = mutableListOf<String>()
     var refreshAnswer: () -> Response<SessionTokensDto> = { Response.success(tokens(MEMBER_ID, "fresh")) }

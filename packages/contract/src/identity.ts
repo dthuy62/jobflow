@@ -58,7 +58,8 @@ export const SsoResponseDtoSchema = named(
 
 export const RefreshRequestSchema = named("RefreshRequest", z.strictObject({ refreshToken: z.string() }));
 
-export const LogoutRequestSchema = named("LogoutRequest", z.strictObject({ installationId: OpaqueIdSchema }));
+/** No `installationId` when the app cannot read one: the session still ends, only no device row goes. */
+export const LogoutRequestSchema = named("LogoutRequest", z.strictObject({ installationId: OpaqueIdSchema.optional() }));
 
 export type HealthDto = z.infer<typeof HealthDtoSchema>;
 export type MeDto = z.infer<typeof MeDtoSchema>;

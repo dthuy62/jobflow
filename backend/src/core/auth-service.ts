@@ -22,7 +22,7 @@ export interface AuthService {
   /** Throws InvalidTokenError. */
   refresh(refreshToken: string): Promise<SessionTokens>;
   /** Throws SignInRequiredError for a guest. */
-  logout(user: AuthenticatedUser, installationId: string): Promise<void>;
+  logout(user: AuthenticatedUser, installationId?: string): Promise<void>;
 }
 
 export interface AuthServiceDeps {
@@ -83,7 +83,7 @@ export function createAuthService({ identities, accessTokens, sessions, users, d
     async logout({ userId, sessionId, isAnonymous }, installationId) {
       // A guest's session is the only way back to its data. It leaves by deleting the account (DELETE /me, not built yet).
       if (isAnonymous) throw new SignInRequiredError();
-      await devices.remove(userId, installationId);
+      if (installationId) await devices.remove(userId, installationId);
       await sessions.revoke(sessionId, "logout");
     }
   };

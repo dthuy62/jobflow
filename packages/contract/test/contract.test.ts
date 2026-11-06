@@ -341,7 +341,8 @@ describe("schemas", () => {
   it("hold an installation id to the opaque id pattern", () => {
     expect(LogoutRequestSchema.parse({ installationId: "fid_1-a.b" }).installationId).toBe("fid_1-a.b");
     for (const installationId of ["", "../x", "a b", "x".repeat(201)]) expect(LogoutRequestSchema.safeParse({ installationId }).success).toBe(false);
-    expect(LogoutRequestSchema.safeParse({}).success).toBe(false);
+    expect(LogoutRequestSchema.parse({})).toEqual({});
+    expect(LogoutRequestSchema.safeParse({ installationId: null }).success).toBe(false);
   });
 
   it("tie health status to its checks", () => {

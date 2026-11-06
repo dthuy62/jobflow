@@ -35,10 +35,13 @@ class GoogleSignIn @Inject constructor(
 }
 
 class BackendLogout @Inject constructor(private val api: AuthApi, private val installations: InstallationIdSource) {
-    /** Best effort: signing out must work offline. Ends this session on the backend and its push registration. */
+    /**
+     * Best effort: signing out must work offline. Ends this session on the backend, and this install's push
+     * registration when its id can be read.
+     */
     suspend fun tellTheBackend() {
         Either.catch(onError = { Timber.w(it, "Could not tell the backend about the sign-out") }) {
-            installations.id()?.let { api.logout(LogoutRequest(it)) }
+            api.logout(LogoutRequest(installations.id()))
         }
     }
 }

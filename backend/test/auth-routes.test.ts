@@ -472,6 +472,15 @@ describe("the auth routes, with real PostgreSQL and the app role", () => {
       expect(await devicesOf(account.userId)).toEqual(["tablet"]);
     });
 
+    it("still ends the session with no installation id, and keeps every device row", async () => {
+      const { tokens, account } = await signIn("logout-no-id");
+      await seedDevice(account.userId, "phone");
+      expect((await logout(tokens, {})).statusCode).toBe(204);
+      expect((await sessionOf(tokens)).revoked_reason).toBe("logout");
+      expect((await me(tokens)).statusCode).toBe(401);
+      expect(await devicesOf(account.userId)).toEqual(["phone"]);
+    });
+
     it("cannot remove another user's device, even with the same installation id", async () => {
       const a = await signIn("device-a");
       const b = await signIn("device-b");
@@ -484,7 +493,7 @@ describe("the auth routes, with real PostgreSQL and the app role", () => {
 
     it.each([
       ["a path in the id", { installationId: "../x" }],
-      ["no id", {}],
+      ["a null id", { installationId: null }],
       ["an extra field", { installationId: "phone", userId: "user_2" }]
     ])("answers 400 to %s, and keeps the session", async (_name, body) => {
       const { tokens } = await signIn("device-bad");
