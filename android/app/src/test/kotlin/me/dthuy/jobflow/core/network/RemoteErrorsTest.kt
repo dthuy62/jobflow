@@ -58,6 +58,14 @@ class RemoteErrorsTest {
     }
 
     @Test
+    fun `a 429 with the API's own code keeps that code`() {
+        assertEquals(
+            DataSourceError.Remote.Rejected(ApiErrorCode.QUOTA_EXCEEDED),
+            httpError(429, contractFixture("errors/quota-exceeded.json")).toRemoteError(),
+        )
+    }
+
+    @Test
     fun `unknown API code maps to the UNKNOWN entry`() {
         assertEquals(
             DataSourceError.Remote.Rejected(ApiErrorCode.UNKNOWN),
