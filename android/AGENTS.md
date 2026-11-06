@@ -10,14 +10,16 @@ Flavors: `dev` (the contract's mock at `http://10.0.2.2:4010`, cleartext allowed
 ./gradlew assembleDevDebug testDevDebugUnitTest lintDevDebug detekt ktlintCheck
 ```
 
+A fresh clone needs `debug.keystore` and `app/google-services.json` first (`docs/quick-start-guide.md`).
 `ktlintFormat` fixes formatting. Konsist tests in `app/src/test/.../architecture/` enforce the layer rules below.
 
 ## Never
 
-- Reach anything but the hosted API (`data/remote/JobFlowApi.kt`, contract in `../contracts/`).
+- Get product data from anything but the hosted API (`data/remote/JobFlowApi.kt`, contract in `../contracts/`). Platform
+  SDKs go through one adapter: Firebase only in `data/auth/firebase`.
 - Import `data/` from `ui/`, or Android, Room or DataStore types from `domain/`.
 - Import one `ui/<feature>` from another; navigation goes through callbacks in `navigation/NavGraph.kt`.
-- Catch exceptions outside `core/common` and data sources; map them with the source's mapper (`toApiError`).
+- Catch exceptions outside `core` and data sources; map them with the SDK's one mapper (`toRemoteError`, `toLocalError`).
 - Edit generated files (`build/`, `.gradle/`); a hook blocks it.
 - Change the package, applicationId or app name by hand; use the `mobile-app-config` plugin.
 - Put dependency versions anywhere but `gradle/libs.versions.toml`.

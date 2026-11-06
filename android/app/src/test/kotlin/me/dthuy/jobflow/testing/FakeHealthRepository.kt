@@ -4,7 +4,7 @@ import java.time.Instant
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import me.dthuy.jobflow.core.common.AppError
+import me.dthuy.jobflow.core.common.DataSourceError
 import me.dthuy.jobflow.core.common.Either
 import me.dthuy.jobflow.core.common.left
 import me.dthuy.jobflow.domain.model.HealthSnapshot
@@ -16,7 +16,7 @@ fun readySnapshot() = HealthSnapshot(Either.Right(healthFixture("health.ok.json"
 
 fun degradedSnapshot() = HealthSnapshot(Either.Right(healthFixture("health.degraded.json")), CHECKED_AT)
 
-fun unreachableSnapshot() = HealthSnapshot(AppError.Unreachable.left(), CHECKED_AT)
+fun unreachableSnapshot() = HealthSnapshot(DataSourceError.Remote.Unreachable.left(), CHECKED_AT)
 
 /** Answers every refresh with [next]; set [gate] to hold a refresh in flight. */
 class FakeHealthRepository(var next: HealthSnapshot = readySnapshot()) : HealthRepository {

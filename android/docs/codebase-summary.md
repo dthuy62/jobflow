@@ -7,20 +7,23 @@ done with `mobile-app-config`.
 
 | Package                     | Holds                                                                   | Never holds                            |
 |-----------------------------|-------------------------------------------------------------------------|----------------------------------------|
-| `core/common`               | `Either`, `AppError`, `FeatureError`, `ApiErrorCode`, `unexpected`, `DispatcherProvider` | Android UI imports        |
+| `core/common`               | `Either`, `DataSourceError`, `UiError`, `ApiErrorCode`, `unexpected`, `DispatcherProvider` | Android UI imports        |
 | `core/mvi`                  | `MviViewModel`, `CollectEffects`                                        | feature logic                          |
 | `domain/model`              | plain data classes and enums (`Health`, `HealthSnapshot`, `Job`, `FeedItem`)               | annotations from Room or serialization |
 | `domain/repository`         | interfaces (ports): `HealthRepository`                                  | implementations                        |
-| `data/remote`               | `JobFlowApi`, `ApiJson`, `toApiError`, `healthOrThrow`, `normalizeBaseUrl` | UI types              |
+| `domain/auth`               | `AuthenticationService`, `Session`, `SignInMethod`, `AuthError`, `SessionObserver` | Firebase or Android types              |
+| `data/auth`                 | Session source and store, sign-in strategies, token refresh, bearer token; Firebase only in `firebase/` | anything outside auth and `core/common` |
+| `core/network`              | `ApiJson`, the API error body, `toRemoteError` | UI or feature types        |
+| `data/remote`               | `JobFlowApi`, `healthOrThrow`, `normalizeBaseUrl` | UI types              |
 | `data/remote/dto`           | `@Serializable` API DTOs and their `toDomain()` mappers             | domain rules                           |
 | `data/local`                | Room 3: `JobFlowDatabase`, `toLocalError`, `StringListConverter`         | UI types and domain rules |
 | `data/local/dao`            | `FeedDao`                                                                | UI types and domain rules |
 | `data/local/entity`         | `JobEntity`, `FeedItemEntity` and their `toEntity()`/`toDomain()` mappers | UI types and domain rules |
 | `data/repository/impl`      | port implementations (`HealthRepositoryImpl`)                           | UI types                               |
-| `di`                        | Hilt modules: `NetworkModule`, `DatabaseModule`, `RepositoryModule`, `CoroutinesModule`, `TimeModule` | business logic             |
+| `di`                        | Hilt modules: `NetworkModule`, `DatabaseModule`, `RepositoryModule`, `AuthModule`, `AuthFirebaseModule`, `CoroutinesModule`, `TimeModule` | business logic             |
 | `navigation`                | `NavGraph.kt` (the only file that knows every feature), `TopLevelTab`, bottom bar | feature logic            |
 | `ui/<feature>`              | Screen, ViewModel, Route, Contract                                      | imports from `data/` or other features |
-| `ui/theme`, `ui/components`, `ui/health` | shared UI: `AppTheme`, `Spacing`, soft components, `toUiError`, health cards | feature-specific state  |
+| `ui/theme`, `ui/components`, `ui/health`, `ui/auth` | shared UI: `AppTheme`, `Spacing`, soft components, `toUiError`, health cards, `AuthViewModel`, Google's sheet | feature-specific state  |
 
 Root files: `MainApplication` (Hilt entry) and `MainActivity` (applies the light `AppTheme`, hosts `AppNavigation`).
 There is no theme choice yet: the soft palette is light-only until a dark palette exists.

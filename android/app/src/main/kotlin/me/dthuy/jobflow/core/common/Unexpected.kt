@@ -5,10 +5,10 @@ import timber.log.Timber
 
 /**
  * Fallback for exceptions a source mapper does not know. They usually mean a bug, so debug builds rethrow to make
- * it visible; release builds log and degrade to [AppError.Unknown].
+ * it visible; release builds log and degrade to [DataSourceError.Unknown].
  */
-fun unexpected(t: Throwable, rethrow: Boolean = BuildConfig.DEBUG): AppError {
+fun unexpected(t: Throwable, rethrow: Boolean = BuildConfig.DEBUG): DataSourceError {
     if (rethrow) throw t
-    Timber.e(t, "Unexpected error mapped to AppError.Unknown")
-    return AppError.Unknown
+    Timber.e(t, "Unexpected error mapped to DataSourceError.Unknown")
+    return DataSourceError.Unknown
 }

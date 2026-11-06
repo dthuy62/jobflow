@@ -25,10 +25,10 @@ interface FeedDao {
         deleteUnusedJobs()
     }
 
-    /** Sign-out and in-app account deletion must call this, so a user's feed does not outlive their session. */
+    /** Must run when the session ends, so a user's feed does not outlive it. */
     @Transaction
-    suspend fun deleteFeed(ownerUserId: String) {
-        deleteItems(ownerUserId)
+    suspend fun deleteAllFeeds() {
+        deleteAllItems()
         deleteUnusedJobs()
     }
 
@@ -47,6 +47,9 @@ interface FeedDao {
 
     @Query("DELETE FROM feed_item WHERE ownerUserId = :ownerUserId")
     suspend fun deleteItems(ownerUserId: String)
+
+    @Query("DELETE FROM feed_item")
+    suspend fun deleteAllItems()
 
     @Query("DELETE FROM feed_item WHERE ownerUserId != :currentUserId")
     suspend fun deleteItemsExcept(currentUserId: String)

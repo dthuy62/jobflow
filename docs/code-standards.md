@@ -18,8 +18,8 @@
   - Layer direction `ui -> domain <- data`, wired with Hilt in `di/`; Konsist
     enforces it.
   - DTOs live in `data/remote/dto/`; domain concepts live in `domain/model/`.
-  - Repositories return `Either<AppError, T>`; only data sources catch
-    exceptions; the UI maps errors once with `AppError.toUiError()`.
+  - Repositories return `Either<DataSourceError, T>` or a feature's own error;
+    only data sources catch exceptions; each error type maps to the UI once.
   - MVVM-lite by default, MVI for screens with interdependent async state.
   - Reuse `ui/components/` and `ui/theme/` before creating new visual
     primitives.

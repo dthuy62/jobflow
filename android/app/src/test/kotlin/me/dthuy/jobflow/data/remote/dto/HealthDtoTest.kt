@@ -1,6 +1,6 @@
 package me.dthuy.jobflow.data.remote.dto
 
-import me.dthuy.jobflow.data.remote.ApiJson
+import me.dthuy.jobflow.core.network.ApiJson
 import me.dthuy.jobflow.domain.model.DependencyStatus
 import me.dthuy.jobflow.domain.model.HealthStatus
 import me.dthuy.jobflow.testing.contractFixture

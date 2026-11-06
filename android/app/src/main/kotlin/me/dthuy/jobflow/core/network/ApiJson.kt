@@ -1,6 +1,6 @@
-package me.dthuy.jobflow.data.remote
+package me.dthuy.jobflow.core.network
 
 import kotlinx.serialization.json.Json
 
 /** The single JSON configuration for API payloads; additive fields from a newer API are ignored. */
-internal val ApiJson: Json = Json { ignoreUnknownKeys = true }
+val ApiJson: Json = Json { ignoreUnknownKeys = true }

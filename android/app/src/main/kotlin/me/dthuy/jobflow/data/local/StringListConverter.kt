@@ -1,7 +1,7 @@
 package me.dthuy.jobflow.data.local
 
 import androidx.room3.ColumnTypeConverter
-import me.dthuy.jobflow.data.remote.ApiJson
+import me.dthuy.jobflow.core.network.ApiJson
 
 class StringListConverter {
     @ColumnTypeConverter

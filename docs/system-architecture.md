@@ -137,7 +137,7 @@ Rules:
 - UI must not import data-layer DTOs/entities.
 - Repositories translate transport/storage models into domain models.
 - Room is a cache of API data, not a source of truth.
-- Errors cross layers as `Either<AppError, T>`; details in
+- Errors cross layers as `Either` values translated at three boundaries (`DataSourceError`, feature errors, `UiError`); details in
   `android/docs/system-architecture.md`.
 
 ### Wrapper Request Flow

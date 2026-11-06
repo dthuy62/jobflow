@@ -2,7 +2,7 @@ package me.dthuy.jobflow.core.common
 
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.runBlocking
-import me.dthuy.jobflow.data.remote.toApiError
+import me.dthuy.jobflow.core.network.toRemoteError
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
@@ -47,19 +47,19 @@ class EitherTest {
 
     @Test
     fun `catch wraps the value in Right`() = runBlocking {
-        assertEquals(Either.Right(1), Either.catch(onError = Throwable::toApiError) { 1 })
+        assertEquals(Either.Right(1), Either.catch(onError = Throwable::toRemoteError) { 1 })
     }
 
     @Test
     fun `catch maps a known exception to Left`() = runBlocking {
-        val result = Either.catch(onError = Throwable::toApiError) { throw java.io.IOException() }
-        assertEquals(Either.Left(AppError.Unreachable), result)
+        val result = Either.catch(onError = Throwable::toRemoteError) { throw java.io.IOException() }
+        assertEquals(Either.Left(DataSourceError.Remote.Unreachable), result)
     }
 
     @Test
     fun `catch rethrows cancellation`() {
         assertThrows(CancellationException::class.java) {
-            runBlocking { Either.catch(onError = Throwable::toApiError) { throw CancellationException() } }
+            runBlocking { Either.catch(onError = Throwable::toRemoteError) { throw CancellationException() } }
         }
     }
 }

@@ -4,7 +4,7 @@ import kotlinx.coroutines.CancellationException
 
 /**
  * Result of an operation that can fail in expected ways. By convention [Left] is the error and [Right] the value;
- * repositories return `Either<AppError, T>`. Prefer this over throwing across layers.
+ * repositories return `Either<DataSourceError, T>`. Prefer this over throwing across layers.
  */
 sealed interface Either<out L, out R> {
     data class Left<out L>(val value: L) : Either<L, Nothing>

@@ -2,6 +2,9 @@
 
 Status: Accepted (2026-10-30)
 
+Its `FeatureError` part is superseded by [ADR 14](0014-give-a-feature-its-own-error-type-when-it-has-its-own-failures.md), and its
+error mapping by [ADR 16](0016-translate-errors-at-three-boundaries.md).
+
 ## Context
 
 ADR 3 made expected failures values (`Outcome`/`AppError`). JobFlow adds a backend with its own stable error codes, will

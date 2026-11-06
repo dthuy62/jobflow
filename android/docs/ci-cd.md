@@ -8,7 +8,7 @@ pipeline is not used here ([ADR 7](decisions/0007-distribute-test-builds-with-fa
 
 | Trigger | Workflow | Jobs |
 |---|---|---|
-| Push to `main` or a pull request touching `android/`, `contracts/` or the workflow | `../.github/workflows/android.yml` | `verify` (the verify command from `AGENTS.md`), `agent-layer` (hook and instruction tests), `release-build` (unsigned `assembleProdRelease` with R8) |
+| Push to `main` or a pull request touching `android/`, `contracts/` or the workflow | `../.github/workflows/android.yml` | `verify` (compiles the instrumented tests, plus the verify command from `AGENTS.md`), `agent-layer` (hook and instruction tests), `release-build` (unsigned `assembleProdRelease` with R8) |
 | Push to `main` or a pull request touching `career-ops-wrapper/` | `../.github/workflows/wrapper.yml` | `npm ci`, `npm test`, `npm run build` |
 
 Android tests read `contracts/`, so a contract change also runs `android.yml` and fails until the DTOs and
@@ -18,6 +18,12 @@ Android tests read `contracts/`, so a contract change also runs `android.yml` an
 
 - `versionName` is set in `app/build.gradle.kts`.
 - `versionCode` comes from the Gradle property `versionCode` (default 1): `./gradlew assembleProdRelease -PversionCode=7`.
+
+## Firebase config
+
+`app/google-services.json` is git-ignored. CI only compiles and runs unit tests, so it copies the placeholder
+`ci/google-services.json`, which holds no real values. It also compiles the instrumented tests, but does not run them:
+they need a device and the Auth emulator ([module guides](module-guides.md#authentication)).
 
 ## Signing
 
