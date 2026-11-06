@@ -29,9 +29,9 @@ change fails here until the DTOs follow.
 
 ```
 app/src/main/kotlin/me/dthuy/jobflow
-├── core/        common (Either, AppError, ApiErrorCode, unexpected), mvi (MviViewModel)
+├── core/        common (Either, DataSourceError, ApiErrorCode, unexpected), network (toRemoteError, ApiJson), mvi
 ├── domain/      model (Health, HealthSnapshot), repository (interfaces)
-├── data/        remote (JobFlowApi, DTOs, toApiError), repository/impl
+├── data/        remote (JobFlowApi, DTOs), auth, local, repository/impl
 ├── di/          Hilt modules
 ├── navigation/  NavGraph, tabs, glass bottom bar
 └── ui/          theme, components, health (shared), home (MVI), inputs, settings (MVVM-lite)

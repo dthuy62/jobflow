@@ -23,7 +23,7 @@
     <string name="inputs_portals_body">Future job portal and search configuration area.</string>
     <string name="inputs_coming_soon">COMING SOON</string>
 
-    <!-- Errors: one message per AppError case (ui/components/UiError.kt) -->
+    <!-- Errors: one message per DataSourceError case (ui/components/UiError.kt) -->
     <string name="error_unreachable">Cannot reach JobFlow right now. Try again in a moment.</string>
     <string name="error_sign_in_required">Your session has ended. Sign in again.</string>
     <string name="error_server">JobFlow hit a problem. Try again in a moment.</string>

@@ -50,6 +50,14 @@ class RemoteErrorsTest {
     }
 
     @Test
+    fun `a 429 from in front of the API still means rate limited`() {
+        assertEquals(
+            DataSourceError.Remote.Rejected(ApiErrorCode.RATE_LIMITED),
+            httpError(429, "Rate exceeded").toRemoteError(),
+        )
+    }
+
+    @Test
     fun `unknown API code maps to the UNKNOWN entry`() {
         assertEquals(
             DataSourceError.Remote.Rejected(ApiErrorCode.UNKNOWN),

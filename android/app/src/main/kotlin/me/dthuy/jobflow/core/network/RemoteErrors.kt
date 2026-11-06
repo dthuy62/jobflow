@@ -12,6 +12,7 @@ import retrofit2.HttpException
 import timber.log.Timber
 
 private const val HTTP_UNAUTHORIZED = 401
+private const val HTTP_TOO_MANY_REQUESTS = 429
 private val CLIENT_ERRORS = 400..499
 
 /**
@@ -38,6 +39,8 @@ private fun HttpException.toHttpError(): DataSourceError {
     return when {
         status == HTTP_UNAUTHORIZED -> DataSourceError.Remote.Unauthorized
         apiCode != ApiErrorCode.UNKNOWN -> DataSourceError.Remote.Rejected(apiCode)
+        // A proxy or the platform in front of the API can limit too, without the API's body.
+        status == HTTP_TOO_MANY_REQUESTS -> DataSourceError.Remote.Rejected(ApiErrorCode.RATE_LIMITED)
         status in CLIENT_ERRORS -> DataSourceError.Remote.Rejected(ApiErrorCode.UNKNOWN)
         else -> DataSourceError.Remote.ServerFailure(status)
     }
