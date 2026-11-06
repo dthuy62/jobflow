@@ -118,6 +118,18 @@ class AuthStoreTest {
         sessions.clear()
     }
 
+    @Test
+    fun `an unreadable file reads as nothing, but a sign-in's read says it failed`() = runTest {
+        DataStoreSessionStore(store()).save(member)
+        scopes.forEach { it.cancel() }
+        file().setReadable(false)
+
+        val sessions = DataStoreSessionStore(store())
+
+        assertNull(sessions.read())
+        assertThrows(IOException::class.java) { runBlocking { sessions.readOrThrow() } }
+    }
+
     private companion object {
         val member = storedSession(MEMBER_ID, isGuest = false, expiresAt = 1_000)
     }

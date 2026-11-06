@@ -14,6 +14,7 @@ import me.dthuy.jobflow.core.common.ApplicationScope
 import me.dthuy.jobflow.core.common.Either
 import me.dthuy.jobflow.core.common.catch
 import me.dthuy.jobflow.core.common.flatMap
+import me.dthuy.jobflow.core.common.getOrNull
 import me.dthuy.jobflow.domain.auth.AuthError
 import me.dthuy.jobflow.domain.auth.AuthenticationService
 import me.dthuy.jobflow.domain.auth.Session
@@ -110,7 +111,10 @@ class AuthenticationServiceImpl @Inject constructor(
     }.await()
 
     private suspend fun publish() {
-        val stored = store.read()
+        val read = Either.catch(onError = { Timber.w(it, "Could not read the session") }) { store.readOrThrow() }
+        // A session that could not be read has not ended: everyone keeps seeing the last one.
+        if (read is Either.Left && known) return
+        val stored = read.getOrNull()
         // Marks on sight, not on creation, so a crash right after creating the guest cannot lose the mark.
         if (stored?.isGuest == true) guests.markUsed()
         val userId = stored?.userId

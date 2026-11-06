@@ -158,6 +158,8 @@ class AuthenticationServiceImplTest {
         assertEquals(Either.Left(AuthError.SignInFailed), result)
         assertEquals(0, api.guestCalls)
         assertEquals(guest, store.session)
+        assertEquals(Session.Guest(GUEST_ID), service.session.value)
+        assertEquals(listOf<UserId?>(GUEST_ID), seen)
     }
 
     @Test
@@ -172,6 +174,8 @@ class AuthenticationServiceImplTest {
         assertEquals(Either.Left(AuthError.SignInFailed), result)
         assertTrue(api.ssoRequests.isEmpty())
         assertEquals(guest, store.session)
+        assertEquals(Session.Guest(GUEST_ID), service.session.value)
+        assertEquals(listOf<UserId?>(GUEST_ID), seen)
     }
 
     @Test
