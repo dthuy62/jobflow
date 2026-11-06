@@ -81,7 +81,7 @@ export function createAuthService({ identities, accessTokens, sessions, users, d
 
     // The device row first: if revoking then fails, a retry still has a live token to send.
     async logout({ userId, sessionId, isAnonymous }, installationId) {
-      // A guest's session is the only way back to its data, so a guest leaves by deleting it instead.
+      // A guest's session is the only way back to its data. It leaves by deleting the account (DELETE /me, not built yet).
       if (isAnonymous) throw new SignInRequiredError();
       await devices.remove(userId, installationId);
       await sessions.revoke(sessionId, "logout");

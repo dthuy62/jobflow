@@ -70,8 +70,10 @@ Known limits: spent refresh tokens are kept, so a replay is caught however old, 
 removes them or abandoned sessions yet. A chain grows by one row per refresh, about 96 a day for
 an active app, and a client looping on `/auth/refresh` adds up to the per-address limit. Pruning
 needs an owner decision, because a time window would end reuse detection for older tokens.
-`parent_hash` is `ON DELETE SET NULL`, so a clean-up never takes a live token along. Rate limits
-are in memory per instance.
+`parent_hash` is `ON DELETE SET NULL`, so a clean-up never takes a live token along. A guest
+cannot end its own session, because logout would lose its data; until `DELETE /me` ships, a
+stolen guest refresh token stays usable while the real guest stops refreshing. Rate limits are
+in memory per instance.
 
 ## Wrapper (frozen)
 
