@@ -39,6 +39,9 @@ class SessionTokens @Inject constructor(
     private val clock: Clock,
 ) : AccessTokenSource {
     private val lock = Any()
+
+    // The last refresh, old token to new, so requests refused with the old one can retry with the new one.
+    private var replaced: Pair<String, String>? = null
     private val _ended =
         MutableSharedFlow<Unit>(extraBufferCapacity = 1, onBufferOverflow = BufferOverflow.DROP_OLDEST)
 
@@ -57,10 +60,14 @@ class SessionTokens @Inject constructor(
 
     override fun refreshedAccessToken(rejected: String): String? = refresh(rejected)
 
-    // One refresh at a time. One that waited finds the token already new and uses it.
+    // One refresh at a time. One that waited finds the token already new and uses it. A token that is neither the
+    // current one nor the one it replaced belongs to a session that has since ended or changed hands: retrying it with
+    // the current token would send one user's request as another.
     private fun refresh(stale: String): String? = synchronized(lock) {
         val session = read() ?: return null
-        if (session.accessToken != stale) return session.accessToken
+        if (session.accessToken != stale) {
+            return replaced?.takeIf { it == stale to session.accessToken }?.second
+        }
         val response = try {
             api.get().refresh(RefreshRequest(session.refreshToken)).execute()
         } catch (error: SerializationException) {
@@ -75,6 +82,7 @@ class SessionTokens @Inject constructor(
         val tokens = response.body()
         if (!response.isSuccessful || tokens == null) throw IOException(HttpException(response))
         runBlocking { store.updateAccessToken(session.refreshToken, tokens.accessToken, tokens.expiresAt(clock)) }
+        replaced = stale to tokens.accessToken
         tokens.accessToken
     }
 

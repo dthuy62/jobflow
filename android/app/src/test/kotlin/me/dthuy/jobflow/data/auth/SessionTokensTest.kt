@@ -61,10 +61,19 @@ class SessionTokensTest {
     }
 
     @Test
-    fun `a refused token that was already replaced is not refreshed again`() {
+    fun `a refused token this session already replaced is retried with the new one`() {
+        store.session = member()
+        tokens.refreshedAccessToken("access_${MEMBER_ID.value}")
+
+        assertEquals("fresh", tokens.refreshedAccessToken("access_${MEMBER_ID.value}"))
+        assertEquals(1, api.refreshes.size)
+    }
+
+    @Test
+    fun `a refused token of someone signed in before is never retried as the user now`() {
         store.session = member()
 
-        assertEquals("access_${MEMBER_ID.value}", tokens.refreshedAccessToken("an_older_token"))
+        assertNull(tokens.refreshedAccessToken("access_of_the_user_before"))
         assertTrue(api.refreshes.isEmpty())
     }
 
