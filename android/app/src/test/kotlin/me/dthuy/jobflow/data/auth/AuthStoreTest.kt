@@ -11,7 +11,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.job
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import me.dthuy.jobflow.testing.MEMBER_ID
@@ -38,6 +40,12 @@ class AuthStoreTest {
 
     private fun file() = File(folder.root, "auth.preferences_pb")
 
+    // DataStore frees a file only once its scope has finished, not when it is asked to cancel: reopening sooner throws.
+    private suspend fun closeStores() {
+        scopes.forEach { it.coroutineContext.job.cancelAndJoin() }
+        scopes.clear()
+    }
+
     private fun store(file: File = file()): DataStore<Preferences> {
         val scope = CoroutineScope(Dispatchers.IO + SupervisorJob()).also { scopes += it }
         return PreferenceDataStoreFactory.create(
@@ -50,7 +58,7 @@ class AuthStoreTest {
     @Test
     fun `a session is on disk once saved, so a new process sees it`() = runTest {
         DataStoreSessionStore(store()).save(member)
-        scopes.forEach { it.cancel() }
+        closeStores()
 
         assertEquals(member, DataStoreSessionStore(store()).read())
     }
@@ -94,7 +102,7 @@ class AuthStoreTest {
         val ledger = DataStoreGuestLedger(store())
         assertFalse(ledger.isUsed())
         ledger.markUsed()
-        scopes.forEach { it.cancel() }
+        closeStores()
 
         assertTrue(DataStoreGuestLedger(store()).isUsed())
     }
@@ -121,7 +129,7 @@ class AuthStoreTest {
     @Test
     fun `an unreadable file reads as nothing, but a sign-in's read says it failed`() = runTest {
         DataStoreSessionStore(store()).save(member)
-        scopes.forEach { it.cancel() }
+        closeStores()
         file().setReadable(false)
 
         val sessions = DataStoreSessionStore(store())
