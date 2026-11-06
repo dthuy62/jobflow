@@ -33,7 +33,7 @@ data class SsoResponseDto(val tokens: SessionTokensDto, val account: MeDto, val 
 data class RefreshRequest(val refreshToken: String)
 
 @Serializable
-data class LogoutRequest(val installationId: String)
+data class LogoutRequest(val installationId: String? = null)
 
 @Serializable
 data class PreferencesDto(
