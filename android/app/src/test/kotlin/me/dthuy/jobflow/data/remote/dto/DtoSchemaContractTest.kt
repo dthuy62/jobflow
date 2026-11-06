@@ -10,10 +10,6 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.serializer
-import me.dthuy.jobflow.data.auth.LogoutRequest
-import me.dthuy.jobflow.data.auth.MeDto
-import me.dthuy.jobflow.data.auth.SsoRequest
-import me.dthuy.jobflow.data.auth.SsoResponseDto
 import me.dthuy.jobflow.domain.model.JobRemotePolicy
 import me.dthuy.jobflow.domain.model.SalaryPeriod
 import me.dthuy.jobflow.domain.model.TrackerStatus
@@ -46,6 +42,7 @@ class DtoSchemaContractTest {
             "EvaluationDto" to serializer<EvaluationDto>().descriptor,
             "FeedItemDto" to serializer<FeedItemDto>().descriptor,
             "FeedPageDto" to serializer<FeedPageDto>().descriptor,
+            "GuestResponseDto" to serializer<GuestResponseDto>().descriptor,
             "HealthDto" to serializer<HealthDto>().descriptor,
             "JobDto" to serializer<JobDto>().descriptor,
             "JobSummaryDto" to serializer<JobSummaryDto>().descriptor,
@@ -53,6 +50,8 @@ class DtoSchemaContractTest {
             "MeDto" to serializer<MeDto>().descriptor,
             "PreferencesDto" to serializer<PreferencesDto>().descriptor,
             "PurchaseRequest" to serializer<PurchaseRequest>().descriptor,
+            "RefreshRequest" to serializer<RefreshRequest>().descriptor,
+            "SessionTokensDto" to serializer<SessionTokensDto>().descriptor,
             "SsoRequest" to serializer<SsoRequest>().descriptor,
             "SsoResponseDto" to serializer<SsoResponseDto>().descriptor,
             "TrackerEntryDto" to serializer<TrackerEntryDto>().descriptor,

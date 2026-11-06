@@ -82,66 +82,29 @@
     "/api/v1/auth/guest": {
       "post": {
         "operationId": "signInGuest",
-        "summary": "Start or resume a guest account. Needs an anonymous token. Safe to retry.",
+        "summary": "Create a guest and its session. Public, with its own limit per address. Each call makes a new guest: call it once per install and keep the pair.",
         "x-phase": 1,
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
+        "security": [],
         "responses": {
           "200": {
-            "description": "The guest account, created on the first call.",
+            "description": "The new guest's tokens and account.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/MeDto"
+                  "$ref": "#/components/schemas/GuestResponseDto"
                 },
                 "examples": {
-                  "me.guest": {
+                  "auth-guest.valid": {
                     "value": {
-                      "userId": "user_02",
-                      "isAnonymous": true,
-                      "createdAt": "2026-11-02T08:00:00.000Z"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "The token is missing or not valid. The app signs in again.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                },
-                "examples": {
-                  "errors.unauthorized": {
-                    "value": {
-                      "error": {
-                        "code": "UNAUTHORIZED",
-                        "message": "Sign in again."
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "The token is not anonymous: this user is already signed in.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                },
-                "examples": {
-                  "errors.conflict": {
-                    "value": {
-                      "error": {
-                        "code": "CONFLICT",
-                        "message": "This conflicts with the current state."
+                      "tokens": {
+                        "accessToken": "synthetic-access-token",
+                        "refreshToken": "synthetic-refresh-token",
+                        "expiresIn": 900
+                      },
+                      "account": {
+                        "userId": "user_02",
+                        "isAnonymous": true,
+                        "createdAt": "2026-11-02T08:00:00.000Z"
                       }
                     }
                   }
@@ -150,7 +113,7 @@
             }
           },
           "429": {
-            "description": "Too many requests.",
+            "description": "Too many guests or requests from this address.",
             "content": {
               "application/json": {
                 "schema": {
@@ -193,21 +156,13 @@
             }
           },
           "503": {
-            "description": "A dependency is down. This is not a sign-in problem; the app retries and keeps the user signed in.",
+            "description": "The database is down. Retry.",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponseDto"
                 },
                 "examples": {
-                  "errors.auth-unavailable": {
-                    "value": {
-                      "error": {
-                        "code": "AUTH_UNAVAILABLE",
-                        "message": "Sign-in could not be checked right now."
-                      }
-                    }
-                  },
                   "errors.unavailable": {
                     "value": {
                       "error": {
@@ -226,13 +181,9 @@
     "/api/v1/auth/sso": {
       "post": {
         "operationId": "signInSso",
-        "summary": "Finish a sign-in. Needs a token that is not anonymous, and the account always comes from that token. With guestToken, moves that guest's data to this account and closes the guest, whose token then gets 401. Linking happens in Firebase on the device: never send a Google ID token. Safe to retry.",
+        "summary": "Sign in with the identity provider's ID token and start a session; the app then signs out of the provider. Finds or creates the member. With guestRefreshToken, moves that guest's data to this account and revokes the guest's session. Public. Safe to retry, also after a merge whose answer was lost.",
         "x-phase": 1,
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
+        "security": [],
         "requestBody": {
           "required": true,
           "content": {
@@ -243,7 +194,8 @@
               "examples": {
                 "requests.auth-sso": {
                   "value": {
-                    "guestToken": "synthetic-guest-token"
+                    "idToken": "synthetic-id-token",
+                    "guestRefreshToken": "synthetic-guest-refresh-token"
                   }
                 }
               }
@@ -252,7 +204,7 @@
         },
         "responses": {
           "200": {
-            "description": "Signed in. guestMerged is false when no merge can be reported: no guestToken, a token that is expired, invalid or not anonymous (an expired token says nothing about an earlier merge), the same user as this account (Firebase linked it, so the data is already here), a user Firebase has since linked to a real account, or a guest already merged elsewhere or deleted.",
+            "description": "Signed in. guestMerged is false when no guest's data moved: no guestRefreshToken, one that is unknown, revoked or a member's, or a guest already merged elsewhere or deleted.",
             "content": {
               "application/json": {
                 "schema": {
@@ -261,6 +213,11 @@
                 "examples": {
                   "auth-sso.merged": {
                     "value": {
+                      "tokens": {
+                        "accessToken": "synthetic-access-token",
+                        "refreshToken": "synthetic-refresh-token",
+                        "expiresIn": 900
+                      },
                       "account": {
                         "userId": "user_01",
                         "isAnonymous": false,
@@ -271,6 +228,11 @@
                   },
                   "auth-sso.not-merged": {
                     "value": {
+                      "tokens": {
+                        "accessToken": "synthetic-access-token",
+                        "refreshToken": "synthetic-refresh-token",
+                        "expiresIn": 900
+                      },
                       "account": {
                         "userId": "user_01",
                         "isAnonymous": false,
@@ -309,7 +271,7 @@
             }
           },
           "401": {
-            "description": "The token is missing or not valid. The app signs in again.",
+            "description": "The ID token is not valid, or its account was deleted. Nothing changed: the app is still the guest it was.",
             "content": {
               "application/json": {
                 "schema": {
@@ -329,7 +291,331 @@
             }
           },
           "403": {
-            "description": "The token is anonymous.",
+            "description": "The ID token is anonymous.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.sign-in-required": {
+                    "value": {
+                      "error": {
+                        "code": "SIGN_IN_REQUIRED",
+                        "message": "Sign in with Google to use this."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests from this address.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.rate-limited": {
+                    "value": {
+                      "error": {
+                        "code": "RATE_LIMITED",
+                        "message": "Too many requests. Try again soon.",
+                        "details": {
+                          "retryAfterSeconds": 30
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "An unexpected error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.unexpected-error": {
+                    "value": {
+                      "error": {
+                        "code": "UNEXPECTED_ERROR",
+                        "message": "Something went wrong."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The ID token or the database could not be checked. Nothing is lost: retry with the same body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.auth-unavailable": {
+                    "value": {
+                      "error": {
+                        "code": "AUTH_UNAVAILABLE",
+                        "message": "Sign-in could not be checked right now."
+                      }
+                    }
+                  },
+                  "errors.unavailable": {
+                    "value": {
+                      "error": {
+                        "code": "UNAVAILABLE",
+                        "message": "The service is temporarily unavailable."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/refresh": {
+      "post": {
+        "operationId": "refreshSession",
+        "summary": "Get a new access token. The refresh token is not rotated: the answer gives the same one back, and it works until logout, merge or account deletion. Safe to retry. Public.",
+        "x-phase": 1,
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefreshRequest"
+              },
+              "examples": {
+                "requests.auth-refresh": {
+                  "value": {
+                    "refreshToken": "synthetic-refresh-token"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "A new access token, with the same refresh token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionTokensDto"
+                },
+                "examples": {
+                  "session-tokens.valid": {
+                    "value": {
+                      "accessToken": "synthetic-access-token",
+                      "refreshToken": "synthetic-refresh-token",
+                      "expiresIn": 900
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request is not valid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.validation-error": {
+                    "value": {
+                      "error": {
+                        "code": "VALIDATION_ERROR",
+                        "message": "The request is not valid.",
+                        "details": {
+                          "fields": [
+                            "roles"
+                          ]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The session has ended: unknown token, logged out, merged or deleted. Sign in again.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.unauthorized": {
+                    "value": {
+                      "error": {
+                        "code": "UNAUTHORIZED",
+                        "message": "Sign in again."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests from this address.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.rate-limited": {
+                    "value": {
+                      "error": {
+                        "code": "RATE_LIMITED",
+                        "message": "Too many requests. Try again soon.",
+                        "details": {
+                          "retryAfterSeconds": 30
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "An unexpected error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.unexpected-error": {
+                    "value": {
+                      "error": {
+                        "code": "UNEXPECTED_ERROR",
+                        "message": "Something went wrong."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The database is down. Retry.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.unavailable": {
+                    "value": {
+                      "error": {
+                        "code": "UNAVAILABLE",
+                        "message": "The service is temporarily unavailable."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/logout": {
+      "post": {
+        "operationId": "logOut",
+        "summary": "End a member's session, so its tokens get 401, and forget this installation's FCM token. Other sessions stay signed in. A guest has no sign-out: it would lose the guest's data. installationId is opaque to the server.",
+        "x-phase": 1,
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LogoutRequest"
+              },
+              "examples": {
+                "requests.auth-logout": {
+                  "value": {
+                    "installationId": "installation_01"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Signed out. The device row is removed, or was not registered."
+          },
+          "400": {
+            "description": "The request is not valid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.validation-error": {
+                    "value": {
+                      "error": {
+                        "code": "VALIDATION_ERROR",
+                        "message": "The request is not valid.",
+                        "details": {
+                          "fields": [
+                            "roles"
+                          ]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The access token is missing, expired or not accepted. Refresh once and retry once; sign in again only if POST /auth/refresh answers 401.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.unauthorized": {
+                    "value": {
+                      "error": {
+                        "code": "UNAUTHORIZED",
+                        "message": "Sign in again."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller is a guest. Nothing changed.",
             "content": {
               "application/json": {
                 "schema": {
@@ -422,160 +708,10 @@
         }
       }
     },
-    "/api/v1/auth/logout": {
-      "post": {
-        "operationId": "logOut",
-        "summary": "Stop sending push to this installation for the caller, and forget its FCM token. Other installations stay signed in, so this revokes no token. Safe to retry. installationId is opaque to the server.",
-        "x-phase": 1,
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/LogoutRequest"
-              },
-              "examples": {
-                "requests.auth-logout": {
-                  "value": {
-                    "installationId": "installation_01"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "204": {
-            "description": "Removed, or was not registered."
-          },
-          "400": {
-            "description": "The request is not valid.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                },
-                "examples": {
-                  "errors.validation-error": {
-                    "value": {
-                      "error": {
-                        "code": "VALIDATION_ERROR",
-                        "message": "The request is not valid.",
-                        "details": {
-                          "fields": [
-                            "roles"
-                          ]
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "The token is missing or not valid. The app signs in again.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                },
-                "examples": {
-                  "errors.unauthorized": {
-                    "value": {
-                      "error": {
-                        "code": "UNAUTHORIZED",
-                        "message": "Sign in again."
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Too many requests.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                },
-                "examples": {
-                  "errors.rate-limited": {
-                    "value": {
-                      "error": {
-                        "code": "RATE_LIMITED",
-                        "message": "Too many requests. Try again soon.",
-                        "details": {
-                          "retryAfterSeconds": 30
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "An unexpected error.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                },
-                "examples": {
-                  "errors.unexpected-error": {
-                    "value": {
-                      "error": {
-                        "code": "UNEXPECTED_ERROR",
-                        "message": "Something went wrong."
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "503": {
-            "description": "A dependency is down. This is not a sign-in problem; the app retries and keeps the user signed in.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                },
-                "examples": {
-                  "errors.auth-unavailable": {
-                    "value": {
-                      "error": {
-                        "code": "AUTH_UNAVAILABLE",
-                        "message": "Sign-in could not be checked right now."
-                      }
-                    }
-                  },
-                  "errors.unavailable": {
-                    "value": {
-                      "error": {
-                        "code": "UNAVAILABLE",
-                        "message": "The service is temporarily unavailable."
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/v1/me": {
       "get": {
         "operationId": "getMe",
-        "summary": "The signed-in user. Creates the user on the first call.",
+        "summary": "The caller's account, a member or a guest.",
         "x-phase": 1,
         "security": [
           {
@@ -584,7 +720,7 @@
         ],
         "responses": {
           "200": {
-            "description": "The user.",
+            "description": "The account.",
             "content": {
               "application/json": {
                 "schema": {
@@ -597,13 +733,20 @@
                       "isAnonymous": false,
                       "createdAt": "2026-11-02T08:00:00.000Z"
                     }
+                  },
+                  "me.guest": {
+                    "value": {
+                      "userId": "user_02",
+                      "isAnonymous": true,
+                      "createdAt": "2026-11-02T08:00:00.000Z"
+                    }
                   }
                 }
               }
             }
           },
           "401": {
-            "description": "The token is missing or not valid. The app signs in again.",
+            "description": "The access token is missing, expired or not accepted. Refresh once and retry once; sign in again only if POST /auth/refresh answers 401.",
             "content": {
               "application/json": {
                 "schema": {
@@ -709,7 +852,7 @@
             "description": "Deletion has started."
           },
           "401": {
-            "description": "The token is missing or not valid. The app signs in again.",
+            "description": "The access token is missing, expired or not accepted. Refresh once and retry once; sign in again only if POST /auth/refresh answers 401.",
             "content": {
               "application/json": {
                 "schema": {
@@ -874,7 +1017,7 @@
             }
           },
           "401": {
-            "description": "The token is missing or not valid. The app signs in again.",
+            "description": "The access token is missing, expired or not accepted. Refresh once and retry once; sign in again only if POST /auth/refresh answers 401.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1096,7 +1239,7 @@
             }
           },
           "401": {
-            "description": "The token is missing or not valid. The app signs in again.",
+            "description": "The access token is missing, expired or not accepted. Refresh once and retry once; sign in again only if POST /auth/refresh answers 401.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1281,7 +1424,7 @@
             }
           },
           "401": {
-            "description": "The token is missing or not valid. The app signs in again.",
+            "description": "The access token is missing, expired or not accepted. Refresh once and retry once; sign in again only if POST /auth/refresh answers 401.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1508,7 +1651,7 @@
             }
           },
           "401": {
-            "description": "The token is missing or not valid. The app signs in again.",
+            "description": "The access token is missing, expired or not accepted. Refresh once and retry once; sign in again only if POST /auth/refresh answers 401.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1692,7 +1835,7 @@
             }
           },
           "401": {
-            "description": "The token is missing or not valid. The app signs in again.",
+            "description": "The access token is missing, expired or not accepted. Refresh once and retry once; sign in again only if POST /auth/refresh answers 401.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1916,7 +2059,7 @@
             }
           },
           "401": {
-            "description": "The token is missing or not valid. The app signs in again.",
+            "description": "The access token is missing, expired or not accepted. Refresh once and retry once; sign in again only if POST /auth/refresh answers 401.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2144,7 +2287,7 @@
             }
           },
           "401": {
-            "description": "The token is missing or not valid. The app signs in again.",
+            "description": "The access token is missing, expired or not accepted. Refresh once and retry once; sign in again only if POST /auth/refresh answers 401.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2356,7 +2499,7 @@
             }
           },
           "401": {
-            "description": "The token is missing or not valid. The app signs in again.",
+            "description": "The access token is missing, expired or not accepted. Refresh once and retry once; sign in again only if POST /auth/refresh answers 401.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2518,7 +2661,7 @@
             }
           },
           "401": {
-            "description": "The token is missing or not valid. The app signs in again.",
+            "description": "The access token is missing, expired or not accepted. Refresh once and retry once; sign in again only if POST /auth/refresh answers 401.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2731,7 +2874,7 @@
             }
           },
           "401": {
-            "description": "The token is missing or not valid. The app signs in again.",
+            "description": "The access token is missing, expired or not accepted. Refresh once and retry once; sign in again only if POST /auth/refresh answers 401.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2897,7 +3040,7 @@
             }
           },
           "401": {
-            "description": "The token is missing or not valid. The app signs in again.",
+            "description": "The access token is missing, expired or not accepted. Refresh once and retry once; sign in again only if POST /auth/refresh answers 401.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3086,7 +3229,7 @@
             }
           },
           "401": {
-            "description": "The token is missing or not valid. The app signs in again.",
+            "description": "The access token is missing, expired or not accepted. Refresh once and retry once; sign in again only if POST /auth/refresh answers 401.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3228,7 +3371,7 @@
             }
           },
           "401": {
-            "description": "The token is missing or not valid. The app signs in again.",
+            "description": "The access token is missing, expired or not accepted. Refresh once and retry once; sign in again only if POST /auth/refresh answers 401.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3402,7 +3545,7 @@
             }
           },
           "401": {
-            "description": "The token is missing or not valid. The app signs in again.",
+            "description": "The access token is missing, expired or not accepted. Refresh once and retry once; sign in again only if POST /auth/refresh answers 401.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3668,7 +3811,7 @@
             }
           },
           "401": {
-            "description": "The token is missing or not valid. The app signs in again.",
+            "description": "The access token is missing, expired or not accepted. Refresh once and retry once; sign in again only if POST /auth/refresh answers 401.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3840,7 +3983,7 @@
             }
           },
           "401": {
-            "description": "The token is missing or not valid. The app signs in again.",
+            "description": "The access token is missing, expired or not accepted. Refresh once and retry once; sign in again only if POST /auth/refresh answers 401.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4018,7 +4161,7 @@
             }
           },
           "401": {
-            "description": "The token is missing or not valid. The app signs in again.",
+            "description": "The access token is missing, expired or not accepted. Refresh once and retry once; sign in again only if POST /auth/refresh answers 401.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4568,6 +4711,22 @@
         ],
         "additionalProperties": false
       },
+      "GuestResponseDto": {
+        "type": "object",
+        "properties": {
+          "tokens": {
+            "$ref": "#/components/schemas/SessionTokensDto"
+          },
+          "account": {
+            "$ref": "#/components/schemas/MeDto"
+          }
+        },
+        "required": [
+          "tokens",
+          "account"
+        ],
+        "additionalProperties": false
+      },
       "HealthDto": {
         "type": "object",
         "properties": {
@@ -5092,6 +5251,18 @@
         ],
         "additionalProperties": false
       },
+      "RefreshRequest": {
+        "type": "object",
+        "properties": {
+          "refreshToken": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "refreshToken"
+        ],
+        "additionalProperties": false
+      },
       "RemotePolicy": {
         "type": "string",
         "enum": [
@@ -5121,18 +5292,51 @@
           "executive"
         ]
       },
+      "SessionTokensDto": {
+        "type": "object",
+        "properties": {
+          "accessToken": {
+            "type": "string",
+            "minLength": 1
+          },
+          "refreshToken": {
+            "type": "string",
+            "minLength": 1
+          },
+          "expiresIn": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "accessToken",
+          "refreshToken",
+          "expiresIn"
+        ],
+        "additionalProperties": false
+      },
       "SsoRequest": {
         "type": "object",
         "properties": {
-          "guestToken": {
+          "idToken": {
+            "type": "string"
+          },
+          "guestRefreshToken": {
             "type": "string"
           }
         },
+        "required": [
+          "idToken"
+        ],
         "additionalProperties": false
       },
       "SsoResponseDto": {
         "type": "object",
         "properties": {
+          "tokens": {
+            "$ref": "#/components/schemas/SessionTokensDto"
+          },
           "account": {
             "$ref": "#/components/schemas/MeDto"
           },
@@ -5141,6 +5345,7 @@
           }
         },
         "required": [
+          "tokens",
           "account",
           "guestMerged"
         ],

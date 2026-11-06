@@ -115,36 +115,31 @@ One screen, two states. See canvas **F · Đăng nhập**.
   headline "Bắt đầu thôi" rises into the space. The Google button rises from behind
   the bottom button, which cross-fades its label into the guest action. One button
   becomes two, with no screen change. A chevron collapses it, as does system Back.
-- **Options:** "Tiếp tục với Google" and "Tiếp tục với tư cách khách" (Firebase
-  anonymous auth). The owner decided Apple comes later, with iOS, as the hosted
+- **Options:** "Tiếp tục với Google" and "Tiếp tục với tư cách khách" (a guest the
+  backend creates). The owner decided Apple comes later, with iOS, as the hosted
   design says. The layout has room for a third button. A guest starts once per
-  install, so after that guest, including after signing out, the sheet offers only
-  Google.
+  install, so after that guest the sheet offers only Google. A guest has no
+  sign-out, because that would lose their data.
 - A new account or guest goes to Get Started. An account that already has
-  preferences goes straight to Job. A guest who picks a new Google account has it
-  linked: the user ID stays the same and there is nothing to merge.
-- A guest who picks a Google account already used here (common after a reinstall) is
-  **merged into that account as part of signing in**, and sees nothing about a merge
-  (owner's decision):
-  - The app signs in to the existing account, then calls `POST /auth/sso` with the
-    guest's Firebase ID token as `guestToken`. The backend already does this: it
-    verifies both tokens and merges in one transaction, and a retry is safe. Firebase
-    signs the tokens, so a request cannot name someone else's guest.
+  preferences goes straight to Job.
+- A guest who signs in with Google always has their data **moved into that account
+  as part of signing in**, whether the account is new or already used here (common
+  after a reinstall). The screen says first that the guest's data will move to the
+  account. Then:
+  - Firebase gives an ID token, and the app calls `POST /auth/sso` with it and the
+    guest's refresh token as `guestRefreshToken`. The backend checks the ID token,
+    finds or creates the account, and moves the guest's data in one transaction. A
+    retry is safe, also after a merge whose answer was lost. Only the holder of the
+    guest's refresh token can name that guest.
   - Merge rules are the hosted design's: preferences keep the account's and the guest's
     only fill gaps; tracker entries combine and the newer wins for the same job; a CV
     moves only if the account has none.
-- **Login is all or nothing for the user:** it counts only after both Firebase and the
-  API succeed, and the session is held back until then. If the API fails, the app rolls
-  back with a client-only sign-out, the sheet shows an error, and the user can retry.
-  There is no half-signed-in state. A user who is already signed in is never signed
-  out by a network failure, a 5xx or an API 401.
-- **Known limit of that rollback:** it ends the guest's Firebase session for good, and
-  a guest starts only once per install. To keep the data reachable, the app keeps the
-  guest token captured before sign-in and sends it when the same account signs in again,
-  never for another account. The token lasts about an hour. After that the sign-in still
-  works but `guestMerged` is false, and the guest's server data stays behind with no way
-  to reach it. This only happens when the API fails during a merge and that account does
-  not retry within the hour.
+- **Login is all or nothing for the user:** the app keeps the backend's new token pair
+  only once `/auth/sso` succeeds, and then signs out of Firebase. If the call fails,
+  nothing is written: the app is still the guest it was, the sheet shows an error, and
+  the user can retry. There is no half-signed-in state. A user who is already signed in
+  is never signed out by a network failure or a 5xx; only a 401 from
+  `POST /auth/refresh` ends a session.
 
 ### Get Started: one sentence
 

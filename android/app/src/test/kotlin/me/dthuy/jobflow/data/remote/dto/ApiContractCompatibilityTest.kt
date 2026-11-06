@@ -9,10 +9,6 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.put
-import me.dthuy.jobflow.data.auth.LogoutRequest
-import me.dthuy.jobflow.data.auth.MeDto
-import me.dthuy.jobflow.data.auth.SsoRequest
-import me.dthuy.jobflow.data.auth.SsoResponseDto
 import me.dthuy.jobflow.data.remote.ApiJson
 import me.dthuy.jobflow.testing.contractExamplesDir
 import me.dthuy.jobflow.testing.contractFixture
@@ -29,6 +25,7 @@ class ApiContractCompatibilityTest {
 
     private val parsers: Map<String, (String) -> Any> =
         mapOf(
+            "auth-guest.valid.json" to parse<GuestResponseDto>(),
             "auth-sso.merged.json" to parse<SsoResponseDto>(),
             "auth-sso.not-merged.json" to parse<SsoResponseDto>(),
             "company.valid.json" to parse<CompanyDto>(),
@@ -51,9 +48,11 @@ class ApiContractCompatibilityTest {
             "me.valid.json" to parse<MeDto>(),
             "preferences.empty.json" to parse<PreferencesDto>(),
             "preferences.valid.json" to parse<PreferencesDto>(),
+            "session-tokens.valid.json" to parse<SessionTokensDto>(),
             "tracker-entry.valid.json" to parse<TrackerEntryDto>(),
             "tracker.valid.json" to parse<TrackerPageDto>(),
             "requests/auth-logout.json" to parse<LogoutRequest>(),
+            "requests/auth-refresh.json" to parse<RefreshRequest>(),
             "requests/auth-sso.json" to parse<SsoRequest>(),
             "requests/company-create.json" to parse<CompanyCreateRequest>(),
             "requests/cv-update.json" to parse<CvUpdateRequest>(),

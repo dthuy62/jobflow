@@ -6,7 +6,16 @@ import { ErrorResponseDtoSchema } from "./errors.js";
 import { EntitlementDtoSchema, PurchaseRequestSchema } from "./billing.js";
 import { EvaluationDtoSchema } from "./evaluations.js";
 import { FeedPageDtoSchema } from "./feed.js";
-import { HealthDtoSchema, LogoutRequestSchema, MeDtoSchema, SsoRequestSchema, SsoResponseDtoSchema } from "./identity.js";
+import {
+  GuestResponseDtoSchema,
+  HealthDtoSchema,
+  LogoutRequestSchema,
+  MeDtoSchema,
+  RefreshRequestSchema,
+  SessionTokensDtoSchema,
+  SsoRequestSchema,
+  SsoResponseDtoSchema
+} from "./identity.js";
 import { CompanyCreateRequestSchema, CompanyDtoSchema, JobDtoSchema } from "./jobs.js";
 import { PreferencesDtoSchema } from "./preferences.js";
 import { TrackerEntryDtoSchema, TrackerPageDtoSchema, TrackerUpdateRequestSchema } from "./tracker.js";
@@ -59,7 +68,10 @@ const notFound = error("Not found, or not this user's.", "errors/not-found");
 
 /** Every authenticated route can answer these. */
 const authenticatedErrors = {
-  401: error("The token is missing or not valid. The app signs in again.", "errors/unauthorized"),
+  401: error(
+    "The access token is missing, expired or not accepted. Refresh once and retry once; sign in again only if POST /auth/refresh answers 401.",
+    "errors/unauthorized"
+  ),
   429: error("Too many requests.", "errors/rate-limited"),
   500: error("An unexpected error.", "errors/unexpected-error"),
   503: error("A dependency is down. This is not a sign-in problem; the app retries and keeps the user signed in.", "errors/auth-unavailable", "errors/unavailable")
@@ -75,6 +87,12 @@ const integrity = (required: boolean, when: string): HeaderParam => ({
   required,
   description: `Play Integrity token. ${when}`
 });
+
+/** A public route has no session to keep, so a 503 here only means retry. */
+const publicServerErrors = {
+  500: error("An unexpected error.", "errors/unexpected-error"),
+  503: error("The database is down. Retry.", "errors/unavailable")
+} as const;
 
 const quotaUsedUp = error("The plan's quota is used up.", "errors/quota-exceeded");
 
@@ -107,53 +125,86 @@ export const operations: readonly Operation[] = [
       503: body("A dependency is down.", HealthDtoSchema, "health.degraded")
     }
   },
-  authed({
+  {
     method: "POST",
     path: "/api/v1/auth/guest",
     operationId: "signInGuest",
-    summary: "Start or resume a guest account. Needs an anonymous token. Safe to retry.",
+    summary:
+      "Create a guest and its session. Public, with its own limit per address. Each call makes a new guest: call it once per install and keep the pair.",
+    public: true,
     phase: 1,
     responses: {
-      200: body("The guest account, created on the first call.", MeDtoSchema, "me.guest"),
-      409: error("The token is not anonymous: this user is already signed in.", "errors/conflict")
+      200: body("The new guest's tokens and account.", GuestResponseDtoSchema, "auth-guest.valid"),
+      429: error("Too many guests or requests from this address.", "errors/rate-limited"),
+      ...publicServerErrors
     }
-  }),
-  authed({
+  },
+  {
     method: "POST",
     path: "/api/v1/auth/sso",
     operationId: "signInSso",
     summary:
-      "Finish a sign-in. Needs a token that is not anonymous, and the account always comes from that token. With guestToken, moves that guest's data to this account and closes the guest, whose token then gets 401. Linking happens in Firebase on the device: never send a Google ID token. Safe to retry.",
+      "Sign in with the identity provider's ID token and start a session; the app then signs out of the provider. Finds or creates the member. With guestRefreshToken, moves that guest's data to this account and revokes the guest's session. Public. Safe to retry, also after a merge whose answer was lost.",
+    public: true,
     phase: 1,
     request: { kind: "json", schema: SsoRequestSchema, example: "requests/auth-sso" },
     responses: {
       200: body(
-        "Signed in. guestMerged is false when no merge can be reported: no guestToken, a token that is expired, invalid or not anonymous (an expired token says nothing about an earlier merge), the same user as this account (Firebase linked it, so the data is already here), a user Firebase has since linked to a real account, or a guest already merged elsewhere or deleted.",
+        "Signed in. guestMerged is false when no guest's data moved: no guestRefreshToken, one that is unknown, revoked or a member's, or a guest already merged elsewhere or deleted.",
         SsoResponseDtoSchema,
         "auth-sso.merged",
         "auth-sso.not-merged"
       ),
       400: badRequest,
-      403: error("The token is anonymous.", "errors/sign-in-required")
+      401: error("The ID token is not valid, or its account was deleted. Nothing changed: the app is still the guest it was.", "errors/unauthorized"),
+      403: error("The ID token is anonymous.", "errors/sign-in-required"),
+      429: error("Too many requests from this address.", "errors/rate-limited"),
+      500: error("An unexpected error.", "errors/unexpected-error"),
+      503: error(
+        "The ID token or the database could not be checked. Nothing is lost: retry with the same body.",
+        "errors/auth-unavailable",
+        "errors/unavailable"
+      )
     }
-  }),
+  },
+  {
+    method: "POST",
+    path: "/api/v1/auth/refresh",
+    operationId: "refreshSession",
+    summary:
+      "Get a new access token. The refresh token is not rotated: the answer gives the same one back, and it works until logout, merge or account deletion. Safe to retry. Public.",
+    public: true,
+    phase: 1,
+    request: { kind: "json", schema: RefreshRequestSchema, example: "requests/auth-refresh" },
+    responses: {
+      200: body("A new access token, with the same refresh token.", SessionTokensDtoSchema, "session-tokens.valid"),
+      400: badRequest,
+      401: error("The session has ended: unknown token, logged out, merged or deleted. Sign in again.", "errors/unauthorized"),
+      429: error("Too many requests from this address.", "errors/rate-limited"),
+      ...publicServerErrors
+    }
+  },
   authed({
     method: "POST",
     path: "/api/v1/auth/logout",
     operationId: "logOut",
     summary:
-      "Stop sending push to this installation for the caller, and forget its FCM token. Other installations stay signed in, so this revokes no token. Safe to retry. installationId is opaque to the server.",
+      "End a member's session, so its tokens get 401, and forget this installation's FCM token. Other sessions stay signed in. A guest has no sign-out: it would lose the guest's data. installationId is opaque to the server.",
     phase: 1,
     request: { kind: "json", schema: LogoutRequestSchema, example: "requests/auth-logout" },
-    responses: { 204: empty("Removed, or was not registered."), 400: badRequest }
+    responses: {
+      204: empty("Signed out. The device row is removed, or was not registered."),
+      400: badRequest,
+      403: error("The caller is a guest. Nothing changed.", "errors/sign-in-required")
+    }
   }),
   authed({
     method: "GET",
     path: "/api/v1/me",
     operationId: "getMe",
-    summary: "The signed-in user. Creates the user on the first call.",
+    summary: "The caller's account, a member or a guest.",
     phase: 1,
-    responses: { 200: body("The user.", MeDtoSchema, "me.valid") }
+    responses: { 200: body("The account.", MeDtoSchema, "me.valid", "me.guest") }
   }),
   authed({
     method: "DELETE",

@@ -31,6 +31,21 @@ describe("request logs", () => {
     await server.close();
   });
 
+  it("logging an object with a token field by accident redacts it", async () => {
+    const { server, logs } = await createTestServer({
+      registerTestRoutes: (scope) =>
+        scope.post("/test/careless-body", async (request) => {
+          request.log.info({ body: request.body, ...(request.body as object) }, "careless");
+          return { ok: true };
+        })
+    });
+    const payload = { idToken: "s3cret-id", refreshToken: "s3cret-refresh", guestRefreshToken: "s3cret-guest", accessToken: "s3cret-access" };
+    await server.inject({ method: "POST", url: "/api/v1/test/careless-body", headers: { authorization: "Bearer test-user-a" }, payload });
+    expect(logs()).toContain("careless");
+    expect(logs()).not.toContain("s3cret");
+    await server.close();
+  });
+
   it("logging a request object by accident keeps to the allowlist", async () => {
     const { server, logs } = await createTestServer({
       registerTestRoutes: (scope) =>
@@ -96,7 +111,12 @@ describe("redactLogText", () => {
     ["authorization: [abc]", "authorization: [REDACTED]"],
     ["authorization:\n  Basic dXNlcjpwYXNz", "authorization: [REDACTED]"],
     ["HTTP_AUTHORIZATION: Basic dXNlcjpwYXNz", "HTTP_AUTHORIZATION: [REDACTED]"],
-    ["Authorization: Bearer abc\nnext line stays", "Authorization: [REDACTED]\nnext line stays"]
+    ["Authorization: Bearer abc\nnext line stays", "Authorization: [REDACTED]\nnext line stays"],
+    ['{"idToken":"eyJ.a.b"}', '{"idToken": [REDACTED]'],
+    ['{"refreshToken":"abc"}', '{"refreshToken": [REDACTED]'],
+    ['{"guestRefreshToken":"abc","x":1}', '{"guestRefreshToken": [REDACTED]'],
+    ["accessToken=abc next", "accessToken= [REDACTED]"],
+    ["refresh_token: abc", "refresh_token: [REDACTED]"]
   ])("redacts %s", (input, expected) => {
     expect(redactLogText(input)).toBe(expected);
   });

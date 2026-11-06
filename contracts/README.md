@@ -42,7 +42,8 @@ curl -s -H 'Authorization: Bearer x' -H 'Prefer: code=404' localhost:4010/api/v1
 curl -s -H 'Authorization: Bearer x' -H 'Prefer: code=503, example=errors.auth-unavailable' localhost:4010/api/v1/me
 ```
 
-Any bearer token works: the mock checks only that one is present. It does not store anything,
+Any bearer token works: the mock checks only that one is present. The auth routes that start or
+renew a session need none. It does not store anything,
 so a `PUT` does not change a later `GET`.
 
 The mock is not the server for a request it finds invalid: it answers with the first
@@ -67,21 +68,25 @@ checked. So scan and evaluator workers normalize each value and validate against
 ## Rules the app relies on
 
 - Errors are `{ "error": { "code", "message", "details"? } }`. Branch on `code`, not `message`.
-- `401 UNAUTHORIZED` means sign in again. `503 AUTH_UNAVAILABLE` means the check could not
-  run: retry and keep the user signed in.
-- Sign-in: Firebase signs in and links on the device, then the app calls `POST /auth/guest` or
-  `POST /auth/sso`. Retry them after a network error or a 5xx: they are idempotent. Every other
-  route still creates a missing user, so a failed call here does not lock the app out.
-- `POST /auth/sso` keeps the app signed in when a merge is not possible: `guestMerged` is
-  false. A 503 there means the merge could not be tried yet, so retry with the same `guestToken`.
-  A retry after that token expires answers false even if an earlier call merged, so do not tell
-  the user that data was lost because of `guestMerged` alone.
-- A closed guest gets 401 like any invalid token, including on `POST /auth/logout`.
+- `401 UNAUTHORIZED` on a call with a Bearer means the access token is not accepted: refresh
+  once and retry once. `401` from `POST /auth/refresh` means the session has ended: sign in
+  again. `503 AUTH_UNAVAILABLE` or `503 UNAVAILABLE` means a check could not run: retry and keep
+  the session.
+- Sessions: `POST /auth/guest` or `POST /auth/sso` returns `tokens`. Send `accessToken` as the
+  Bearer. It expires `expiresIn` seconds after the answer arrived; refresh shortly before. The
+  `refreshToken` is not rotated: it stays the same until logout, merge or account deletion, so a
+  refresh is safe to retry and to run twice.
+- `POST /auth/guest` makes a new guest on each call, so call it once per install and keep the
+  pair. A guest has no sign-out: `POST /auth/logout` answers it with 403.
+- `POST /auth/sso` with `guestRefreshToken` moves that guest's data and ends the guest's
+  session. It is safe to retry with the same body, also after a merge whose answer was lost.
+  `guestMerged` false with a 200 means no data moved, and the sign-in still worked.
+- A merged guest's tokens get 401 like any revoked session.
 - Lists are `{ "items", "nextCursor" }`. `nextCursor` is opaque and null on the last page.
 - Ids and cursors are opaque strings of letters, digits, `.`, `_` and `-`, starting with a
   letter or digit. A backend that encodes a cursor must keep to this, for example with hex.
 - A field with no value is an explicit `null`, not absent. Only `importId` in `PUT /me/cv`,
-  `guestToken` in `POST /auth/sso` and `details` in an error may be absent. Send `null` to
-  clear `aim`; an empty string is a 400. `"guestToken": null` is a 400: leave it out.
+  `guestRefreshToken` in `POST /auth/sso` and `details` in an error may be absent. Send `null` to
+  clear `aim`; an empty string is a 400. `"guestRefreshToken": null` is a 400: leave it out.
 - Links are `http` or `https` with no user info. Still open them as untrusted, because job
   sources supply them.

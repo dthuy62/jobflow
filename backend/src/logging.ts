@@ -10,11 +10,14 @@ const URL_PASSWORD_MAX_CHARS = 1024;
 const REDACTED = "[REDACTED]";
 
 const URL_PASSWORD = new RegExp(`(:\\/\\/[^:\\s/?#]*:)\\S{1,${URL_PASSWORD_MAX_CHARS}}(?=@)`, "g");
-/** Everything after the key, to the end of the line: schemes differ, and over-redacting a log costs nothing. */
-const AUTHORIZATION_VALUE = /(authorization\\*["']?\s*(?:[:=]|,(?=\s*\\*["'])))\s*[^\r\n]+/gi;
+/**
+ * Everything after the key, to the end of the line: schemes differ, and over-redacting a log costs
+ * nothing. The token keys are the auth API's body fields; `refresh_?token` also covers `guestRefreshToken`.
+ */
+const AUTHORIZATION_VALUE = /((?:authorization|(?:id|access|refresh)_?token)\\*["']?\s*(?:[:=]|,(?=\s*\\*["'])))\s*[^\r\n]+/gi;
 
 /**
- * Scrubs what real error messages carry: URL passwords and `Authorization` values. It is not
+ * Scrubs what real error messages carry: URL passwords, `Authorization` values and the auth API's tokens. It is not
  * a general secret finder: the serializer below allowlists fields, and code must not log
  * secrets. Never use it on text a user reads, because it over-redacts.
  */
