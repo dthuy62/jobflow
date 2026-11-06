@@ -54,8 +54,9 @@ class AuthenticationServiceImpl @Inject constructor(
     override suspend fun signIn(method: SignInMethod): Either<AuthError, Unit> = command {
         val result = when (method) {
             SignInMethod.Guest -> startGuest()
-            is SignInMethod.Google ->
-                googleSignIn.signIn(method.idToken, guest = store.read()?.takeIf { it.isGuest }).flatMap { keep(it) }
+            is SignInMethod.Google -> current()
+                .flatMap { googleSignIn.signIn(method.idToken, guest = it?.takeIf(StoredSession::isGuest)) }
+                .flatMap { keep(it) }
         }
         publish()
         result
@@ -71,11 +72,21 @@ class AuthenticationServiceImpl @Inject constructor(
         publish()
     }
 
-    private suspend fun startGuest(): Either<AuthError, Unit> = when {
-        store.read() != null -> Either.Right(Unit)
-        guests.isUsed() -> Either.Left(AuthError.GuestAlreadyUsed)
-        else -> guestSignIn.signIn().flatMap { keep(it) }
+    private suspend fun startGuest(): Either<AuthError, Unit> = current().flatMap { current ->
+        when {
+            current != null -> Either.Right(Unit)
+            guests.isUsed() -> Either.Left(AuthError.GuestAlreadyUsed)
+            else -> guestSignIn.signIn().flatMap { keep(it) }
+        }
     }
+
+    // Before a sign-in writes, it must see what is there: a guest it could not read would be lost for good.
+    private suspend fun current(): Either<AuthError, StoredSession?> = Either.catch(
+        onError = {
+            Timber.w(it, "Could not read the session")
+            AuthError.SignInFailed
+        },
+    ) { store.readOrThrow() }
 
     // The new session replaces the old one in one write. If it cannot be written, the device keeps what it had: a guest
     // stays the guest, and repeating the sign-in is safe.

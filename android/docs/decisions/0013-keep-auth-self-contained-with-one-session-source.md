@@ -3,7 +3,6 @@
 Status: Accepted (2026-11-05)
 
 Its guest, linking and session parts are superseded by [ADR 15](0015-sign-in-through-the-backend-and-keep-only-its-session.md).
-The code still follows this ADR until the Android change for ADR 15 lands.
 
 ## Context
 

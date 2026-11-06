@@ -39,7 +39,7 @@ Firebase ID token, then sign out. Firebase stays in `data/auth/firebase` behind 
 **Refresh.** Before a request, if the access token has less than 60 seconds left, the app refreshes first; 60 seconds
 covers the request's flight and some clock difference. The deadline is the receipt time plus `expiresIn`, never `exp`
 read against the device clock. A 401 also refreshes once and retries the request once, because a token can end early
-(a key rotation, a slept device). Both paths share one `Mutex`, so one refresh runs at a time. A refresh answered with
+(a key rotation, a slept device). Both paths share one lock, so one refresh runs at a time. A refresh answered with
 401 ends the session; a network failure or a 5xx keeps it.
 
 **Sign-out.** A member calls `/auth/logout`, best effort, then drops the pair. A guest has no sign-out, because it would
@@ -57,7 +57,8 @@ Rejected:
 The app gets simpler: one token source, one interceptor, one authenticator, no linking, no switch, no rollback on
 start-up. The SDK tests against the Auth emulator shrink to signing in and returning a token.
 
-The backend becomes a small auth server: signing keys, rotation with reuse detection, revocation. It is reviewed as a
+The backend becomes a small auth server: signing keys and revocation. The refresh token is not rotated (owner,
+2026-11-06): it stays the same for the session, so the app only ever replaces the access token. It is reviewed as a
 security change.
 
 A lost refresh token is a lost guest. That is the same as before, when it was a lost Firebase anonymous user.

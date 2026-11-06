@@ -10,6 +10,7 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import java.time.Clock
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.flow.first
 import me.dthuy.jobflow.domain.auth.UserId
 
 private const val MILLIS_PER_SECOND = 1_000L
@@ -42,6 +43,9 @@ interface SessionStore {
     /** Null if there is none, or it cannot be read. */
     suspend fun read(): StoredSession?
 
+    /** Throws an IOException if it cannot be read, so a sign-in never writes over a session it could not see. */
+    suspend fun readOrThrow(): StoredSession?
+
     /** Throws an IOException if it cannot be written, so a sign-in never reports success with nothing kept. */
     suspend fun save(session: StoredSession)
 
@@ -54,8 +58,12 @@ interface SessionStore {
 
 @Singleton
 class DataStoreSessionStore @Inject constructor(@AuthStore private val store: DataStore<Preferences>) : SessionStore {
-    override suspend fun read(): StoredSession? {
-        val current = store.current()
+    override suspend fun read(): StoredSession? = store.current().toSession()
+
+    override suspend fun readOrThrow(): StoredSession? = store.data.first().toSession()
+
+    private fun Preferences.toSession(): StoredSession? {
+        val current = this
         // All parts are written in one edit, so a part missing means there is no session.
         if (listOf(USER_ID, IS_GUEST, ACCESS_TOKEN, REFRESH_TOKEN, EXPIRES_AT).any { it !in current }) return null
         return StoredSession(

@@ -147,6 +147,34 @@ class AuthenticationServiceImplTest {
     }
 
     @Test
+    fun `a guest that cannot be read is not replaced by a new one`() = test {
+        val guest = storedSession(GUEST_ID, isGuest = true)
+        store.session = guest
+        val service = service()
+        store.canRead = false
+
+        val result = service.signIn(SignInMethod.Guest)
+
+        assertEquals(Either.Left(AuthError.SignInFailed), result)
+        assertEquals(0, api.guestCalls)
+        assertEquals(guest, store.session)
+    }
+
+    @Test
+    fun `a guest that cannot be read is not signed in over without their data`() = test {
+        val guest = storedSession(GUEST_ID, isGuest = true)
+        store.session = guest
+        val service = service()
+        store.canRead = false
+
+        val result = service.signIn(google)
+
+        assertEquals(Either.Left(AuthError.SignInFailed), result)
+        assertTrue(api.ssoRequests.isEmpty())
+        assertEquals(guest, store.session)
+    }
+
+    @Test
     fun `starting a guest while signed in does nothing`() = test {
         store.session = storedSession(MEMBER_ID, isGuest = false)
         val service = service()

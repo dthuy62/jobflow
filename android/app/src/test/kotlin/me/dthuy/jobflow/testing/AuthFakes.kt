@@ -46,8 +46,14 @@ fun storedSession(userId: UserId = GUEST_ID, isGuest: Boolean = true, expiresAt:
 
 class FakeSessionStore(var session: StoredSession? = null) : SessionStore {
     var canWrite = true
+    var canRead = true
 
-    override suspend fun read() = session
+    override suspend fun read() = session.takeIf { canRead }
+
+    override suspend fun readOrThrow(): StoredSession? {
+        if (!canRead) throw IOException("cannot read")
+        return session
+    }
 
     override suspend fun save(session: StoredSession) {
         if (!canWrite) throw IOException("disk full")
