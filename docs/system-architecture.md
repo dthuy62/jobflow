@@ -15,7 +15,7 @@ flowchart LR
   Blob["Object storage\nencrypted CV files"]
   External["Job sources, AI providers, FCM"]
 
-  Android -->|"HTTPS + Firebase ID token"| API
+  Android -->|"HTTPS + JobFlow access token"| API
   API --> DB
   API --> Blob
   DB --> Workers
@@ -30,38 +30,44 @@ Main rules:
 - One container image runs on any host, configured by environment.
 - The contract in root `contracts/` is the boundary with Android.
 
-### Sign-in
+### Sign-in and sessions
 
-Firebase signs in and links on the device. The backend verifies Firebase ID tokens, and asks
-Firebase about a guest before a merge.
-Nothing here is public, and a wrong kind of token gets 403 or 409, never the 401 that makes
-the app sign out.
+Firebase only signs members in. The backend checks a Firebase ID token once, at
+`/auth/sso`, and from then on issues its own tokens. It creates guests itself. The use cases
+live in `core/auth-service.ts`; Firebase, the JWT library and PostgreSQL sit behind the ports
+`IdentityVerifier`, `AccessTokens`, `SessionRepository` and `UserRepository`.
 
-| Route | Token | Does |
+| Route | Auth | Does |
 | --- | --- | --- |
-| `POST /auth/guest` | anonymous | Returns the account |
-| `POST /auth/sso` | not anonymous | Returns the account and `guestMerged`; with `guestToken`, merges that guest |
-| `POST /auth/logout` | any | Removes the caller's device row for one `installationId` |
+| `POST /auth/guest` | public, 10 per address a minute | Creates a guest and its session; returns the tokens and the account |
+| `POST /auth/sso` | public, `idToken` in the body | Finds or creates the member; with `guestRefreshToken`, merges that guest; returns the tokens, the account and `guestMerged` |
+| `POST /auth/refresh` | public, `refreshToken` in the body | Rotates the refresh token; returns a new pair |
+| `POST /auth/logout` | Bearer | Revokes the caller's session and removes its device row for one `installationId` |
 
-The auth hook still creates a missing user on any route, so a failed call here cannot lock
-the app out. The two systems share no transaction, so the routes are idempotent and the app
-retries them.
+Tokens:
 
-An anonymous token stays valid for up to an hour after Firebase links its user to a real account,
-and the same uid then belongs to that account. So before a merge, the backend asks Firebase
-(`accounts:lookup`, with the guest's own token and a web API key, no admin credential) whether the
-user is still anonymous. If not, nothing merges. If Firebase or the key endpoint cannot answer, the
-call gets 503, not `guestMerged: false`, so the app retries instead of giving up on the guest's data.
+- **Access token:** JWT, HS256, `kid` in the header, claims `iss aud sub sid iat exp`, 15
+  minutes. Keys come from `JWT_SIGNING_KEYS`; the first signs and all verify, so a key rotates
+  without signing anyone out.
+- **Refresh token:** 32 random bytes, stored only as its SHA-256 in `refresh_tokens`. It has no
+  fixed expiry. Each one works once: a refresh locks the session row and applies the rules in
+  `pg-session-repository.ts`: an unused token is spent and gets a child; a spent token whose
+  child is unused means the answer was lost, so that child is spent too and a new one issued; a
+  spent token whose child was used means two holders, so the session is revoked; an unknown token
+  or a revoked session gets 401.
 
-A merge then runs in one transaction in `pg-user-repository.ts`: it locks the guest row, runs
-`GUEST_MERGE_STEPS` (one step per table with user data), then sets `deleted_at` and `merged_into`.
-`merged_into` gives a retry the same answer, and stops a guest merging twice. A guest the server
-never saw has no data, but closes the same way, so its token stops working too.
+Every other route goes through the auth hook: it checks the JWT, then reads the session and the
+user in one query. A revoked session or a deleted or merged user gets 401, so logout and merge
+apply at once; a database failure gets 503 and the app keeps its session.
 
-Known limit: a link that lands in the moment between the lookup and the merge can still close that
-account. It takes the link and another user's call with the old token within milliseconds, so it is
-accepted. Dropping `linked_at` in `0003` also breaks a running older release until the new one is
-up, which is fine because nothing is deployed yet.
+A merge runs in one transaction in `pg-user-repository.ts`: it finds the guest by its refresh
+token, which must be one refresh would still accept, locks the guest row, runs
+`GUEST_MERGE_STEPS` (one step per table with user data), sets `deleted_at` and `merged_into`, and
+revokes the guest's sessions. `merged_into` gives a retry the same answer and stops a guest
+merging twice. A member's token never merges: only a user with no provider subject is a guest.
+
+Known limits: used refresh tokens are kept, so reuse is still seen later, and nothing prunes
+them yet; that waits for the guest clean-up job. Rate limits are in memory per instance.
 
 ## Wrapper (frozen)
 

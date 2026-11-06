@@ -1,0 +1,5 @@
+{
+  "accessToken": "synthetic-access-token",
+  "refreshToken": "synthetic-refresh-token",
+  "expiresIn": 900
+}

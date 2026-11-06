@@ -1,67 +1,60 @@
-import { LogoutRequestSchema, SsoRequestSchema, SsoResponseDtoSchema } from "@jobflow/contract";
-import type { FastifyInstance, FastifyRequest } from "fastify";
-import { AuthUnavailableError, InvalidTokenError, type VerifiedIdentity } from "../../core/identity.js";
-import type { AuthVerifier, DeviceRepository, UserRepository } from "../../core/ports.js";
+import {
+  GuestResponseDtoSchema,
+  LogoutRequestSchema,
+  RefreshRequestSchema,
+  SessionTokensDtoSchema,
+  SsoRequestSchema,
+  SsoResponseDtoSchema
+} from "@jobflow/contract";
+import type { FastifyInstance, FastifyRequest, onRequestAsyncHookHandler } from "fastify";
+import type { AuthService } from "../../core/auth-service.js";
+import { AuthUnavailableError, InvalidTokenError, SignInRequiredError } from "../../core/identity.js";
 import { ApiError, parseRequest } from "../errors.js";
 import { meDto } from "./me.js";
 
 export interface AuthRouteDeps {
-  readonly authVerifier: AuthVerifier;
-  readonly users: UserRepository;
-  readonly devices: DeviceRepository;
+  readonly auth: AuthService;
+  /** Runs before a guest is created, on top of the IP limit. */
+  readonly guestLimit: onRequestAsyncHookHandler;
 }
 
-/**
- * The guest whose data this token may move, or undefined when it may not. Asks the provider too,
- * because this token may predate a link, and closing that user would lock a real account out. An
- * outage is not an answer: "no merge" would make the app give up on data a retry could still bring.
- */
-async function verifyGuest(request: FastifyRequest, authVerifier: AuthVerifier, token: string): Promise<VerifiedIdentity | undefined> {
-  try {
-    const identity = await authVerifier.verify(token);
-    // The same user has nothing to merge, so no outage should stand in its way.
-    if (!identity.isAnonymous || identity.subject === request.auth.subject) return undefined;
-    return (await authVerifier.stillAnonymous(token)) ? identity : undefined;
-  } catch (error) {
-    if (error instanceof InvalidTokenError) return undefined;
-    if (error instanceof AuthUnavailableError) {
-      request.log.error({ err: error.cause }, "guest token check unavailable");
-      throw new ApiError(503, "AUTH_UNAVAILABLE", "Sign-in could not be checked right now.");
-    }
-    throw error;
-  }
-}
-
-/** These calls are safe to retry, so a database failure gets the contract's retryable answer. */
-async function orUnavailable<Result>(request: FastifyRequest, work: () => Promise<Result>): Promise<Result> {
+/** Turns the service's errors into the contract's. Anything unknown is a database failure: these calls are safe to retry. */
+async function answer<Result>(request: FastifyRequest, work: () => Promise<Result>): Promise<Result> {
   try {
     return await work();
   } catch (error) {
-    request.log.error({ err: error }, "auth write failed");
+    if (error instanceof InvalidTokenError) throw new ApiError(401, "UNAUTHORIZED", "Sign in again.");
+    if (error instanceof SignInRequiredError) throw new ApiError(403, "SIGN_IN_REQUIRED", "Sign in with Google to use this.");
+    if (error instanceof AuthUnavailableError) {
+      request.log.error({ err: error.cause }, "id token check unavailable");
+      throw new ApiError(503, "AUTH_UNAVAILABLE", "Sign-in could not be checked right now.");
+    }
+    if (error instanceof ApiError) throw error;
+    request.log.error({ err: error }, "auth call failed");
     throw new ApiError(503, "UNAVAILABLE", "The service is temporarily unavailable.");
   }
 }
 
-export function registerAuthRoutes(scope: FastifyInstance, { authVerifier, users, devices }: AuthRouteDeps): void {
-  // The auth hook has already created the user. Limits on guests belong here when they come.
-  scope.post("/auth/guest", async (request) => {
-    if (!request.auth.isAnonymous) throw new ApiError(409, "CONFLICT", "This user is already signed in.");
-    return meDto(request.auth);
+export function registerAuthRoutes(scope: FastifyInstance, { auth, guestLimit }: AuthRouteDeps): void {
+  scope.post("/auth/guest", { config: { public: true }, onRequest: guestLimit }, async (request) => {
+    const { tokens, account } = await answer(request, () => auth.startGuest());
+    return GuestResponseDtoSchema.parse({ tokens, account: meDto(account) });
   });
 
-  scope.post("/auth/sso", async (request) => {
-    const { auth } = request;
-    if (auth.isAnonymous) throw new ApiError(403, "SIGN_IN_REQUIRED", "Sign in with Google to use this.");
-    const { guestToken } = parseRequest(SsoRequestSchema, request.body);
-    const guest = guestToken === undefined ? undefined : await verifyGuest(request, authVerifier, guestToken);
-    const guestMerged = guest !== undefined && (await orUnavailable(request, () => users.mergeGuest(guest.subject, auth.userId)));
-    return SsoResponseDtoSchema.parse({ account: meDto(auth), guestMerged });
+  scope.post("/auth/sso", { config: { public: true } }, async (request) => {
+    const { idToken, guestRefreshToken } = parseRequest(SsoRequestSchema, request.body);
+    const { tokens, account, guestMerged } = await answer(request, () => auth.signIn(idToken, guestRefreshToken));
+    return SsoResponseDtoSchema.parse({ tokens, account: meDto(account), guestMerged });
   });
 
-  // No token is revoked: Firebase can only revoke them all, which would sign out every other device.
+  scope.post("/auth/refresh", { config: { public: true } }, async (request) => {
+    const { refreshToken } = parseRequest(RefreshRequestSchema, request.body);
+    return SessionTokensDtoSchema.parse(await answer(request, () => auth.refresh(refreshToken)));
+  });
+
   scope.post("/auth/logout", async (request, reply) => {
     const { installationId } = parseRequest(LogoutRequestSchema, request.body);
-    await orUnavailable(request, () => devices.remove(request.auth.userId, installationId));
+    await answer(request, () => auth.logout(request.auth, installationId));
     return reply.status(204).send();
   });
 }

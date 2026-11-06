@@ -1,7 +1,6 @@
 import { createRemoteJWKSet, errors, jwtVerify, type JWTPayload, type JWTVerifyGetKey } from "jose";
-import { z } from "zod";
 import { AuthUnavailableError, InvalidTokenError, type VerifiedIdentity } from "../core/identity.js";
-import type { AuthVerifier } from "../core/ports.js";
+import type { IdentityVerifier } from "../core/ports.js";
 
 const CLOCK_TOLERANCE_SECONDS = 5;
 const SUBJECT_MAX_CHARS = 255;
@@ -14,43 +13,6 @@ const FIREBASE_KEYS_URL = "https://www.googleapis.com/service_accounts/v1/jwk/se
  * let anyone with a forged key id write error logs.
  */
 const KEY_CACHE_MS = 60 * 60 * 1000;
-
-const FIREBASE_LOOKUP_URL = "https://identitytoolkit.googleapis.com/v1/accounts:lookup";
-const LOOKUP_TIMEOUT_MS = 5_000;
-/**
- * What Firebase answers about a token or its user. Any other failure says nothing about them. That
- * includes INVALID_ID_TOKEN: this token has just passed the signature check, so it suggests a key
- * from another project, which must not pass silently as "no merge".
- */
-const LOOKUP_BAD_TOKEN = new Set(["USER_NOT_FOUND", "TOKEN_EXPIRED", "USER_DISABLED"]);
-const LookupAnswerSchema = z.object({ users: z.array(z.object({ providerUserInfo: z.array(z.unknown()).optional() })).min(1) });
-const LookupFailureSchema = z.object({ error: z.object({ message: z.string() }) });
-
-/**
- * An anonymous user has no linked provider. Needs only a web API key, which grants nothing by itself:
- * the user's own token authorizes the call, so the server holds no Firebase admin credential.
- */
-async function firebaseStillAnonymous(apiKey: string, token: string): Promise<boolean> {
-  let status: number;
-  let body: unknown;
-  try {
-    const response = await fetch(FIREBASE_LOOKUP_URL, {
-      method: "POST",
-      headers: { "content-type": "application/json", "x-goog-api-key": apiKey },
-      body: JSON.stringify({ idToken: token }),
-      signal: AbortSignal.timeout(LOOKUP_TIMEOUT_MS)
-    });
-    status = response.status;
-    body = await response.json();
-  } catch (error) {
-    throw new AuthUnavailableError(error);
-  }
-  const answer = LookupAnswerSchema.safeParse(body);
-  if (status === 200 && answer.success) return (answer.data.users[0]?.providerUserInfo ?? []).length === 0;
-  const failure = LookupFailureSchema.safeParse(body);
-  if (status === 400 && failure.success && LOOKUP_BAD_TOKEN.has(failure.data.error.message)) throw new InvalidTokenError();
-  throw new AuthUnavailableError(new Error(`The Firebase lookup answered ${status}.`));
-}
 
 /** Errors that mean the token is bad. Anything else, such as a network failure, says nothing about the token. */
 const BAD_TOKEN_ERRORS = [
@@ -76,12 +38,10 @@ export interface OidcOptions {
   readonly audience: string;
   readonly keys: JWTVerifyGetKey;
   readonly isAnonymous: (payload: JWTPayload) => boolean;
-  readonly stillAnonymous: AuthVerifier["stillAnonymous"];
 }
 
-export function createOidcAuthVerifier({ issuer, audience, keys, isAnonymous, stillAnonymous }: OidcOptions): AuthVerifier {
+export function createOidcIdentityVerifier({ issuer, audience, keys, isAnonymous }: OidcOptions): IdentityVerifier {
   return {
-    stillAnonymous,
     async verify(token): Promise<VerifiedIdentity> {
       let payload: JWTPayload;
       try {
@@ -107,12 +67,12 @@ export function createOidcAuthVerifier({ issuer, audience, keys, isAnonymous, st
   };
 }
 
-export function createFirebaseAuthVerifier(projectId: string, apiKey: string): AuthVerifier {
-  return createOidcAuthVerifier({
+export function createFirebaseIdentityVerifier(projectId: string): IdentityVerifier {
+  return createOidcIdentityVerifier({
     issuer: `https://securetoken.google.com/${projectId}`,
     audience: projectId,
     keys: createRemoteJWKSet(new URL(FIREBASE_KEYS_URL), { cacheMaxAge: KEY_CACHE_MS }),
-    isAnonymous: (payload) => (payload.firebase as { sign_in_provider?: unknown } | undefined)?.sign_in_provider === "anonymous",
-    stillAnonymous: (token) => firebaseStillAnonymous(apiKey, token)
+    // Anonymous sign-in is off in the project; this refuses one anyway if it is turned back on.
+    isAnonymous: (payload) => (payload.firebase as { sign_in_provider?: unknown } | undefined)?.sign_in_provider === "anonymous"
   });
 }

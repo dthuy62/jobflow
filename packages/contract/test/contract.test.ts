@@ -15,12 +15,15 @@ import {
   ErrorCodeSchema,
   ErrorResponseDtoSchema,
   EvaluationDtoSchema,
+  GuestResponseDtoSchema,
   HealthDtoSchema,
   JobDtoSchema,
   LogoutRequestSchema,
   MeDtoSchema,
   PreferencesDtoSchema,
   PurchaseRequestSchema,
+  RefreshRequestSchema,
+  SessionTokensDtoSchema,
   SsoRequestSchema,
   SsoResponseDtoSchema,
   operations,
@@ -61,6 +64,7 @@ describe("operations", () => {
         "GET /api/v1/health",
         "POST /api/v1/auth/guest",
         "POST /api/v1/auth/sso",
+        "POST /api/v1/auth/refresh",
         "POST /api/v1/auth/logout",
         "GET /api/v1/me",
         "DELETE /api/v1/me",
@@ -85,9 +89,9 @@ describe("operations", () => {
     );
   });
 
-  it("requires bearer auth on every operation except GET /health", () => {
+  it("requires bearer auth on every operation except health and the routes that start or renew a session", () => {
     const open = operations.filter((operation) => operation.public).map(operationName);
-    expect(open).toEqual(["GET /api/v1/health"]);
+    expect(open).toEqual(["GET /api/v1/health", "POST /api/v1/auth/guest", "POST /api/v1/auth/sso", "POST /api/v1/auth/refresh"]);
   });
 
   it("documents auth, rate limit and outage errors on every authenticated operation", () => {
@@ -177,9 +181,15 @@ describe("operations", () => {
     expect(summary).toContain("10");
   });
 
-  it("keeps wrong-kind tokens away from 401, which would make the app sign out", () => {
-    expect(find("POST /api/v1/auth/guest").responses[409]?.examples).toEqual(["errors/conflict"]);
+  it("tells an anonymous ID token apart from a bad one", () => {
     expect(find("POST /api/v1/auth/sso").responses[403]?.examples).toEqual(["errors/sign-in-required"]);
+    expect(find("POST /api/v1/auth/sso").responses[401]?.examples).toEqual(["errors/unauthorized"]);
+  });
+
+  it("documents 401 on refresh, which ends the session, and no 403", () => {
+    const refresh = find("POST /api/v1/auth/refresh");
+    expect(refresh.responses[401]?.examples).toEqual(["errors/unauthorized"]);
+    expect(refresh.responses[403]).toBeUndefined();
   });
 
   it("answers a logout with no body and no 404, like DELETE on a device", () => {
@@ -288,22 +298,39 @@ describe("schemas", () => {
     expect(() => CvUpdateRequestSchema.parse({ markdown: "# CV", extra: 1 })).toThrow(z.ZodError);
   });
 
-  it("take the account only from the token: a sign-in body cannot name one", () => {
-    expect(() => SsoRequestSchema.parse({ userId: "user_2" })).toThrow(z.ZodError);
-    expect(SsoRequestSchema.parse({})).toEqual({});
+  it("take the account only from the ID token: a sign-in body cannot name one", () => {
+    expect(() => SsoRequestSchema.parse({ idToken: "t", userId: "user_2" })).toThrow(z.ZodError);
+    expect(SsoRequestSchema.safeParse({}).success).toBe(false);
+    expect(SsoRequestSchema.parse({ idToken: "t" })).toEqual({ idToken: "t" });
   });
 
-  it("let a guest token that is malformed reach the verifier, so it cannot fail the sign-in", () => {
-    for (const guestToken of ["", "not a token", "a\nb"]) expect(SsoRequestSchema.parse({ guestToken })).toEqual({ guestToken });
-    expect(SsoRequestSchema.parse({ guestToken: "x".repeat(4097) }).guestToken).toHaveLength(4097);
-    expect(SsoRequestSchema.safeParse({ guestToken: 1 }).success).toBe(false);
+  it("let a guest refresh token that is malformed reach the server, so it cannot fail the sign-in", () => {
+    for (const guestRefreshToken of ["", "not a token", "a\nb"]) {
+      expect(SsoRequestSchema.parse({ idToken: "t", guestRefreshToken })).toEqual({ idToken: "t", guestRefreshToken });
+    }
+    expect(SsoRequestSchema.parse({ idToken: "t", guestRefreshToken: "x".repeat(4097) }).guestRefreshToken).toHaveLength(4097);
+    expect(SsoRequestSchema.safeParse({ idToken: "t", guestRefreshToken: 1 }).success).toBe(false);
+    expect(SsoRequestSchema.safeParse({ idToken: "t", guestRefreshToken: null }).success).toBe(false);
   });
 
-  it("say whether a merge happened", () => {
+  it("say whether a merge happened, next to the tokens", () => {
     const account = loadExample(examplesDir, "me.valid");
-    expect(SsoResponseDtoSchema.safeParse({ account }).success).toBe(false);
+    const tokens = loadExample(examplesDir, "session-tokens.valid");
+    expect(SsoResponseDtoSchema.safeParse({ tokens, account }).success).toBe(false);
     expect(SsoResponseDtoSchema.parse(loadExample(examplesDir, "auth-sso.merged")).guestMerged).toBe(true);
     expect(SsoResponseDtoSchema.parse(loadExample(examplesDir, "auth-sso.not-merged")).guestMerged).toBe(false);
+  });
+
+  it("give the access token's life in whole seconds", () => {
+    const tokens = SessionTokensDtoSchema.parse(loadExample(examplesDir, "session-tokens.valid"));
+    for (const expiresIn of [0, -1, 1.5]) expect(SessionTokensDtoSchema.safeParse({ ...tokens, expiresIn }).success).toBe(false);
+    expect(GuestResponseDtoSchema.parse(loadExample(examplesDir, "auth-guest.valid")).account.isAnonymous).toBe(true);
+  });
+
+  it("take a refresh token as any string, so an unknown one gets 401, not 400", () => {
+    expect(RefreshRequestSchema.parse({ refreshToken: "" })).toEqual({ refreshToken: "" });
+    expect(RefreshRequestSchema.safeParse({}).success).toBe(false);
+    expect(RefreshRequestSchema.safeParse({ refreshToken: "t", userId: "user_2" }).success).toBe(false);
   });
 
   it("hold an installation id to the opaque id pattern", () => {

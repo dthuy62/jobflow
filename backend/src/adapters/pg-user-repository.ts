@@ -1,20 +1,22 @@
-import type { Pool, PoolClient } from "pg";
+import type { Pool } from "pg";
 import type { UserId } from "../core/identity.js";
-import type { ResolvedUser, UserRepository } from "../core/ports.js";
+import type { UserRepository } from "../core/ports.js";
+import { inTransaction, type Queryable } from "./pg-transaction.js";
 
-interface UserRow {
+interface MemberRow {
   readonly id: string;
   readonly created_at: Date;
   readonly deleted_at: Date | null;
 }
 
-const toUser = ({ id, created_at, deleted_at }: UserRow): ResolvedUser => ({
-  id: id as UserId,
+const toMember = ({ id, created_at, deleted_at }: MemberRow) => ({
+  userId: id as UserId,
+  isAnonymous: false,
   createdAt: created_at,
   deleted: deleted_at !== null
 });
 
-export type GuestMergeStep = (client: Pick<PoolClient, "query">, guestId: string, memberId: string) => Promise<unknown>;
+export type GuestMergeStep = (client: Queryable, guestId: string, memberId: string) => Promise<unknown>;
 
 /**
  * One step per table with user data, run inside the merge's transaction. Add a table here when it
@@ -29,65 +31,57 @@ export const GUEST_MERGE_STEPS: readonly GuestMergeStep[] = [
 
 export function createPgUserRepository(pool: Pick<Pool, "query" | "connect">, guestMergeSteps = GUEST_MERGE_STEPS): UserRepository {
   return {
-    async resolve(subject) {
-      // Reads first, so a known user's request writes nothing: this runs on every request.
-      const existing = await pool.query<UserRow>("SELECT id, created_at, deleted_at FROM users WHERE auth_subject = $1", [subject]);
+    async findOrCreateMember(subject) {
+      // Reads first, so a returning member's sign-in writes nothing to users.
+      const existing = await pool.query<MemberRow>("SELECT id, created_at, deleted_at FROM users WHERE auth_subject = $1", [subject]);
       const [found] = existing.rows;
-      if (found) return toUser(found);
-      // DO UPDATE, not DO NOTHING, so a parallel first request still gets the row back.
-      const created = await pool.query<UserRow>(
+      if (found) return toMember(found);
+      // DO UPDATE, not DO NOTHING, so a parallel first sign-in still gets the row back.
+      const created = await pool.query<MemberRow>(
         `INSERT INTO users (auth_subject) VALUES ($1)
          ON CONFLICT (auth_subject) DO UPDATE SET auth_subject = EXCLUDED.auth_subject
          RETURNING id, created_at, deleted_at`,
         [subject]
       );
       const [row] = created.rows;
-      if (!row) throw new Error("The user upsert returned no row.");
-      return toUser(row);
+      if (!row) throw new Error("The member upsert returned no row.");
+      return toMember(row);
     },
 
-    async mergeGuest(guestSubject, memberId) {
-      const client = await pool.connect();
-      let connectionBroken = false;
-      // A checked-out client has no listener from the pool, and an unheard 'error' would end the process.
-      const onConnectionError = () => {
-        connectionBroken = true;
-      };
-      client.on("error", onConnectionError);
-      try {
-        await client.query("BEGIN");
-        // An upsert, so a guest who never reached the API is closed too. It also locks the row, so
-        // a parallel retry waits here and then sees merged_into.
-        const { rows } = await client.query<{ id: string; deleted_at: Date | null; merged_into: string | null }>(
-          `INSERT INTO users (auth_subject) VALUES ($1)
-           ON CONFLICT (auth_subject) DO UPDATE SET auth_subject = EXCLUDED.auth_subject
-           RETURNING id, deleted_at, merged_into`,
-          [guestSubject]
+    mergeGuest: (guestTokenHash, memberId) =>
+      inTransaction(pool, async (client, rollback) => {
+        const owner = await client.query<{ user_id: string }>(
+          "SELECT s.user_id FROM refresh_tokens t JOIN sessions s ON s.id = t.session_id WHERE t.token_hash = $1",
+          [guestTokenHash]
         );
-        const [guest] = rows;
-        if (!guest) throw new Error("The guest upsert returned no row.");
-        if (guest.id === memberId || guest.deleted_at !== null) {
-          await client.query("ROLLBACK");
-          return guest.merged_into === memberId;
-        }
-        // Waits for any merge closing this member. A closed member must not take the guest's data.
+        const [token] = owner.rows;
+        if (!token) return rollback(false);
+        // Locks the guest, so a parallel retry or another member waits here and then sees merged_into.
+        const users = await client.query<{ id: string; auth_subject: string | null; deleted_at: Date | null; merged_into: string | null }>(
+          "SELECT id, auth_subject, deleted_at, merged_into FROM users WHERE id = $1 FOR UPDATE",
+          [token.user_id]
+        );
+        const [guest] = users.rows;
+        if (!guest) return rollback(false);
+        // A retry after a merge into this member gets the same answer.
+        if (guest.deleted_at !== null) return rollback(guest.merged_into === memberId);
+        // Only a guest's data moves: a member's token, or the member's own, merges nothing.
+        if (guest.auth_subject !== null || guest.id === memberId) return rollback(false);
+        // The token must be one the guest's app could still refresh with: unspent, or spent with its answer lost.
+        const state = await client.query<{ usable: boolean }>(
+          `SELECT s.revoked_at IS NULL AND (t.used_at IS NULL OR EXISTS (
+                    SELECT 1 FROM refresh_tokens c WHERE c.parent_hash = t.token_hash AND c.used_at IS NULL)) AS usable
+           FROM refresh_tokens t JOIN sessions s ON s.id = t.session_id WHERE t.token_hash = $1`,
+          [guestTokenHash]
+        );
+        if (state.rows[0]?.usable !== true) return rollback(false);
+        // Waits for anything closing this member. A closed member must not take the guest's data.
         const member = await client.query<{ deleted_at: Date | null }>("SELECT deleted_at FROM users WHERE id = $1 FOR SHARE", [memberId]);
-        if (member.rows[0]?.deleted_at !== null) {
-          await client.query("ROLLBACK");
-          return false;
-        }
+        if (member.rows[0]?.deleted_at !== null) return rollback(false);
         for (const step of guestMergeSteps) await step(client, guest.id, memberId);
         await client.query("UPDATE users SET deleted_at = now(), merged_into = $2 WHERE id = $1", [guest.id, memberId]);
-        await client.query("COMMIT");
+        await client.query("UPDATE sessions SET revoked_at = now(), revoked_reason = 'merged' WHERE user_id = $1 AND revoked_at IS NULL", [guest.id]);
         return true;
-      } catch (error) {
-        await client.query("ROLLBACK").catch(onConnectionError);
-        throw error;
-      } finally {
-        client.off("error", onConnectionError);
-        // A connection that could not roll back may still hold the transaction, so it must not be reused.
-        client.release(connectionBroken);
-      }
-    }
+      })
   };
 }

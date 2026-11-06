@@ -107,7 +107,7 @@ Career Ops has about 20 modes. The first release ships the core loop only.
 
 - **Ports and adapters.** The core (matching, scoring, entitlement, quota)
   depends only on interfaces. Every external system sits behind a port:
-  `AuthVerifier`, `LlmProvider`, `JobSource`, `BlobStore`, `KeyManager`,
+  `IdentityVerifier`, `LlmProvider`, `JobSource`, `BlobStore`, `KeyManager`,
   `PushSender`, `PurchaseVerifier`, `IntegrityVerifier`. Replacing a vendor
   means writing one adapter.
 - **Stateless API, work in a queue.** HTTP handlers answer fast. Scans and

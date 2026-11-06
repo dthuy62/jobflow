@@ -1,4 +1,9 @@
 {
+  "tokens": {
+    "accessToken": "synthetic-access-token",
+    "refreshToken": "synthetic-refresh-token",
+    "expiresIn": 900
+  },
   "account": {
     "userId": "user_01",
     "isAnonymous": false,

@@ -1,0 +1,12 @@
+{
+  "tokens": {
+    "accessToken": "synthetic-access-token",
+    "refreshToken": "synthetic-refresh-token",
+    "expiresIn": 900
+  },
+  "account": {
+    "userId": "user_02",
+    "isAnonymous": true,
+    "createdAt": "2026-11-02T08:00:00.000Z"
+  }
+}

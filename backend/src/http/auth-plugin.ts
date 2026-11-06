@@ -1,12 +1,12 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest, RouteOptions } from "fastify";
-import { AuthUnavailableError, InvalidTokenError, type UserId } from "../core/identity.js";
-import type { AuthVerifier, UserRepository } from "../core/ports.js";
+import type { AuthService } from "../core/auth-service.js";
+import { type AuthenticatedUser, InvalidTokenError } from "../core/identity.js";
 import { ApiError } from "./errors.js";
 
 declare module "fastify" {
   interface FastifyRequest {
     /** Set by the auth hook on every route that is not public. The only source of a user id. */
-    auth: { readonly userId: UserId; readonly subject: string; readonly isAnonymous: boolean; readonly createdAt: Date };
+    auth: AuthenticatedUser;
   }
   interface FastifyContextConfig {
     /** A route is public only by saying so. */
@@ -15,47 +15,30 @@ declare module "fastify" {
 }
 
 export interface AuthDeps {
-  readonly authVerifier: AuthVerifier;
-  readonly users: UserRepository;
+  readonly auth: Pick<AuthService, "authenticate">;
   readonly observeRoute?: ((route: RouteOptions) => void) | undefined;
 }
-
-const unauthorized = () => new ApiError(401, "UNAUTHORIZED", "Sign in again.");
 
 function bearerToken(header: string | undefined): string | undefined {
   return header?.match(/^bearer ([^\s]+)$/i)?.[1];
 }
 
 /** Denies by default: every route gets the check at registration, unless it has `config.public`. */
-export function registerAuth(server: FastifyInstance, { authVerifier, users, observeRoute }: AuthDeps): void {
+export function registerAuth(server: FastifyInstance, { auth, observeRoute }: AuthDeps): void {
   server.decorateRequest("auth", undefined as never);
 
   async function authenticate(request: FastifyRequest, reply: FastifyReply): Promise<void> {
     try {
       const token = bearerToken(request.headers.authorization);
       if (token === undefined) throw new InvalidTokenError();
-      const identity = await authVerifier.verify(token);
-      const user = await resolveUser(request, identity.subject);
-      if (user.deleted) throw new InvalidTokenError();
-      request.auth = { userId: user.id, subject: identity.subject, isAnonymous: identity.isAnonymous, createdAt: user.createdAt };
+      request.auth = await auth.authenticate(token);
     } catch (error) {
       if (error instanceof InvalidTokenError) {
         void reply.header("www-authenticate", "Bearer");
-        throw unauthorized();
+        throw new ApiError(401, "UNAUTHORIZED", "Sign in again.");
       }
-      if (error instanceof AuthUnavailableError) {
-        request.log.error({ err: error.cause }, "token check unavailable");
-        throw new ApiError(503, "AUTH_UNAVAILABLE", "Sign-in could not be checked right now.");
-      }
-      throw error;
-    }
-  }
-
-  async function resolveUser(request: FastifyRequest, subject: string) {
-    try {
-      return await users.resolve(subject);
-    } catch (error) {
-      request.log.error({ err: error }, "user lookup failed");
+      // The token checks are local, so this is the session lookup: the app retries and keeps its session.
+      request.log.error({ err: error }, "session lookup failed");
       throw new ApiError(503, "UNAVAILABLE", "The service is temporarily unavailable.");
     }
   }

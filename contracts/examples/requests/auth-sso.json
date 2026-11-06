@@ -1,3 +1,4 @@
 {
-  "guestToken": "synthetic-guest-token"
+  "idToken": "synthetic-id-token",
+  "guestRefreshToken": "synthetic-guest-refresh-token"
 }
