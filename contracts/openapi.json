@@ -541,7 +541,7 @@
     "/api/v1/auth/logout": {
       "post": {
         "operationId": "logOut",
-        "summary": "End the caller's session, so its tokens get 401, and forget this installation's FCM token. Other sessions stay signed in. installationId is opaque to the server.",
+        "summary": "End a member's session, so its tokens get 401, and forget this installation's FCM token. Other sessions stay signed in. A guest has no sign-out: it would lose the guest's data. installationId is opaque to the server.",
         "x-phase": 1,
         "security": [
           {
@@ -567,7 +567,7 @@
         },
         "responses": {
           "204": {
-            "description": "Removed, or was not registered."
+            "description": "Signed out. The device row is removed, or was not registered."
           },
           "400": {
             "description": "The request is not valid.",
@@ -595,7 +595,7 @@
             }
           },
           "401": {
-            "description": "The token is missing or not valid. The app signs in again.",
+            "description": "The access token is missing, expired or not accepted. Refresh once and retry once; sign in again only if POST /auth/refresh answers 401.",
             "content": {
               "application/json": {
                 "schema": {
@@ -607,6 +607,26 @@
                       "error": {
                         "code": "UNAUTHORIZED",
                         "message": "Sign in again."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller is a guest. Nothing changed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                },
+                "examples": {
+                  "errors.sign-in-required": {
+                    "value": {
+                      "error": {
+                        "code": "SIGN_IN_REQUIRED",
+                        "message": "Sign in with Google to use this."
                       }
                     }
                   }
@@ -726,7 +746,7 @@
             }
           },
           "401": {
-            "description": "The token is missing or not valid. The app signs in again.",
+            "description": "The access token is missing, expired or not accepted. Refresh once and retry once; sign in again only if POST /auth/refresh answers 401.",
             "content": {
               "application/json": {
                 "schema": {
@@ -832,7 +852,7 @@
             "description": "Deletion has started."
           },
           "401": {
-            "description": "The token is missing or not valid. The app signs in again.",
+            "description": "The access token is missing, expired or not accepted. Refresh once and retry once; sign in again only if POST /auth/refresh answers 401.",
             "content": {
               "application/json": {
                 "schema": {
@@ -997,7 +1017,7 @@
             }
           },
           "401": {
-            "description": "The token is missing or not valid. The app signs in again.",
+            "description": "The access token is missing, expired or not accepted. Refresh once and retry once; sign in again only if POST /auth/refresh answers 401.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1219,7 +1239,7 @@
             }
           },
           "401": {
-            "description": "The token is missing or not valid. The app signs in again.",
+            "description": "The access token is missing, expired or not accepted. Refresh once and retry once; sign in again only if POST /auth/refresh answers 401.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1404,7 +1424,7 @@
             }
           },
           "401": {
-            "description": "The token is missing or not valid. The app signs in again.",
+            "description": "The access token is missing, expired or not accepted. Refresh once and retry once; sign in again only if POST /auth/refresh answers 401.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1631,7 +1651,7 @@
             }
           },
           "401": {
-            "description": "The token is missing or not valid. The app signs in again.",
+            "description": "The access token is missing, expired or not accepted. Refresh once and retry once; sign in again only if POST /auth/refresh answers 401.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1815,7 +1835,7 @@
             }
           },
           "401": {
-            "description": "The token is missing or not valid. The app signs in again.",
+            "description": "The access token is missing, expired or not accepted. Refresh once and retry once; sign in again only if POST /auth/refresh answers 401.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2039,7 +2059,7 @@
             }
           },
           "401": {
-            "description": "The token is missing or not valid. The app signs in again.",
+            "description": "The access token is missing, expired or not accepted. Refresh once and retry once; sign in again only if POST /auth/refresh answers 401.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2267,7 +2287,7 @@
             }
           },
           "401": {
-            "description": "The token is missing or not valid. The app signs in again.",
+            "description": "The access token is missing, expired or not accepted. Refresh once and retry once; sign in again only if POST /auth/refresh answers 401.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2479,7 +2499,7 @@
             }
           },
           "401": {
-            "description": "The token is missing or not valid. The app signs in again.",
+            "description": "The access token is missing, expired or not accepted. Refresh once and retry once; sign in again only if POST /auth/refresh answers 401.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2641,7 +2661,7 @@
             }
           },
           "401": {
-            "description": "The token is missing or not valid. The app signs in again.",
+            "description": "The access token is missing, expired or not accepted. Refresh once and retry once; sign in again only if POST /auth/refresh answers 401.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2854,7 +2874,7 @@
             }
           },
           "401": {
-            "description": "The token is missing or not valid. The app signs in again.",
+            "description": "The access token is missing, expired or not accepted. Refresh once and retry once; sign in again only if POST /auth/refresh answers 401.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3020,7 +3040,7 @@
             }
           },
           "401": {
-            "description": "The token is missing or not valid. The app signs in again.",
+            "description": "The access token is missing, expired or not accepted. Refresh once and retry once; sign in again only if POST /auth/refresh answers 401.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3209,7 +3229,7 @@
             }
           },
           "401": {
-            "description": "The token is missing or not valid. The app signs in again.",
+            "description": "The access token is missing, expired or not accepted. Refresh once and retry once; sign in again only if POST /auth/refresh answers 401.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3351,7 +3371,7 @@
             }
           },
           "401": {
-            "description": "The token is missing or not valid. The app signs in again.",
+            "description": "The access token is missing, expired or not accepted. Refresh once and retry once; sign in again only if POST /auth/refresh answers 401.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3525,7 +3545,7 @@
             }
           },
           "401": {
-            "description": "The token is missing or not valid. The app signs in again.",
+            "description": "The access token is missing, expired or not accepted. Refresh once and retry once; sign in again only if POST /auth/refresh answers 401.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3791,7 +3811,7 @@
             }
           },
           "401": {
-            "description": "The token is missing or not valid. The app signs in again.",
+            "description": "The access token is missing, expired or not accepted. Refresh once and retry once; sign in again only if POST /auth/refresh answers 401.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3963,7 +3983,7 @@
             }
           },
           "401": {
-            "description": "The token is missing or not valid. The app signs in again.",
+            "description": "The access token is missing, expired or not accepted. Refresh once and retry once; sign in again only if POST /auth/refresh answers 401.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4141,7 +4161,7 @@
             }
           },
           "401": {
-            "description": "The token is missing or not valid. The app signs in again.",
+            "description": "The access token is missing, expired or not accepted. Refresh once and retry once; sign in again only if POST /auth/refresh answers 401.",
             "content": {
               "application/json": {
                 "schema": {

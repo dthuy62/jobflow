@@ -186,6 +186,10 @@ describe("operations", () => {
     expect(find("POST /api/v1/auth/sso").responses[401]?.examples).toEqual(["errors/unauthorized"]);
   });
 
+  it("tells the app to refresh before it signs in again on a 401", () => {
+    expect(find("GET /api/v1/me").responses[401]?.description).toMatch(/refresh once/i);
+  });
+
   it("documents 401 on refresh, which ends the session, and no 403", () => {
     const refresh = find("POST /api/v1/auth/refresh");
     expect(refresh.responses[401]?.examples).toEqual(["errors/unauthorized"]);
@@ -196,6 +200,7 @@ describe("operations", () => {
     const logout = find("POST /api/v1/auth/logout");
     expect(logout.responses[204]?.schema).toBeNull();
     expect(logout.responses[404]).toBeUndefined();
+    expect(logout.responses[403]?.examples).toEqual(["errors/sign-in-required"]);
   });
 
   it("gives one answer for an import that is expired, used or another user's", () => {

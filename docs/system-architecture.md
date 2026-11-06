@@ -42,7 +42,7 @@ live in `core/auth-service.ts`; Firebase, the JWT library and PostgreSQL sit beh
 | `POST /auth/guest` | public, 10 per address a minute | Creates a guest and its session; returns the tokens and the account |
 | `POST /auth/sso` | public, `idToken` in the body | Finds or creates the member; with `guestRefreshToken`, merges that guest; returns the tokens, the account and `guestMerged` |
 | `POST /auth/refresh` | public, `refreshToken` in the body | Rotates the refresh token; returns a new pair |
-| `POST /auth/logout` | Bearer | Revokes the caller's session and removes its device row for one `installationId` |
+| `POST /auth/logout` | Bearer, members only | Revokes the caller's session and removes its device row for one `installationId`; a guest gets 403, because its session is the only way back to its data |
 
 Tokens:
 
@@ -66,8 +66,13 @@ token, which must be one refresh would still accept, locks the guest row, runs
 revokes the guest's sessions. `merged_into` gives a retry the same answer and stops a guest
 merging twice. A member's token never merges: only a user with no provider subject is a guest.
 
-Known limits: used refresh tokens are kept, so reuse is still seen later, and nothing prunes
-them yet; that waits for the guest clean-up job. Rate limits are in memory per instance.
+Each refresh also drops that session's tokens spent more than a day ago, except the one just
+presented, so a chain stays small and reuse is caught for a day; an older replay gets 401
+without revoking the session. A token whose answer was lost stays usable however old.
+
+Known limits: nothing removes abandoned sessions yet (an unused guest, a lost sign-in answer);
+that waits for the guest clean-up job. `/auth/refresh` has only the per-address limit. Rate
+limits are in memory per instance.
 
 ## Wrapper (frozen)
 

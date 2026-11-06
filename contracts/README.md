@@ -78,7 +78,7 @@ checked. So scan and evaluator workers normalize each value and validate against
   time. If a refresh answer is lost, sending the same token again works. Sending an older token
   after its successor was used ends the session.
 - `POST /auth/guest` makes a new guest on each call, so call it once per install and keep the
-  pair. A guest has no sign-out.
+  pair. A guest has no sign-out: `POST /auth/logout` answers it with 403.
 - `POST /auth/sso` with `guestRefreshToken` moves that guest's data and ends the guest's
   session. It is safe to retry with the same body, also after a merge whose answer was lost.
   `guestMerged` false with a 200 means no data moved, and the sign-in still worked.

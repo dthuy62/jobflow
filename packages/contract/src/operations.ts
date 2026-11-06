@@ -68,7 +68,10 @@ const notFound = error("Not found, or not this user's.", "errors/not-found");
 
 /** Every authenticated route can answer these. */
 const authenticatedErrors = {
-  401: error("The token is missing or not valid. The app signs in again.", "errors/unauthorized"),
+  401: error(
+    "The access token is missing, expired or not accepted. Refresh once and retry once; sign in again only if POST /auth/refresh answers 401.",
+    "errors/unauthorized"
+  ),
   429: error("Too many requests.", "errors/rate-limited"),
   500: error("An unexpected error.", "errors/unexpected-error"),
   503: error("A dependency is down. This is not a sign-in problem; the app retries and keeps the user signed in.", "errors/auth-unavailable", "errors/unavailable")
@@ -186,10 +189,14 @@ export const operations: readonly Operation[] = [
     path: "/api/v1/auth/logout",
     operationId: "logOut",
     summary:
-      "End the caller's session, so its tokens get 401, and forget this installation's FCM token. Other sessions stay signed in. installationId is opaque to the server.",
+      "End a member's session, so its tokens get 401, and forget this installation's FCM token. Other sessions stay signed in. A guest has no sign-out: it would lose the guest's data. installationId is opaque to the server.",
     phase: 1,
     request: { kind: "json", schema: LogoutRequestSchema, example: "requests/auth-logout" },
-    responses: { 204: empty("Removed, or was not registered."), 400: badRequest }
+    responses: {
+      204: empty("Signed out. The device row is removed, or was not registered."),
+      400: badRequest,
+      403: error("The caller is a guest. Nothing changed.", "errors/sign-in-required")
+    }
   }),
   authed({
     method: "GET",

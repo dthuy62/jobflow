@@ -176,6 +176,41 @@ describe("the auth routes, with real PostgreSQL and the app role", () => {
       expect(await refreshed(tablet.tokens.refreshToken)).toBeDefined();
     });
 
+    it("drops a session's tokens spent over a day ago on the next refresh, and keeps the rest", async () => {
+      const { tokens } = await newGuest();
+      const second = await refreshed(tokens.refreshToken);
+      const third = await refreshed(second.refreshToken);
+      const { id } = await sessionOf(tokens);
+      await pool.query("update refresh_tokens set used_at = now() - interval '25 hours' where token_hash = $1", [hashRefreshToken(tokens.refreshToken)]);
+      await pool.query("update refresh_tokens set used_at = now() - interval '23 hours' where token_hash = $1", [hashRefreshToken(second.refreshToken)]);
+      const fourth = await refreshed(third.refreshToken);
+      const kept = await pool.query("select encode(token_hash, 'hex') as hash from refresh_tokens where session_id = $1", [id]);
+      expect(new Set(kept.rows.map((row) => row.hash))).toEqual(
+        new Set([second, third, fourth].map((pair) => hashRefreshToken(pair.refreshToken).toString("hex")))
+      );
+      // Too old to tell apart from an unknown token: refused, and the session goes on.
+      expect((await refresh(tokens.refreshToken)).statusCode).toBe(401);
+      expect((await me(fourth)).statusCode).toBe(200);
+      // Still within the day, so a replay is still caught.
+      expect((await refresh(second.refreshToken)).statusCode).toBe(401);
+      expect((await sessionOf(fourth)).revoked_reason).toBe("reuse");
+    });
+
+    it("keeps a spent token whose answer was lost, however old, so the app can still recover", async () => {
+      const { tokens } = await newGuest();
+      await refreshed(tokens.refreshToken);
+      await pool.query("update refresh_tokens set used_at = now() - interval '30 days' where token_hash = $1", [hashRefreshToken(tokens.refreshToken)]);
+      const recovered = await refreshed(tokens.refreshToken);
+      expect(await refreshed(recovered.refreshToken)).toBeDefined();
+    });
+
+    it("removing an old token never takes the newer ones of its chain along", async () => {
+      const { tokens } = await newGuest();
+      const second = await refreshed(tokens.refreshToken);
+      await pool.query("delete from refresh_tokens where token_hash = $1", [hashRefreshToken(tokens.refreshToken)]);
+      expect(await refreshed(second.refreshToken)).toBeDefined();
+    });
+
     it.each([
       ["unknown", "x".repeat(43)],
       ["empty", ""],
@@ -411,7 +446,7 @@ describe("the auth routes, with real PostgreSQL and the app role", () => {
 
     it("does not merge a guest whose session was revoked", async () => {
       const guest = await newGuest();
-      await logout(guest.tokens, { installationId: "phone" });
+      await pool.query("update sessions set revoked_at = now(), revoked_reason = 'logout' where user_id = $1", [guest.account.userId]);
       expect((await signIn("member-revoked-guest", guest.tokens.refreshToken)).guestMerged).toBe(false);
       expect((await userRow(guest.account.userId)).deleted_at).toBeNull();
     });
@@ -545,6 +580,17 @@ describe("the auth routes, with real PostgreSQL and the app role", () => {
       expect(response.statusCode).toBe(400);
       expect(codeOf(response)).toBe("VALIDATION_ERROR");
       expect((await me(tokens)).statusCode).toBe(200);
+    });
+
+    it("refuses a guest, whose only session it would end for good, and changes nothing", async () => {
+      const guest = await newGuest();
+      await seedDevice(guest.account.userId, "phone");
+      const response = await logout(guest.tokens, { installationId: "phone" });
+      expect(response.statusCode).toBe(403);
+      expect(codeOf(response)).toBe("SIGN_IN_REQUIRED");
+      expect(await devicesOf(guest.account.userId)).toEqual(["phone"]);
+      expect((await me(guest.tokens)).statusCode).toBe(200);
+      expect(await refreshed(guest.tokens.refreshToken)).toBeDefined();
     });
 
     it("answers 401 with no token", async () => {
