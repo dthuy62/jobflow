@@ -84,10 +84,11 @@ Career Ops has about 20 modes. The first release ships the core loop only.
 
 ## How it works (user's view)
 
-1. **First open.** The user can look around without signing in (Firebase
-   anonymous auth). They upload a CV and set preferences.
-2. **Sign in** with Google when they want to sync or buy. The anonymous
-   account is linked, so nothing is lost. Apple sign-in is supported by the
+1. **First open.** The user can look around without signing in, as a guest
+   the backend creates. They upload a CV and set preferences.
+2. **Sign in** with Google when they want to sync or buy. The app says the
+   guest's data will move to the account, and the backend moves it, so nothing
+   is lost. Apple sign-in is supported by the
    backend but not required on Android; ship it with iOS.
 3. **Feed.** The server scans job sources on a schedule and matches new jobs
    against each user's preferences. When there are new matches, the user
@@ -122,7 +123,7 @@ Career Ops has about 20 modes. The first release ships the core loop only.
 ### Components
 
 ```
-Android app ──HTTPS + Firebase ID token + Play Integrity──► API service
+Android app ──HTTPS + JobFlow access token + Play Integrity──► API service
                                                               │
                          ┌────────────────────────────────────┼─────────────────────┐
                          ▼                                    ▼                     ▼
@@ -220,30 +221,62 @@ never contain CV text, prompts or AI output.
 
 ## Accounts, payment and abuse protection
 
-- **Firebase Auth** (anonymous first, then Google; Apple later). The backend
-  verifies ID tokens behind `AuthVerifier`, so another OIDC provider can
-  replace Firebase.
-- **Sign-in API.** Firebase signs in and links on the device; the app never sends
-  a Google ID token. Then, each with a Firebase ID token as Bearer and none public:
-  - `POST /auth/guest` needs an anonymous token and returns the account. Limits on
-    guests belong here later.
-  - `POST /auth/sso`, with an optional `guestToken`, needs a token that is not
-    anonymous. The account comes only from the Bearer token. A valid anonymous
-    `guestToken` of another, unmerged user has its data moved in one transaction,
-    and that guest closes, so its token gets 401. The backend first asks Firebase
-    whether that user is still anonymous, because such a token stays valid for up to
-    an hour after a link, and closing a linked user would lock out a real account. An
-    expired or invalid `guestToken` never fails the sign-in: `guestMerged` is false.
-    One that cannot be checked because of an outage gets a 503 the app retries, so it
-    does not give up on the guest's data. Rules per table: preferences keep the member's and the guest's only fill gaps; tracker entries
-    combine and the newer wins for the same job; a CV moves only if the member has
-    none, encrypted again with the member's key; the guest's FCM tokens are dropped.
-  - `POST /auth/logout` removes the caller's device row and FCM token for one
-    `installationId`. It revokes no token, because that would sign out every device.
+- **Sign-in and sessions.** Firebase Auth only signs people in: Google, then
+  Apple and email link. The backend checks a Firebase ID token once, at
+  `/auth/sso`, behind `IdentityVerifier`, and from then on issues its own
+  sessions. It is the only source of users, guests, sessions and account state,
+  and the app keeps nothing from Firebase. Another OIDC provider replaces Firebase
+  by changing that adapter. (Owner, 2026-11-06: guests in Firebase needed a chain
+  of fixes around linking, switching and an hour-long guest token.)
+- **Guests.** The backend creates guests; Firebase anonymous sign-in is off. The
+  app starts one guest per install: reinstalling is the only way to get another.
+  This is a product rule, not abuse protection. A guest has no sign-out, because
+  that would lose their data; they leave by deleting it. The backend removes
+  guests by last activity.
+- **Tokens.**
+  - Access token: a JWT signed with HS256, with `kid` in the header and only
+    `iss`, `aud`, `sub` (`users.id`), `sid` (the session), `iat` and `exp`. It
+    lasts 15 minutes, and responses also give `expiresIn`. The backend accepts
+    only HS256 and checks `iss`, `aud` and `exp`.
+  - Refresh token: 32 random bytes, opaque. The backend stores only its SHA-256.
+    It has no fixed expiry: it ends on logout, merge, misuse or account deletion.
+  - Signing keys come from `JWT_SIGNING_KEYS` (`kid:secret` pairs; the first
+    signs, all verify), so a key rotates without signing anyone out. The config
+    refuses a development key in production.
+- **Sessions.** Each sign-in starts a session, a chain of refresh tokens, so
+  devices never share one. A refresh rotates the token, in one transaction that
+  locks the row:
+  1. an unused token is marked used and gets a child;
+  2. a used token whose child is still unused means the app lost the answer: the
+     child is revoked and a new one issued;
+  3. a used token whose child was used means two holders: the session is revoked;
+  4. an unknown token, or one of a revoked session, gets 401.
+- **Every request.** The auth hook checks the JWT, then reads the session and
+  the user in one query. A revoked session, or a deleted or merged user, gets 401,
+  so logout, merge and deletion apply at once. A database failure gets 503, and
+  the app keeps its session.
+- **Auth API.** Tokens travel only in the body or `Authorization`, never in URLs,
+  and logs redact them.
+  - `POST /auth/guest`, public, with its own limit of 10 per IP per minute,
+    loose enough for many phones behind one carrier address. Creates a guest and
+    a session; returns the tokens and the account.
+  - `POST /auth/sso`, public, with `idToken` and an optional
+    `guestRefreshToken`. Refuses an anonymous ID token. Finds or creates the
+    member by the Firebase uid. With the refresh token of a guest, moves that
+    guest's data in one transaction and revokes the guest's session. Rules per
+    table: preferences keep the member's and the guest's only fill gaps; tracker
+    entries combine and the newer wins for the same job; a CV moves only if the
+    member has none, encrypted again with the member's key; the guest's FCM
+    tokens are dropped. A retry after a merge into the same member gets the same
+    answer. Any other refresh token merges nothing and `guestMerged` is false.
+    Returns the tokens, the account and `guestMerged`.
+  - `POST /auth/refresh`, public, with `refreshToken`. Returns a new pair.
+  - `POST /auth/logout` revokes the caller's session (`sid`) and removes the
+    device row and FCM token for one `installationId`.
 
-  Firebase and the backend share no transaction, so the calls are idempotent and the
-  app retries them. Any route still creates a missing user, as a safety net for when
-  the app is signed in to Firebase but the call failed.
+  On the device: the app gets a Firebase ID token, calls `/auth/sso`, keeps the
+  pair and signs out of Firebase. If the call fails, the app is still the guest it
+  was, and the user tries again.
 - **Google Play Billing** on the device, with the hashed user id as
   `obfuscatedAccountId`. The app sends the purchase token to the server, which
   verifies it with the Google Play Developer API and stores the entitlement.
@@ -409,6 +442,8 @@ Owner decisions (2026-11-01 and 2026-11-02):
 - First release = the four core modes; the rest as in the scope table.
 - Any AI vendor through configuration; owner subscriptions for development.
 - Firebase Auth with Google (and Apple later).
+- Firebase only signs people in; the backend owns guests and sessions with its
+  own tokens (2026-11-06).
 - Store CVs on the server, encrypted.
 - Keep JobFlow as the repo; vendor the needed Career Ops parts.
 - Security at the normal level for a consumer app, as in the
@@ -419,7 +454,7 @@ Owner decisions (2026-11-01 and 2026-11-02):
 
 Builder's calls, which the owner can overrule:
 
-- Anonymous sign-in before Google sign-in.
+- A guest before Google sign-in, created by the backend.
 - Upload CVs through the API, not directly to Firebase Storage.
 - Keep the CV original file as well as the text.
 - Remove personal data before every AI call.
@@ -444,7 +479,7 @@ questions were settled as follows.
   restructuring of the CV) requires Google sign-in, a passing Play Integrity
   verdict, and either an entitlement or the free trial. The free trial is
   keyed to the Google account and limited per device. Anonymous CV import
-  uses plain text extraction only. This closes the "mint anonymous uids"
+  uses plain text extraction only. This closes the "mint guests"
   hole.
 - **Subscription or credits (owner decides before phase 3).** The entitlement
   model is generic: a plan grants features and quota counters with a reset
