@@ -273,7 +273,7 @@ never contain CV text, prompts or AI output.
   - `POST /auth/refresh`, public, with `refreshToken`. Returns a new access
     token and the same refresh token.
   - `POST /auth/logout` revokes the caller's session (`sid`) and removes the
-    device row and FCM token for one `installationId`.
+    device row and FCM token for the `installationId` it sends, if any.
 
   On the device: the app gets a Firebase ID token, calls `/auth/sso`, keeps the
   pair and signs out of Firebase. If the call fails, the app is still the guest it

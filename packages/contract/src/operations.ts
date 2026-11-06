@@ -189,11 +189,11 @@ export const operations: readonly Operation[] = [
     path: "/api/v1/auth/logout",
     operationId: "logOut",
     summary:
-      "End a member's session, so its tokens get 401, and forget this installation's FCM token. Other sessions stay signed in. A guest has no sign-out: it would lose the guest's data. installationId is opaque to the server.",
+      "End a member's session, so its tokens get 401, and forget this installation's FCM token when installationId is given. Other sessions stay signed in. A guest has no sign-out: it would lose the guest's data. installationId is opaque to the server.",
     phase: 1,
     request: { kind: "json", schema: LogoutRequestSchema, example: "requests/auth-logout" },
     responses: {
-      204: empty("Signed out. The device row is removed, or was not registered."),
+      204: empty("Signed out. The device row is removed, was not registered, or no installationId was given."),
       400: badRequest,
       403: error("The caller is a guest. Nothing changed.", "errors/sign-in-required")
     }
