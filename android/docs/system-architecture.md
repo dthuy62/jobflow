@@ -93,7 +93,7 @@ recovers at once.
 ## Authentication
 
 Firebase says who the user is; the API decides what they may do. The app only displays `isAnonymous`, it never authorizes with
-it. The reasons are in [ADR 13](decisions/0013-keep-auth-self-contained-with-one-session-source.md).
+it. The reasons are in [ADR 13](decisions/0013-keep-auth-self-contained-with-one-session-source.md); [ADR 15](decisions/0015-sign-in-through-the-backend-and-keep-only-its-session.md) replaces its guest and session parts.
 
 | Piece | Job | Never |
 |---|---|---|
