@@ -9,9 +9,6 @@ interface AccountRow {
   readonly created_at: Date;
 }
 
-/** How long a spent refresh token is kept, so that its second use revokes the session. */
-const SPENT_TOKEN_KEPT = "1 day";
-
 const toAccount = ({ user_id, is_guest, created_at }: AccountRow): Account => ({ userId: user_id as UserId, isAnonymous: is_guest, createdAt: created_at });
 
 const firstRow = <Row>(rows: Row[], what: string): Row => {
@@ -79,12 +76,6 @@ export function createPgSessionRepository(pool: Pick<Pool, "query" | "connect">)
           return undefined;
         }
         await client.query("INSERT INTO refresh_tokens (token_hash, session_id, parent_hash) VALUES ($1, $2, $3)", [nextHash, live.id, tokenHash]);
-        // Bounds the chain: reuse is caught for a day. Never the token just presented, so an answer
-        // lost long ago can still be recovered with it.
-        await client.query(
-          `DELETE FROM refresh_tokens WHERE session_id = $1 AND used_at < now() - interval '${SPENT_TOKEN_KEPT}' AND token_hash <> $2`,
-          [live.id, tokenHash]
-        );
         return { userId: live.user_id as UserId, sessionId: live.id as SessionId };
       }),
 

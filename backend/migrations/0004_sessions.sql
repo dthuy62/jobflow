@@ -14,8 +14,8 @@ CREATE TABLE sessions (
 
 CREATE INDEX sessions_user_id ON sessions (user_id);
 
--- Only the SHA-256 of a refresh token is stored. A used token stays for a day, so a second use
--- of it is seen. SET NULL, so removing an old token never takes its newer descendants along.
+-- Only the SHA-256 of a refresh token is stored. A used token stays, so a second use of it is
+-- seen. SET NULL, so a later clean-up of old tokens never takes their newer descendants along.
 CREATE TABLE refresh_tokens (
   token_hash bytea PRIMARY KEY CHECK (octet_length(token_hash) = 32),
   session_id uuid NOT NULL REFERENCES sessions (id) ON DELETE CASCADE,

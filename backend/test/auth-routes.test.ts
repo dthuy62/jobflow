@@ -176,24 +176,14 @@ describe("the auth routes, with real PostgreSQL and the app role", () => {
       expect(await refreshed(tablet.tokens.refreshToken)).toBeDefined();
     });
 
-    it("drops a session's tokens spent over a day ago on the next refresh, and keeps the rest", async () => {
+    it("rule 3 has no time limit: a token spent long ago, replayed, still revokes the session", async () => {
       const { tokens } = await newGuest();
       const second = await refreshed(tokens.refreshToken);
       const third = await refreshed(second.refreshToken);
-      const { id } = await sessionOf(tokens);
-      await pool.query("update refresh_tokens set used_at = now() - interval '25 hours' where token_hash = $1", [hashRefreshToken(tokens.refreshToken)]);
-      await pool.query("update refresh_tokens set used_at = now() - interval '23 hours' where token_hash = $1", [hashRefreshToken(second.refreshToken)]);
-      const fourth = await refreshed(third.refreshToken);
-      const kept = await pool.query("select encode(token_hash, 'hex') as hash from refresh_tokens where session_id = $1", [id]);
-      expect(new Set(kept.rows.map((row) => row.hash))).toEqual(
-        new Set([second, third, fourth].map((pair) => hashRefreshToken(pair.refreshToken).toString("hex")))
-      );
-      // Too old to tell apart from an unknown token: refused, and the session goes on.
+      await pool.query("update refresh_tokens set used_at = now() - interval '90 days' where token_hash = $1", [hashRefreshToken(tokens.refreshToken)]);
+      await refreshed(third.refreshToken);
       expect((await refresh(tokens.refreshToken)).statusCode).toBe(401);
-      expect((await me(fourth)).statusCode).toBe(200);
-      // Still within the day, so a replay is still caught.
-      expect((await refresh(second.refreshToken)).statusCode).toBe(401);
-      expect((await sessionOf(fourth)).revoked_reason).toBe("reuse");
+      expect((await sessionOf(third)).revoked_reason).toBe("reuse");
     });
 
     it("keeps a spent token whose answer was lost, however old, so the app can still recover", async () => {

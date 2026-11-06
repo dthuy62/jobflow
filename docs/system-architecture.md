@@ -66,13 +66,12 @@ token, which must be one refresh would still accept, locks the guest row, runs
 revokes the guest's sessions. `merged_into` gives a retry the same answer and stops a guest
 merging twice. A member's token never merges: only a user with no provider subject is a guest.
 
-Each refresh also drops that session's tokens spent more than a day ago, except the one just
-presented, so a chain stays small and reuse is caught for a day; an older replay gets 401
-without revoking the session. A token whose answer was lost stays usable however old.
-
-Known limits: nothing removes abandoned sessions yet (an unused guest, a lost sign-in answer);
-that waits for the guest clean-up job. `/auth/refresh` has only the per-address limit. Rate
-limits are in memory per instance.
+Known limits: spent refresh tokens are kept, so a replay is caught however old, and nothing
+removes them or abandoned sessions yet. A chain grows by one row per refresh, about 96 a day for
+an active app, and a client looping on `/auth/refresh` adds up to the per-address limit. Pruning
+needs an owner decision, because a time window would end reuse detection for older tokens.
+`parent_hash` is `ON DELETE SET NULL`, so a clean-up never takes a live token along. Rate limits
+are in memory per instance.
 
 ## Wrapper (frozen)
 
