@@ -204,7 +204,7 @@
         },
         "responses": {
           "200": {
-            "description": "Signed in. guestMerged is false when no guest's data moved: no guestRefreshToken, one that is unknown, spent, revoked or a member's, or a guest already merged elsewhere or deleted.",
+            "description": "Signed in. guestMerged is false when no guest's data moved: no guestRefreshToken, one that is unknown, revoked or a member's, or a guest already merged elsewhere or deleted.",
             "content": {
               "application/json": {
                 "schema": {
@@ -387,7 +387,7 @@
     "/api/v1/auth/refresh": {
       "post": {
         "operationId": "refreshSession",
-        "summary": "Swap the refresh token for a new pair. Each refresh token works once. Sending a spent one again after a lost answer works; a spent one whose successor was also used revokes the session. Public.",
+        "summary": "Get a new access token. The refresh token is not rotated: the answer gives the same one back, and it works until logout, merge or account deletion. Safe to retry. Public.",
         "x-phase": 1,
         "security": [],
         "requestBody": {
@@ -409,7 +409,7 @@
         },
         "responses": {
           "200": {
-            "description": "The new pair. Replace both tokens.",
+            "description": "A new access token, with the same refresh token.",
             "content": {
               "application/json": {
                 "schema": {
@@ -453,7 +453,7 @@
             }
           },
           "401": {
-            "description": "The session has ended: unknown token, logged out, merged, deleted or misused. Sign in again.",
+            "description": "The session has ended: unknown token, logged out, merged or deleted. Sign in again.",
             "content": {
               "application/json": {
                 "schema": {

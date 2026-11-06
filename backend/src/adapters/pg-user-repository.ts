@@ -50,8 +50,8 @@ export function createPgUserRepository(pool: Pick<Pool, "query" | "connect">, gu
 
     mergeGuest: (guestTokenHash, memberId) =>
       inTransaction(pool, async (client, rollback) => {
-        const owner = await client.query<{ user_id: string }>(
-          "SELECT s.user_id FROM refresh_tokens t JOIN sessions s ON s.id = t.session_id WHERE t.token_hash = $1",
+        const owner = await client.query<{ user_id: string; revoked: boolean }>(
+          "SELECT user_id, revoked_at IS NOT NULL AS revoked FROM sessions WHERE refresh_token_hash = $1",
           [guestTokenHash]
         );
         const [token] = owner.rows;
@@ -67,14 +67,8 @@ export function createPgUserRepository(pool: Pick<Pool, "query" | "connect">, gu
         if (guest.deleted_at !== null) return rollback(guest.merged_into === memberId);
         // Only a guest's data moves: a member's token, or the member's own, merges nothing.
         if (guest.auth_subject !== null || guest.id === memberId) return rollback(false);
-        // The token must be one the guest's app could still refresh with: unspent, or spent with its answer lost.
-        const state = await client.query<{ usable: boolean }>(
-          `SELECT s.revoked_at IS NULL AND (t.used_at IS NULL OR EXISTS (
-                    SELECT 1 FROM refresh_tokens c WHERE c.parent_hash = t.token_hash AND c.used_at IS NULL)) AS usable
-           FROM refresh_tokens t JOIN sessions s ON s.id = t.session_id WHERE t.token_hash = $1`,
-          [guestTokenHash]
-        );
-        if (state.rows[0]?.usable !== true) return rollback(false);
+        // A revoked session merges nothing, though a retry after this member's merge answered above.
+        if (token.revoked) return rollback(false);
         // Waits for anything closing this member. A closed member must not take the guest's data.
         const member = await client.query<{ deleted_at: Date | null }>("SELECT deleted_at FROM users WHERE id = $1 FOR SHARE", [memberId]);
         if (member.rows[0]?.deleted_at !== null) return rollback(false);

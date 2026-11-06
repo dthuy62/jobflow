@@ -41,7 +41,7 @@ live in `core/auth-service.ts`; Firebase, the JWT library and PostgreSQL sit beh
 | --- | --- | --- |
 | `POST /auth/guest` | public, 10 per address a minute | Creates a guest and its session; returns the tokens and the account |
 | `POST /auth/sso` | public, `idToken` in the body | Finds or creates the member; with `guestRefreshToken`, merges that guest; returns the tokens, the account and `guestMerged` |
-| `POST /auth/refresh` | public, `refreshToken` in the body | Rotates the refresh token; returns a new pair |
+| `POST /auth/refresh` | public, `refreshToken` in the body | Returns a new access token and the same refresh token |
 | `POST /auth/logout` | Bearer, members only | Revokes the caller's session and removes its device row for one `installationId`; a guest gets 403, because its session is the only way back to its data |
 
 Tokens:
@@ -49,31 +49,28 @@ Tokens:
 - **Access token:** JWT, HS256, `kid` in the header, claims `iss aud sub sid iat exp`, 15
   minutes. Keys come from `JWT_SIGNING_KEYS`; the first signs and all verify, so a key rotates
   without signing anyone out.
-- **Refresh token:** 32 random bytes, stored only as its SHA-256 in `refresh_tokens`. It has no
-  fixed expiry. Each one works once: a refresh locks the session row and applies the rules in
-  `pg-session-repository.ts`: an unused token is spent and gets a child; a spent token whose
-  child is unused means the answer was lost, so that child is spent too and a new one issued; a
-  spent token whose child was used means two holders, so the session is revoked; an unknown token
-  or a revoked session gets 401.
+- **Refresh token:** 32 random bytes, one per session, stored only as its SHA-256 in
+  `sessions.refresh_token_hash`. It is not rotated and has no fixed expiry: it ends on logout,
+  merge or account deletion. An unknown token, or one of a revoked session or a deleted or merged
+  user, gets 401. Rotation with reuse detection was dropped (owner, 2026-11-06): a client bug it
+  would read as reuse ends a guest's session and loses its data. A copied token is App Check's
+  job: on every route, in its own change before launch.
 
 Every other route goes through the auth hook: it checks the JWT, then reads the session and the
 user in one query. A revoked session or a deleted or merged user gets 401, so logout and merge
 apply at once; a database failure gets 503 and the app keeps its session.
 
 A merge runs in one transaction in `pg-user-repository.ts`: it finds the guest by its refresh
-token, which must be one refresh would still accept, locks the guest row, runs
+token, whose session must still be live, locks the guest row, runs
 `GUEST_MERGE_STEPS` (one step per table with user data), sets `deleted_at` and `merged_into`, and
 revokes the guest's sessions. `merged_into` gives a retry the same answer and stops a guest
 merging twice. A member's token never merges: only a user with no provider subject is a guest.
 
-Known limits: spent refresh tokens are kept, so a replay is caught however old, and nothing
-removes them or abandoned sessions yet. A chain grows by one row per refresh, about 96 a day for
-an active app, and a client looping on `/auth/refresh` adds up to the per-address limit. Pruning
-needs an owner decision, because a time window would end reuse detection for older tokens.
-`parent_hash` is `ON DELETE SET NULL`, so a clean-up never takes a live token along. A guest
-cannot end its own session, because logout would lose its data; until `DELETE /me` ships, a
-stolen guest refresh token stays usable while the real guest stops refreshing. Rate limits are
-in memory per instance.
+Known limits: nothing removes abandoned sessions yet (an unused guest, a lost sign-in answer);
+that waits for the guest clean-up job. Until App Check lands, a copied refresh token works until
+its session ends. A guest cannot end its own session, because logout would lose its data; until
+`DELETE /me` ships, a stolen guest refresh token stays usable. Rate limits are in memory per
+instance.
 
 ## Wrapper (frozen)
 

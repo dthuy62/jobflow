@@ -238,19 +238,19 @@ never contain CV text, prompts or AI output.
     `iss`, `aud`, `sub` (`users.id`), `sid` (the session), `iat` and `exp`. It
     lasts 15 minutes, and responses also give `expiresIn`. The backend accepts
     only HS256 and checks `iss`, `aud` and `exp`.
-  - Refresh token: 32 random bytes, opaque. The backend stores only its SHA-256.
-    It has no fixed expiry: it ends on logout, merge, misuse or account deletion.
+  - Refresh token: 32 random bytes, opaque, one per session. The backend stores
+    only its SHA-256. It is not rotated and has no fixed expiry: it ends on
+    logout, merge or account deletion. (Owner, 2026-11-06: rotation with reuse
+    detection was dropped. A client bug it would read as reuse ends the session,
+    and for a guest that loses the data; App Check on every route covers a
+    copied token instead.)
   - Signing keys come from `JWT_SIGNING_KEYS` (`kid:secret` pairs; the first
     signs, all verify), so a key rotates without signing anyone out. The config
     refuses a development key in production.
-- **Sessions.** Each sign-in starts a session, a chain of refresh tokens, so
-  devices never share one. A refresh rotates the token, in one transaction that
-  locks the row:
-  1. an unused token is marked used and gets a child;
-  2. a used token whose child is still unused means the app lost the answer: the
-     child is revoked and a new one issued;
-  3. a used token whose child was used means two holders: the session is revoked;
-  4. an unknown token, or one of a revoked session, gets 401.
+- **Sessions.** Each sign-in starts a session with its own refresh token, so
+  devices never share one. A refresh returns a new access token and the same
+  refresh token. An unknown token, or one of a revoked session or a deleted or
+  merged user, gets 401.
 - **Every request.** The auth hook checks the JWT, then reads the session and
   the user in one query. A revoked session, or a deleted or merged user, gets 401,
   so logout, merge and deletion apply at once. A database failure gets 503, and
@@ -270,7 +270,8 @@ never contain CV text, prompts or AI output.
     tokens are dropped. A retry after a merge into the same member gets the same
     answer. Any other refresh token merges nothing and `guestMerged` is false.
     Returns the tokens, the account and `guestMerged`.
-  - `POST /auth/refresh`, public, with `refreshToken`. Returns a new pair.
+  - `POST /auth/refresh`, public, with `refreshToken`. Returns a new access
+    token and the same refresh token.
   - `POST /auth/logout` revokes the caller's session (`sid`) and removes the
     device row and FCM token for one `installationId`.
 
@@ -281,8 +282,12 @@ never contain CV text, prompts or AI output.
   `obfuscatedAccountId`. The app sends the purchase token to the server, which
   verifies it with the Google Play Developer API and stores the entitlement.
   Real-time developer notifications keep renewals and cancellations current.
-- **Play Integrity** on requests that cost money (evaluation, CV import),
-  so scripts cannot call the API directly.
+- **Firebase App Check** with the Play Integrity provider on every route but
+  `/health`, before launch, in its own change: first logged only, to see how
+  many real devices fail, then enforced. So scripts cannot call the API
+  directly, and a copied refresh token does not work outside the app on a
+  genuine device. Requests that cost money (evaluation, CV import) also need a
+  passing Play Integrity verdict.
 - **Quota** per user and plan (for example evaluations per month), plus a
   small free trial, enforced on the server before any AI call.
 - **Account deletion** in the app and through a web link, as Google Play

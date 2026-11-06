@@ -19,11 +19,8 @@ export interface SessionRepository {
   /** Creates a guest, its session and its first refresh token, all or nothing. */
   startGuest(tokenHash: Buffer): Promise<{ readonly account: Account; readonly sessionId: SessionId }>;
   start(userId: UserId, tokenHash: Buffer): Promise<SessionId>;
-  /**
-   * Swaps a refresh token for `nextHash`, by the rotation rules, in one transaction that locks the
-   * session. Undefined when the token is refused; a second use of a spent token also revokes its session.
-   */
-  rotate(tokenHash: Buffer, nextHash: Buffer): Promise<{ readonly userId: UserId; readonly sessionId: SessionId } | undefined>;
+  /** The live session holding this refresh token: not revoked, and its user neither deleted nor merged. */
+  findByRefreshToken(tokenHash: Buffer): Promise<{ readonly userId: UserId; readonly sessionId: SessionId } | undefined>;
   /** Idempotent. */
   revoke(sessionId: SessionId, reason: "logout"): Promise<void>;
   /** The account, when the session is live and its user is neither deleted nor merged. One query. */
@@ -34,7 +31,7 @@ export interface UserRepository {
   /** The member with this provider subject, created on first sight. A deleted member comes back deleted, never revived. */
   findOrCreateMember(subject: string): Promise<Account & { readonly deleted: boolean }>;
   /**
-   * Moves the data of the guest whose current refresh token has this hash to this member, closes
+   * Moves the data of the guest whose refresh token has this hash to this member, closes
    * the guest and revokes its sessions, all or nothing. True when the data is in this member now,
    * also on a retry. False, with nothing changed, for any other token.
    */

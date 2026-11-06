@@ -29,7 +29,7 @@ export const MeDtoSchema = named(
 /**
  * The backend's session. `accessToken` is the Bearer for every other call. `expiresIn` is its life
  * in seconds from now: count it from when the answer arrived, not from the token's own `exp`, so
- * the device clock does not matter. `refreshToken` is opaque, has no fixed expiry and works once.
+ * the device clock does not matter. `refreshToken` is opaque, has no fixed expiry and stays the same until the session ends.
  */
 export const SessionTokensDtoSchema = named(
   "SessionTokensDto",

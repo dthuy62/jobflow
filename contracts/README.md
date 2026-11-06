@@ -73,10 +73,9 @@ checked. So scan and evaluator workers normalize each value and validate against
   again. `503 AUTH_UNAVAILABLE` or `503 UNAVAILABLE` means a check could not run: retry and keep
   the session.
 - Sessions: `POST /auth/guest` or `POST /auth/sso` returns `tokens`. Send `accessToken` as the
-  Bearer. It expires `expiresIn` seconds after the answer arrived; refresh shortly before. Each
-  `refreshToken` works once: replace both tokens with every answer, and run one refresh at a
-  time. If a refresh answer is lost, sending the same token again works. Sending an older token
-  after its successor was used ends the session.
+  Bearer. It expires `expiresIn` seconds after the answer arrived; refresh shortly before. The
+  `refreshToken` is not rotated: it stays the same until logout, merge or account deletion, so a
+  refresh is safe to retry and to run twice.
 - `POST /auth/guest` makes a new guest on each call, so call it once per install and keep the
   pair. A guest has no sign-out: `POST /auth/logout` answers it with 403.
 - `POST /auth/sso` with `guestRefreshToken` moves that guest's data and ends the guest's

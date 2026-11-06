@@ -72,11 +72,11 @@ export function createAuthService({ identities, accessTokens, sessions, users, d
       return { tokens: await tokensFor(account, sessionId, refreshToken), account, guestMerged };
     },
 
+    // Not rotated: the same refresh token comes back until the session ends.
     async refresh(refreshToken) {
-      const next = newRefreshToken();
-      const rotated = await sessions.rotate(hashRefreshToken(refreshToken), hashRefreshToken(next));
-      if (!rotated) throw new InvalidTokenError();
-      return tokensFor(rotated, rotated.sessionId, next);
+      const session = await sessions.findByRefreshToken(hashRefreshToken(refreshToken));
+      if (!session) throw new InvalidTokenError();
+      return tokensFor(session, session.sessionId, refreshToken);
     },
 
     // The device row first: if revoking then fails, a retry still has a live token to send.

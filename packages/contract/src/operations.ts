@@ -150,7 +150,7 @@ export const operations: readonly Operation[] = [
     request: { kind: "json", schema: SsoRequestSchema, example: "requests/auth-sso" },
     responses: {
       200: body(
-        "Signed in. guestMerged is false when no guest's data moved: no guestRefreshToken, one that is unknown, spent, revoked or a member's, or a guest already merged elsewhere or deleted.",
+        "Signed in. guestMerged is false when no guest's data moved: no guestRefreshToken, one that is unknown, revoked or a member's, or a guest already merged elsewhere or deleted.",
         SsoResponseDtoSchema,
         "auth-sso.merged",
         "auth-sso.not-merged"
@@ -172,14 +172,14 @@ export const operations: readonly Operation[] = [
     path: "/api/v1/auth/refresh",
     operationId: "refreshSession",
     summary:
-      "Swap the refresh token for a new pair. Each refresh token works once. Sending a spent one again after a lost answer works; a spent one whose successor was also used revokes the session. Public.",
+      "Get a new access token. The refresh token is not rotated: the answer gives the same one back, and it works until logout, merge or account deletion. Safe to retry. Public.",
     public: true,
     phase: 1,
     request: { kind: "json", schema: RefreshRequestSchema, example: "requests/auth-refresh" },
     responses: {
-      200: body("The new pair. Replace both tokens.", SessionTokensDtoSchema, "session-tokens.valid"),
+      200: body("A new access token, with the same refresh token.", SessionTokensDtoSchema, "session-tokens.valid"),
       400: badRequest,
-      401: error("The session has ended: unknown token, logged out, merged, deleted or misused. Sign in again.", "errors/unauthorized"),
+      401: error("The session has ended: unknown token, logged out, merged or deleted. Sign in again.", "errors/unauthorized"),
       429: error("Too many requests from this address.", "errors/rate-limited"),
       ...publicServerErrors
     }

@@ -72,9 +72,7 @@ describe("the auth routes, with real PostgreSQL and the app role", () => {
     (await pool.query("select id, auth_subject, deleted_at, merged_into, xmin::text as version from users where id = $1", [userId])).rows[0];
   const sessionOf = async (tokens: Pick<Tokens, "refreshToken">) =>
     (
-      await pool.query("select s.id, s.revoked_at, s.revoked_reason from refresh_tokens t join sessions s on s.id = t.session_id where t.token_hash = $1", [
-        hashRefreshToken(tokens.refreshToken)
-      ])
+      await pool.query("select id, revoked_at, revoked_reason from sessions where refresh_token_hash = $1", [hashRefreshToken(tokens.refreshToken)])
     ).rows[0];
   const seedDevice = (userId: string, installationId: string) =>
     pool.query("insert into devices (user_id, installation_id, fcm_token) values ($1, $2, 'synthetic-fcm')", [userId, installationId]);
@@ -99,9 +97,9 @@ describe("the auth routes, with real PostgreSQL and the app role", () => {
 
     it("stores only the refresh token's hash", async () => {
       const { tokens } = await newGuest();
-      const stored = (await pool.query("select encode(token_hash, 'hex') as hash from refresh_tokens")).rows.map((row) => row.hash as string);
+      const stored = (await pool.query("select encode(refresh_token_hash, 'hex') as hash from sessions")).rows.map((row) => row.hash as string);
       expect(stored).toContain(hashRefreshToken(tokens.refreshToken).toString("hex"));
-      const dump = JSON.stringify((await pool.query("select * from refresh_tokens")).rows);
+      const dump = JSON.stringify((await pool.query("select * from sessions")).rows);
       expect(dump).not.toContain(tokens.refreshToken);
     });
 
@@ -119,120 +117,52 @@ describe("the auth routes, with real PostgreSQL and the app role", () => {
   });
 
   describe("POST /auth/refresh", () => {
-    it("rule 1: an unused token is spent and gets a new pair for the same session and user", async () => {
+    it("gives a new access token for the same session and user, and the same refresh token", async () => {
       const { tokens, account } = await newGuest();
       const next = await refreshed(tokens.refreshToken);
-      expect(next.refreshToken).not.toBe(tokens.refreshToken);
-      expect((await sessionOf(next)).id).toBe((await sessionOf(tokens)).id);
+      expect(next.refreshToken).toBe(tokens.refreshToken);
+      expect(next.expiresIn).toBe(900);
       expect(MeDtoSchema.parse((await me(next)).json()).userId).toBe(account.userId);
-      expect((await refreshed(next.refreshToken)).refreshToken).toBeDefined();
     });
 
-    it("rule 2: a spent token whose child is unused means the answer was lost: a new pair, and the lost child is dead", async () => {
-      const { tokens } = await newGuest();
-      const lost = await refreshed(tokens.refreshToken);
-      const again = await refreshed(tokens.refreshToken);
-      expect(again.refreshToken).not.toBe(lost.refreshToken);
-      expect((await sessionOf(again)).revoked_at).toBeNull();
-      expect(await refreshed(again.refreshToken)).toBeDefined();
-    });
-
-    it("rule 2, more than once in a row", async () => {
+    it("works again and again, also in parallel, because nothing is rotated", async () => {
       const { tokens } = await newGuest();
       for (let attempt = 0; attempt < 3; attempt += 1) await refreshed(tokens.refreshToken);
-      const last = await refreshed(tokens.refreshToken);
-      expect(await refreshed(last.refreshToken)).toBeDefined();
+      const responses = await Promise.all([1, 2, 3].map(() => refresh(tokens.refreshToken)));
+      expect(responses.map((response) => response.statusCode)).toEqual([200, 200, 200]);
+      expect((await sessionOf(tokens)).revoked_at).toBeNull();
     });
 
-    it("rule 2 then a use of the lost child: two holders, so the session is revoked", async () => {
-      const { tokens } = await newGuest();
-      const lost = await refreshed(tokens.refreshToken);
-      const kept = await refreshed(tokens.refreshToken);
-      expect((await refresh(lost.refreshToken)).statusCode).toBe(401);
-      expect((await sessionOf(kept)).revoked_reason).toBe("reuse");
-      expect((await refresh(kept.refreshToken)).statusCode).toBe(401);
-      expect((await me(kept)).statusCode).toBe(401);
-    });
-
-    it("rule 3: a spent token whose child was used revokes the session, and every token of it gets 401", async () => {
-      const { tokens } = await newGuest();
-      const second = await refreshed(tokens.refreshToken);
-      const third = await refreshed(second.refreshToken);
-      const replay = await refresh(tokens.refreshToken);
-      expect(replay.statusCode).toBe(401);
-      expect(codeOf(replay)).toBe("UNAUTHORIZED");
-      expect((await sessionOf(third)).revoked_reason).toBe("reuse");
-      expect((await refresh(third.refreshToken)).statusCode).toBe(401);
-      expect((await me(third)).statusCode).toBe(401);
-    });
-
-    it("rule 3 leaves the user's other sessions alone", async () => {
+    it("gives each session its own token: another session of the user is unaffected", async () => {
       const phone = await signIn("two-phones");
       const tablet = await signIn("two-phones");
-      const next = await refreshed(phone.tokens.refreshToken);
-      await refreshed(next.refreshToken);
+      expect(phone.tokens.refreshToken).not.toBe(tablet.tokens.refreshToken);
+      await logout(phone.tokens, { installationId: "phone" });
       expect((await refresh(phone.tokens.refreshToken)).statusCode).toBe(401);
-      expect((await me(tablet.tokens)).statusCode).toBe(200);
       expect(await refreshed(tablet.tokens.refreshToken)).toBeDefined();
-    });
-
-    it("rule 3 has no time limit: a token spent long ago, replayed, still revokes the session", async () => {
-      const { tokens } = await newGuest();
-      const second = await refreshed(tokens.refreshToken);
-      const third = await refreshed(second.refreshToken);
-      await pool.query("update refresh_tokens set used_at = now() - interval '90 days' where token_hash = $1", [hashRefreshToken(tokens.refreshToken)]);
-      await refreshed(third.refreshToken);
-      expect((await refresh(tokens.refreshToken)).statusCode).toBe(401);
-      expect((await sessionOf(third)).revoked_reason).toBe("reuse");
-    });
-
-    it("keeps a spent token whose answer was lost, however old, so the app can still recover", async () => {
-      const { tokens } = await newGuest();
-      await refreshed(tokens.refreshToken);
-      await pool.query("update refresh_tokens set used_at = now() - interval '30 days' where token_hash = $1", [hashRefreshToken(tokens.refreshToken)]);
-      const recovered = await refreshed(tokens.refreshToken);
-      expect(await refreshed(recovered.refreshToken)).toBeDefined();
-    });
-
-    it("removing an old token never takes the newer ones of its chain along", async () => {
-      const { tokens } = await newGuest();
-      const second = await refreshed(tokens.refreshToken);
-      await pool.query("delete from refresh_tokens where token_hash = $1", [hashRefreshToken(tokens.refreshToken)]);
-      expect(await refreshed(second.refreshToken)).toBeDefined();
     });
 
     it.each([
       ["unknown", "x".repeat(43)],
       ["empty", ""],
       ["very long", "x".repeat(10_000)]
-    ])("rule 4: an %s token gets 401", async (_name, token) => {
+    ])("an %s token gets 401", async (_name, token) => {
       const response = await refresh(token);
       expect(response.statusCode).toBe(401);
       expect(codeOf(response)).toBe("UNAUTHORIZED");
     });
 
-    it("rule 4: a token of a logged-out session gets 401, and does not count as reuse", async () => {
+    it("a token of a logged-out session gets 401", async () => {
       const { tokens } = await signIn("logged-out");
       expect((await logout(tokens, { installationId: "phone" })).statusCode).toBe(204);
       expect((await refresh(tokens.refreshToken)).statusCode).toBe(401);
       expect((await sessionOf(tokens)).revoked_reason).toBe("logout");
     });
 
-    it("rule 4: a deleted user's token gets 401", async () => {
+    it("a deleted user's token gets 401", async () => {
       const { tokens, account } = await signIn("refresh-deleted");
       await pool.query("update users set deleted_at = now() where id = $1", [account.userId]);
       expect((await refresh(tokens.refreshToken)).statusCode).toBe(401);
-    });
-
-    it("parallel uses of one token all answer, without a 5xx, and leave one live token in the session", async () => {
-      for (let round = 0; round < 5; round += 1) {
-        const { tokens } = await newGuest();
-        const responses = await Promise.all([1, 2, 3].map(() => refresh(tokens.refreshToken)));
-        expect(responses.map((response) => response.statusCode)).toEqual([200, 200, 200]);
-        const { id } = await sessionOf(tokens);
-        const unused = await pool.query("select 1 from refresh_tokens where session_id = $1 and used_at is null", [id]);
-        expect(unused.rowCount).toBe(1);
-      }
     });
 
     it.each([
@@ -420,18 +350,10 @@ describe("the auth routes, with real PostgreSQL and the app role", () => {
       expect((await me(victim.tokens)).statusCode).toBe(200);
     });
 
-    it("merges with a spent guest token whose answer was lost, as refresh would accept it", async () => {
+    it("merges with a guest token that has been refreshed with, since it does not change", async () => {
       const guest = await newGuest();
       await refreshed(guest.tokens.refreshToken);
-      expect((await signIn("member-lost-answer", guest.tokens.refreshToken)).guestMerged).toBe(true);
-    });
-
-    it("does not merge with a spent guest token whose child was used, and leaves the guest", async () => {
-      const guest = await newGuest();
-      const next = await refreshed(guest.tokens.refreshToken);
-      await refreshed(next.refreshToken);
-      expect((await signIn("member-stale", guest.tokens.refreshToken)).guestMerged).toBe(false);
-      expect((await userRow(guest.account.userId)).deleted_at).toBeNull();
+      expect((await signIn("member-after-refresh", guest.tokens.refreshToken)).guestMerged).toBe(true);
     });
 
     it("does not merge a guest whose session was revoked", async () => {
