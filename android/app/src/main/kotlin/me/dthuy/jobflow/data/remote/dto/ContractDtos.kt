@@ -16,6 +16,25 @@ data class ErrorDetailsDto(val fields: List<String>? = null, val retryAfterSecon
 @Serializable
 data class MeDto(val userId: String, val isAnonymous: Boolean, val createdAt: String)
 
+// Auth DTOs mirror the contract only; nothing calls them yet. The auth layer (PR #42) wires them up.
+@Serializable
+data class SessionTokensDto(val accessToken: String, val refreshToken: String, val expiresIn: Long)
+
+@Serializable
+data class GuestResponseDto(val tokens: SessionTokensDto, val account: MeDto)
+
+@Serializable
+data class SsoRequest(val idToken: String, val guestRefreshToken: String? = null)
+
+@Serializable
+data class SsoResponseDto(val tokens: SessionTokensDto, val account: MeDto, val guestMerged: Boolean)
+
+@Serializable
+data class RefreshRequest(val refreshToken: String)
+
+@Serializable
+data class LogoutRequest(val installationId: String)
+
 @Serializable
 data class PreferencesDto(
     val roles: List<String>,

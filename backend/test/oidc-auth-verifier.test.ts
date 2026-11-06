@@ -2,7 +2,7 @@ import { createServer, type Server } from "node:http";
 import { createLocalJWKSet, createRemoteJWKSet, exportJWK, exportSPKI, generateKeyPair, SignJWT, type JWTVerifyGetKey } from "jose";
 import { errors } from "jose";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { createFirebaseAuthVerifier, createOidcAuthVerifier } from "../src/adapters/oidc-auth-verifier.js";
+import { createFirebaseIdentityVerifier, createOidcIdentityVerifier } from "../src/adapters/oidc-auth-verifier.js";
 import { AuthUnavailableError, InvalidTokenError } from "../src/core/identity.js";
 
 const ISSUER = "https://securetoken.google.com/demo-jobflow";
@@ -23,7 +23,7 @@ describe("the OIDC verifier", () => {
     keys = createLocalJWKSet({ keys: [{ ...jwk, kid: "key-1", alg: "RS256", use: "sig" }] });
   });
 
-  const verifier = () => createOidcAuthVerifier({ issuer: ISSUER, audience: AUDIENCE, keys, isAnonymous: (payload) => payload.anonymous === true });
+  const verifier = () => createOidcIdentityVerifier({ issuer: ISSUER, audience: AUDIENCE, keys, isAnonymous: (payload) => payload.anonymous === true });
 
   function token(claims: Record<string, unknown> = {}, options: { issuer?: string; audience?: string; subject?: string; kid?: string; key?: CryptoKey; iat?: number; exp?: number } = {}) {
     const now = Math.floor(Date.now() / 1000);
@@ -68,7 +68,7 @@ describe("the OIDC verifier", () => {
       .setIssuedAt()
       .setExpirationTime("1h")
       .sign(pair.privateKey);
-    const lax = createOidcAuthVerifier({ issuer: ISSUER, audience: AUDIENCE, keys: open, isAnonymous: () => false });
+    const lax = createOidcIdentityVerifier({ issuer: ISSUER, audience: AUDIENCE, keys: open, isAnonymous: () => false });
     await expect(lax.verify(signed)).rejects.toBeInstanceOf(InvalidTokenError);
   });
 
@@ -136,7 +136,7 @@ describe("the OIDC verifier", () => {
       ["a timeout", new errors.JWKSTimeout()],
       ["a bad response", new errors.JOSEError("Expected 200 OK from the JSON Web Key Set HTTP response")]
     ])("throws AuthUnavailableError on %s", async (_name, error) => {
-      const unavailable = createOidcAuthVerifier({ issuer: ISSUER, audience: AUDIENCE, keys: failingKeys(error), isAnonymous: () => false });
+      const unavailable = createOidcIdentityVerifier({ issuer: ISSUER, audience: AUDIENCE, keys: failingKeys(error), isAnonymous: () => false });
       await expect(unavailable.verify(await token())).rejects.toBeInstanceOf(AuthUnavailableError);
     });
 
@@ -159,7 +159,7 @@ describe("the OIDC verifier", () => {
       });
 
       it("throws AuthUnavailableError when the key endpoint fails", async () => {
-        const unavailable = createOidcAuthVerifier({ issuer: ISSUER, audience: AUDIENCE, keys: createRemoteJWKSet(url), isAnonymous: () => false });
+        const unavailable = createOidcIdentityVerifier({ issuer: ISSUER, audience: AUDIENCE, keys: createRemoteJWKSet(url), isAnonymous: () => false });
         await expect(unavailable.verify(await token())).rejects.toBeInstanceOf(AuthUnavailableError);
       });
     });
@@ -204,20 +204,20 @@ describe("the Firebase verifier", () => {
       .sign(privateKey);
 
   it("reads keys from Google's documented endpoint", async () => {
-    await createFirebaseAuthVerifier(PROJECT, "api-key").verify(await firebaseToken("google.com"));
+    await createFirebaseIdentityVerifier(PROJECT).verify(await firebaseToken("google.com"));
     expect(fetched).toEqual([KEYS_URL]);
   });
 
   it("marks a firebase anonymous token isAnonymous", async () => {
-    await expect(createFirebaseAuthVerifier(PROJECT, "api-key").verify(await firebaseToken("anonymous"))).resolves.toEqual({ subject: "firebase-uid", isAnonymous: true });
+    await expect(createFirebaseIdentityVerifier(PROJECT).verify(await firebaseToken("anonymous"))).resolves.toEqual({ subject: "firebase-uid", isAnonymous: true });
   });
 
   it("marks a Google sign-in as not anonymous", async () => {
-    await expect(createFirebaseAuthVerifier(PROJECT, "api-key").verify(await firebaseToken("google.com"))).resolves.toEqual({ subject: "firebase-uid", isAnonymous: false });
+    await expect(createFirebaseIdentityVerifier(PROJECT).verify(await firebaseToken("google.com"))).resolves.toEqual({ subject: "firebase-uid", isAnonymous: false });
   });
 
   it("rejects a token from another Firebase project", async () => {
-    await expect(createFirebaseAuthVerifier(PROJECT, "api-key").verify(await firebaseToken("google.com", "another-project"))).rejects.toBeInstanceOf(InvalidTokenError);
+    await expect(createFirebaseIdentityVerifier(PROJECT).verify(await firebaseToken("google.com", "another-project"))).rejects.toBeInstanceOf(InvalidTokenError);
   });
 
   it("rejects the other project's issuer even with this project's audience", async () => {
@@ -229,12 +229,12 @@ describe("the Firebase verifier", () => {
       .setIssuedAt()
       .setExpirationTime("1h")
       .sign(privateKey);
-    await expect(createFirebaseAuthVerifier(PROJECT, "api-key").verify(token)).rejects.toBeInstanceOf(InvalidTokenError);
+    await expect(createFirebaseIdentityVerifier(PROJECT).verify(token)).rejects.toBeInstanceOf(InvalidTokenError);
   });
 
   it("keeps verifying a known key 30 minutes into an outage, and reports an outage after the hour", async () => {
     const signed = await firebaseToken("google.com");
-    const verifier = createFirebaseAuthVerifier(PROJECT, "api-key");
+    const verifier = createFirebaseIdentityVerifier(PROJECT);
     await verifier.verify(signed);
     vi.stubGlobal(
       "fetch",
@@ -263,82 +263,6 @@ describe("the Firebase verifier", () => {
 
   it("does not sign users out when the key endpoint answers with an empty set", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ keys: [] }), { status: 200, headers: { "content-type": "application/json" } })));
-    await expect(createFirebaseAuthVerifier(PROJECT, "api-key").verify(await firebaseToken("google.com"))).rejects.toBeInstanceOf(AuthUnavailableError);
-  });
-});
-
-describe("the Firebase lookup of whether a user is still anonymous", () => {
-  const verifier = createFirebaseAuthVerifier("jobflow-test", "api-key");
-  afterEach(() => {
-    vi.unstubAllGlobals();
-  });
-
-  const answer = (status: number, body: unknown) => {
-    const respond = vi.fn(async () => new Response(typeof body === "string" ? body : JSON.stringify(body), { status }));
-    vi.stubGlobal("fetch", respond);
-    return respond;
-  };
-  const failure = (message: string) => ({ error: { code: 400, message } });
-
-  it("sends the token to Firebase, with the key in a header and not the URL, and a time limit", async () => {
-    const respond = answer(200, { users: [{ localId: "uid" }] });
-    await verifier.stillAnonymous("guest-token");
-    const [url, init] = respond.mock.calls[0] as unknown as [string, RequestInit];
-    expect(url).toBe("https://identitytoolkit.googleapis.com/v1/accounts:lookup");
-    expect(init.method).toBe("POST");
-    expect(JSON.parse(String(init.body))).toEqual({ idToken: "guest-token" });
-    expect(new Headers(init.headers).get("x-goog-api-key")).toBe("api-key");
-  });
-
-  it("gives up when Firebase does not answer in time", async () => {
-    const realTimeout = AbortSignal.timeout.bind(AbortSignal);
-    const timeout = vi.spyOn(AbortSignal, "timeout").mockImplementation(() => realTimeout(10));
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(
-        (_url: string, init: RequestInit) =>
-          new Promise((_resolve, reject) => {
-            init.signal?.addEventListener("abort", () => reject(init.signal?.reason));
-          })
-      )
-    );
-    await expect(verifier.stillAnonymous("t")).rejects.toBeInstanceOf(AuthUnavailableError);
-    timeout.mockRestore();
-  });
-
-  it.each([
-    ["no provider field, as the emulator answers for an anonymous user", { users: [{ localId: "uid" }] }, true],
-    ["an empty provider list", { users: [{ localId: "uid", providerUserInfo: [] }] }, true],
-    ["a linked provider", { users: [{ localId: "uid", providerUserInfo: [{ providerId: "google.com" }] }] }, false]
-  ])("reads %s", async (_name, body, expected) => {
-    answer(200, body);
-    await expect(verifier.stillAnonymous("t")).resolves.toBe(expected);
-  });
-
-  it.each(["USER_NOT_FOUND", "TOKEN_EXPIRED", "USER_DISABLED"])("treats %s as a bad token", async (message) => {
-    answer(400, failure(message));
-    await expect(verifier.stillAnonymous("t")).rejects.toBeInstanceOf(InvalidTokenError);
-  });
-
-  // Each of these says nothing about the user, so no account may close on it.
-  it.each([
-    ["INVALID_ID_TOKEN for a token the signature check just passed, which suggests a key from another project", 400, failure("INVALID_ID_TOKEN")],
-    ["a bad API key", 400, failure("API key not valid. Please pass a valid API key.")],
-    ["a key that may not call this API", 403, failure("PERMISSION_DENIED")],
-    ["a rate limit", 429, failure("QUOTA_EXCEEDED")],
-    ["a server error", 500, "down"],
-    ["a body that is not JSON", 200, "<html>"],
-    ["no user in the answer", 200, { kind: "lookup" }],
-    ["a provider list of the wrong type", 200, { users: [{ providerUserInfo: "google.com" }] }]
-  ])("throws AuthUnavailableError on %s", async (_name, status, body) => {
-    answer(status, body);
-    await expect(verifier.stillAnonymous("t")).rejects.toBeInstanceOf(AuthUnavailableError);
-  });
-
-  it("throws AuthUnavailableError when the network fails, with no key in the error", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => { throw new TypeError("fetch failed"); }));
-    const error = await verifier.stillAnonymous("t").catch((caught: unknown) => caught);
-    expect(error).toBeInstanceOf(AuthUnavailableError);
-    expect(JSON.stringify(error, Object.getOwnPropertyNames(error))).not.toContain("api-key");
+    await expect(createFirebaseIdentityVerifier(PROJECT).verify(await firebaseToken("google.com"))).rejects.toBeInstanceOf(AuthUnavailableError);
   });
 });

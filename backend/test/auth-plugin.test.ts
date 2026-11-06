@@ -1,11 +1,10 @@
 import { ErrorResponseDtoSchema } from "@jobflow/contract";
 import type { FastifyInstance } from "fastify";
 import { describe, expect, it } from "vitest";
-import { AuthUnavailableError } from "../src/core/identity.js";
 import type { UserId } from "../src/core/identity.js";
 import { ApiError } from "../src/http/errors.js";
 import { expectCrossUserDenied } from "./support/cross-user.js";
-import { asUser, createMemoryUsers, createTestServer } from "./support/server.js";
+import { asUser, createStubAuth, createTestServer } from "./support/server.js";
 
 const registerSecret = (scope: FastifyInstance) => {
   scope.get("/test/secret", async () => ({ secret: "for-signed-in-users" }));
@@ -13,11 +12,12 @@ const registerSecret = (scope: FastifyInstance) => {
 };
 
 describe("default deny", () => {
-  it("the only public route is GET /api/v1/health", async () => {
+  it("the only public routes are health and the three that start or renew a session", async () => {
     const { server, routes } = await createTestServer({ registerTestRoutes: registerSecret });
-    const open = routes.filter((route) => route.config?.public === true);
-    expect(new Set(open.map((route) => route.url))).toEqual(new Set(["/api/v1/health"]));
-    expect(new Set(open.flatMap((route) => route.method))).toEqual(new Set(["GET", "HEAD"]));
+    const open = routes.filter((route) => route.config?.public === true).flatMap((route) => [route.method].flat().map((method) => `${method} ${route.url}`));
+    expect(new Set(open)).toEqual(
+      new Set(["GET /api/v1/health", "HEAD /api/v1/health", "POST /api/v1/auth/guest", "POST /api/v1/auth/sso", "POST /api/v1/auth/refresh"])
+    );
     await server.close();
   });
 
@@ -121,39 +121,12 @@ describe("default deny", () => {
   });
 });
 
-describe("when a dependency is down", () => {
-  it("AuthUnavailableError gets 503 AUTH_UNAVAILABLE, so the app keeps the user signed in", async () => {
-    const { server, logLines } = await createTestServer({
-      authVerifier: {
-        async verify() {
-          throw new AuthUnavailableError(new Error("fetch failed"));
-        }
-      }
-    });
-    const response = await server.inject({ url: "/api/v1/me", headers: asUser() });
-    expect(response.statusCode).toBe(503);
-    expect(ErrorResponseDtoSchema.parse(response.json()).error.code).toBe("AUTH_UNAVAILABLE");
-    expect(logLines().some((line) => line.level === 50)).toBe(true);
-    await server.close();
-  });
-
-  it("a verifier bug gets the logged 500, not a sign-out", async () => {
-    const { server } = await createTestServer({
-      authVerifier: {
-        async verify() {
-          throw new Error("bug");
-        }
-      }
-    });
-    const response = await server.inject({ url: "/api/v1/me", headers: asUser() });
-    expect(response.statusCode).toBe(500);
-    await server.close();
-  });
-
-  it("a user store failure gets 503 UNAVAILABLE, not 401", async () => {
+describe("when the session lookup fails", () => {
+  it("gets 503 UNAVAILABLE, not a 401 that would sign the app out, and logs no secret", async () => {
     const { server, logLines, logs } = await createTestServer({
-      users: {
-        async resolve() {
+      auth: {
+        ...createStubAuth(),
+        async authenticate() {
           throw new Error("connection to postgres://app:s3cret@db/x failed");
         }
       }
@@ -164,17 +137,6 @@ describe("when a dependency is down", () => {
     expect(response.body).not.toContain("s3cret");
     expect(logs()).not.toContain("s3cret");
     expect(logLines().some((line) => line.level === 50)).toBe(true);
-    await server.close();
-  });
-});
-
-describe("a deleted user", () => {
-  it("gets 401", async () => {
-    const users = createMemoryUsers();
-    users.deletedSubjects.add("test-gone");
-    const { server } = await createTestServer({ users });
-    const response = await server.inject({ url: "/api/v1/me", headers: { authorization: "Bearer test-gone" } });
-    expect(response.statusCode).toBe(401);
     await server.close();
   });
 });
@@ -223,6 +185,24 @@ describe("expectCrossUserDenied", () => {
       }
     });
     await expect(expectCrossUserDenied(crossUserCase(server))).rejects.toThrow(/the owner must still reach it/);
+    await server.close();
+  });
+});
+
+describe("the public auth routes when the database is down", () => {
+  it.each([
+    ["POST /auth/guest", { method: "POST" as const, url: "/api/v1/auth/guest" }, "startGuest"],
+    ["POST /auth/refresh", { method: "POST" as const, url: "/api/v1/auth/refresh", payload: { refreshToken: "t" } }, "refresh"],
+    ["POST /auth/sso", { method: "POST" as const, url: "/api/v1/auth/sso", payload: { idToken: "t" } }, "signIn"]
+  ] as const)("%s answers 503 UNAVAILABLE, which the app retries, and logs no secret", async (_name, options, method) => {
+    const failing = async () => {
+      throw new Error("connection to postgres://app:s3cret@db/x failed");
+    };
+    const { server, logs } = await createTestServer({ auth: { ...createStubAuth(), [method]: failing } });
+    const response = await server.inject(options);
+    expect(response.statusCode).toBe(503);
+    expect(ErrorResponseDtoSchema.parse(response.json()).error.code).toBe("UNAVAILABLE");
+    expect(logs()).not.toContain("s3cret");
     await server.close();
   });
 });

@@ -4,7 +4,7 @@ import { createPool } from "../src/db/pool.js";
 import { migrateUp } from "../src/db/migrate.js";
 import { createServer } from "../src/server.js";
 import { withTestDatabase, type TestDatabase } from "./support/database.js";
-import { createMemoryUsers, memoryDevices, stubAuthVerifier, testConfig } from "./support/server.js";
+import { createStubAuth, testConfig } from "./support/server.js";
 
 describe("createPool", () => {
   it("gives up on a silent connection, because a server-side timeout cannot fire when packets stop", async () => {
@@ -36,7 +36,7 @@ describe("database roles", () => {
     await owner.connect();
     const { rows } = await owner.query("select name from pgmigrations");
     await owner.end();
-    expect(rows.map((row: { name: string }) => row.name)).toEqual(["0001_users", "0002_auth", "0003_drop_linked_at"]);
+    expect(rows.map((row: { name: string }) => row.name)).toEqual(["0001_users", "0002_auth", "0003_drop_linked_at", "0004_sessions"]);
   });
 
   it("the app role can read and write users", async () => {
@@ -65,7 +65,7 @@ describe("database roles", () => {
 
   it("health answers ok against the real database with the app role", async () => {
     const pool = createPool(database.appUrl, () => undefined);
-    const server = await createServer({ config: testConfig, pool, authVerifier: stubAuthVerifier, users: createMemoryUsers(), devices: memoryDevices });
+    const server = await createServer({ config: testConfig, pool, auth: createStubAuth() });
     const response = await server.inject({ url: "/api/v1/health" });
     expect(response.json()).toEqual({ status: "ok", checks: { database: "ok" } });
     await server.close();

@@ -2,14 +2,17 @@ import type { Writable } from "node:stream";
 import Fastify, { LogController, type FastifyInstance, type RouteOptions } from "fastify";
 import type { Pool } from "pg";
 import type { Config } from "./config.js";
-import type { AuthVerifier, DeviceRepository, UserRepository } from "./core/ports.js";
+import type { AuthService } from "./core/auth-service.js";
 import { registerAuth } from "./http/auth-plugin.js";
 import { clientErrorHandler, frameworkErrorHandler, registerErrorHandlers } from "./http/error-handler.js";
-import { registerIpLimit, registerUserLimit } from "./http/rate-limits.js";
+import { guestLimit, registerIpLimit, registerUserLimit } from "./http/rate-limits.js";
 import { registerAuthRoutes } from "./http/routes/auth.js";
 import { registerHealthRoutes } from "./http/routes/health.js";
 import { registerMeRoutes } from "./http/routes/me.js";
 import { serializeError } from "./logging.js";
+
+const TOKEN_FIELDS = ["idToken", "accessToken", "refreshToken", "guestRefreshToken"];
+const REDACTED_LOG_PATHS = TOKEN_FIELDS.flatMap((field) => [field, `*.${field}`]);
 
 const BODY_LIMIT_BYTES = 1024 * 1024;
 const REQUEST_TIMEOUT_MS = 30_000;
@@ -17,9 +20,7 @@ const REQUEST_TIMEOUT_MS = 30_000;
 export interface ServerDeps {
   readonly config: Config;
   readonly pool: Pick<Pool, "query">;
-  readonly authVerifier: AuthVerifier;
-  readonly users: UserRepository;
-  readonly devices: DeviceRepository;
+  readonly auth: AuthService;
   /** Where logs go. Defaults to stdout; tests read them from here. */
   readonly logStream?: Writable;
   readonly registerTestRoutes?: (scope: FastifyInstance) => void;
@@ -28,7 +29,7 @@ export interface ServerDeps {
 }
 
 export async function createServer(deps: ServerDeps): Promise<FastifyInstance> {
-  const { config, pool, authVerifier, users, devices, logStream, registerTestRoutes, observeRoute } = deps;
+  const { config, pool, auth, logStream, registerTestRoutes, observeRoute } = deps;
   const server = Fastify({
     logger: {
       level: config.env === "test" && !logStream ? "silent" : "info",
@@ -39,6 +40,8 @@ export async function createServer(deps: ServerDeps): Promise<FastifyInstance> {
         req: ({ method }: { method: string }) => ({ method }),
         res: ({ statusCode }: { statusCode: number }) => ({ statusCode })
       },
+      // A second net under the allowlists: these never reach a log, whatever logs them.
+      redact: { paths: REDACTED_LOG_PATHS, censor: "[REDACTED]" },
       ...(logStream ? { stream: logStream } : {})
     },
     // The onResponse hook below logs an allowlist instead: Fastify's own request logs hold the URL.
@@ -55,7 +58,7 @@ export async function createServer(deps: ServerDeps): Promise<FastifyInstance> {
   // malformed path is refused before routing, so no limit sees it: it costs one fixed answer and
   // one log line, and a limit at the host or proxy must cover it.
   await registerIpLimit(server);
-  registerAuth(server, { authVerifier, users, observeRoute });
+  registerAuth(server, { auth, observeRoute });
   await registerUserLimit(server);
   registerErrorHandlers(server);
 
@@ -76,7 +79,7 @@ export async function createServer(deps: ServerDeps): Promise<FastifyInstance> {
     async (scope) => {
       registerHealthRoutes(scope, pool);
       registerMeRoutes(scope);
-      registerAuthRoutes(scope, { authVerifier, users, devices });
+      registerAuthRoutes(scope, { auth, guestLimit: guestLimit(server) });
       registerTestRoutes?.(scope);
     },
     { prefix: "/api/v1" }

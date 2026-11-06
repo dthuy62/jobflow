@@ -1,7 +1,10 @@
-import { createFirebaseAuthVerifier } from "./adapters/oidc-auth-verifier.js";
+import { createJwtAccessTokens } from "./adapters/jwt-access-tokens.js";
+import { createFirebaseIdentityVerifier } from "./adapters/oidc-auth-verifier.js";
 import { createPgDeviceRepository } from "./adapters/pg-device-repository.js";
+import { createPgSessionRepository } from "./adapters/pg-session-repository.js";
 import { createPgUserRepository } from "./adapters/pg-user-repository.js";
 import { loadConfig } from "./config.js";
+import { createAuthService } from "./core/auth-service.js";
 import { createPool } from "./db/pool.js";
 import { describeFailure } from "./logging.js";
 import { createServer } from "./server.js";
@@ -12,9 +15,13 @@ async function main(): Promise<void> {
   const server = await createServer({
     config,
     pool,
-    authVerifier: createFirebaseAuthVerifier(config.firebaseProjectId, config.firebaseApiKey),
-    users: createPgUserRepository(pool),
-    devices: createPgDeviceRepository(pool)
+    auth: createAuthService({
+      identities: createFirebaseIdentityVerifier(config.firebaseProjectId),
+      accessTokens: createJwtAccessTokens(config.jwtSigningKeys),
+      sessions: createPgSessionRepository(pool),
+      users: createPgUserRepository(pool),
+      devices: createPgDeviceRepository(pool)
+    })
   });
 
   for (const signal of ["SIGINT", "SIGTERM"] as const) {

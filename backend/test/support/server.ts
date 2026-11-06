@@ -1,8 +1,14 @@
 import { Writable } from "node:stream";
 import type { FastifyInstance, RouteOptions } from "fastify";
+import type { Pool } from "pg";
+import { createJwtAccessTokens } from "../../src/adapters/jwt-access-tokens.js";
+import { createPgDeviceRepository } from "../../src/adapters/pg-device-repository.js";
+import { createPgSessionRepository } from "../../src/adapters/pg-session-repository.js";
+import { createPgUserRepository, GUEST_MERGE_STEPS, type GuestMergeStep } from "../../src/adapters/pg-user-repository.js";
 import type { Config } from "../../src/config.js";
-import { InvalidTokenError, type UserId } from "../../src/core/identity.js";
-import type { AuthVerifier, DeviceRepository, UserRepository } from "../../src/core/ports.js";
+import { createAuthService, type AuthService } from "../../src/core/auth-service.js";
+import { AuthUnavailableError, InvalidTokenError, type SessionId, type UserId } from "../../src/core/identity.js";
+import type { IdentityVerifier } from "../../src/core/ports.js";
 import { createServer, type ServerDeps } from "../../src/server.js";
 
 export const testConfig: Config = {
@@ -11,41 +17,66 @@ export const testConfig: Config = {
   port: 0,
   databaseUrl: "postgres://jobflow_app:dev-only-app@127.0.0.1:5432/unused",
   firebaseProjectId: "demo-jobflow",
-  firebaseApiKey: "demo-key",
+  jwtSigningKeys: [{ kid: "test-1", secret: "dev-only-test-signing-key-0123456789abcdef" }],
   trustProxyHops: 0
 };
 
 export const healthyPool: ServerDeps["pool"] = { query: (async () => ({ rows: [] })) as never };
 
-/** A token this stub accepts: `test-<subject>`, or `test-anon-<subject>` for an anonymous user. */
-export const stubAuthVerifier: AuthVerifier = {
-  async verify(token) {
-    if (!token.startsWith("test-")) throw new InvalidTokenError();
-    return { subject: token, isAnonymous: token.startsWith("test-anon-") };
-  },
-  stillAnonymous: async () => true
+const notInStub = async (): Promise<never> => {
+  throw new Error("Not in this stub: use the real auth service.");
 };
 
-export function createMemoryUsers(): UserRepository & { readonly deletedSubjects: Set<string> } {
-  const created = new Map<string, { id: UserId; createdAt: Date }>();
-  const deletedSubjects = new Set<string>();
+/**
+ * For tests of everything but auth itself. Accepts the access token `test-<subject>` for a member
+ * and `test-anon-<subject>` for a guest, each with a stable id.
+ */
+export function createStubAuth(): AuthService {
+  const ids = new Map<string, UserId>();
   return {
-    deletedSubjects,
-    async resolve(subject) {
-      let user = created.get(subject);
-      if (!user) {
-        user = { id: `user-${created.size + 1}` as UserId, createdAt: new Date("2026-11-02T00:00:00.000Z") };
-        created.set(subject, user);
+    async authenticate(token) {
+      if (!token.startsWith("test-")) throw new InvalidTokenError();
+      let userId = ids.get(token);
+      if (!userId) {
+        userId = `user-${ids.size + 1}` as UserId;
+        ids.set(token, userId);
       }
-      return { ...user, deleted: deletedSubjects.has(subject) };
+      return { userId, sessionId: `session-${userId}` as SessionId, isAnonymous: token.startsWith("test-anon-"), createdAt: new Date("2026-11-02T00:00:00.000Z") };
     },
-    mergeGuest: async () => false
+    startGuest: notInStub,
+    signIn: notInStub,
+    refresh: notInStub,
+    logout: notInStub
   };
 }
 
-export const memoryDevices: DeviceRepository = { remove: async () => undefined };
-
 export const asUser = (subject = "user-a") => ({ authorization: `Bearer test-${subject}` });
+
+/**
+ * An ID token stub: `id-<subject>` signs in a member, `id-anon-<subject>` is an anonymous Firebase
+ * user, `id-outage` cannot be checked, and anything else is invalid.
+ */
+export const stubIdentities: IdentityVerifier = {
+  async verify(idToken) {
+    if (idToken === "id-outage") throw new AuthUnavailableError(new Error("keys are down"));
+    if (!idToken.startsWith("id-")) throw new InvalidTokenError();
+    return { subject: idToken.slice("id-".length), isAnonymous: idToken.startsWith("id-anon-") };
+  }
+};
+
+/** The real auth service on PostgreSQL, with only the identity provider stubbed. */
+export function createRealAuth(
+  pool: Pick<Pool, "query" | "connect">,
+  { identities = stubIdentities, steps = GUEST_MERGE_STEPS }: { identities?: IdentityVerifier; steps?: readonly GuestMergeStep[] } = {}
+): AuthService {
+  return createAuthService({
+    identities,
+    accessTokens: createJwtAccessTokens(testConfig.jwtSigningKeys),
+    sessions: createPgSessionRepository(pool),
+    users: createPgUserRepository(pool, steps),
+    devices: createPgDeviceRepository(pool)
+  });
+}
 
 export interface TestServer {
   readonly server: FastifyInstance;
@@ -68,9 +99,7 @@ export async function createTestServer(overrides: Partial<ServerDeps> = {}): Pro
   const server = await createServer({
     config: testConfig,
     pool: healthyPool,
-    authVerifier: stubAuthVerifier,
-    users: createMemoryUsers(),
-    devices: memoryDevices,
+    auth: createStubAuth(),
     logStream,
     observeRoute: (route) => routes.push(route),
     ...overrides

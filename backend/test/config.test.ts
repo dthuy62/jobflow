@@ -5,8 +5,9 @@ const valid = {
   JOBFLOW_ENV: "development",
   DATABASE_URL: "postgres://jobflow_app:s3cret-value@127.0.0.1:5432/jobflow",
   FIREBASE_PROJECT_ID: "demo-jobflow",
-  FIREBASE_API_KEY: "demo-key"
+  JWT_SIGNING_KEYS: "dev-1:dev-only-jwt-signing-key-0123456789abcdef"
 };
+const REAL_KEY = `k-2026:${"r".repeat(43)}`;
 
 function messageOf(action: () => unknown): string {
   try {
@@ -25,12 +26,12 @@ describe("loadConfig", () => {
       port: 8080,
       databaseUrl: valid.DATABASE_URL,
       firebaseProjectId: "demo-jobflow",
-      firebaseApiKey: "demo-key",
+      jwtSigningKeys: [{ kid: "dev-1", secret: "dev-only-jwt-signing-key-0123456789abcdef" }],
       trustProxyHops: 0
     });
   });
 
-  it.each(["JOBFLOW_ENV", "DATABASE_URL", "FIREBASE_PROJECT_ID", "FIREBASE_API_KEY"])("names a missing %s in the error", (name) => {
+  it.each(["JOBFLOW_ENV", "DATABASE_URL", "FIREBASE_PROJECT_ID", "JWT_SIGNING_KEYS"])("names a missing %s in the error", (name) => {
     const env: Record<string, string> = { ...valid };
     delete env[name];
     expect(messageOf(() => loadConfig(env))).toContain(name);
@@ -75,16 +76,42 @@ describe("loadConfig", () => {
 
   it("refuses the development Firebase project in production", () => {
     expect(messageOf(() => loadConfig({ ...valid, JOBFLOW_ENV: "production", FIREBASE_PROJECT_ID: "demo-jobflow" }))).toContain("FIREBASE_PROJECT_ID");
-    expect(loadConfig({ ...valid, JOBFLOW_ENV: "production", FIREBASE_PROJECT_ID: "jobflow-prod", FIREBASE_API_KEY: "real-key" }).firebaseProjectId).toBe("jobflow-prod");
+    expect(loadConfig({ ...valid, JOBFLOW_ENV: "production", FIREBASE_PROJECT_ID: "jobflow-prod", JWT_SIGNING_KEYS: REAL_KEY }).firebaseProjectId).toBe("jobflow-prod");
   });
 
-  it("refuses the development Firebase key in production", () => {
-    expect(messageOf(() => loadConfig({ ...valid, JOBFLOW_ENV: "production", FIREBASE_PROJECT_ID: "jobflow-prod", FIREBASE_API_KEY: "demo-key" }))).toContain("FIREBASE_API_KEY");
+  it("refuses a development signing key in production, also one that only verifies, without printing it", () => {
+    for (const JWT_SIGNING_KEYS of [valid.JWT_SIGNING_KEYS, `${REAL_KEY},${valid.JWT_SIGNING_KEYS}`]) {
+      const message = messageOf(() => loadConfig({ ...valid, JOBFLOW_ENV: "production", FIREBASE_PROJECT_ID: "jobflow-prod", JWT_SIGNING_KEYS }));
+      expect(message).toContain("JWT_SIGNING_KEYS");
+      expect(message).not.toContain("dev-only-jwt");
+    }
+  });
+
+  it("reads several keys in order: the first signs, all verify", () => {
+    const keys = loadConfig({ ...valid, JWT_SIGNING_KEYS: `new:${"n".repeat(32)},old:${"o".repeat(40)}` }).jwtSigningKeys;
+    expect(keys).toEqual([
+      { kid: "new", secret: "n".repeat(32) },
+      { kid: "old", secret: "o".repeat(40) }
+    ]);
+  });
+
+  it.each([
+    ["a secret under 32 characters", `k:${"s".repeat(31)}`],
+    ["no kid", `:${"s".repeat(32)}`],
+    ["no separator", "s".repeat(40)],
+    ["a kid with a space", `k 1:${"s".repeat(32)}`],
+    ["a repeated kid", `k:${"a".repeat(32)},k:${"b".repeat(32)}`],
+    ["an empty pair", `k:${"a".repeat(32)},`],
+    ["nothing", ""]
+  ])("rejects JWT_SIGNING_KEYS with %s, without printing it", (_name, JWT_SIGNING_KEYS) => {
+    const message = messageOf(() => loadConfig({ ...valid, JWT_SIGNING_KEYS }));
+    expect(message).toContain("JWT_SIGNING_KEYS");
+    expect(message).not.toMatch(/sss|aaa|bbb/);
   });
 
   it("looks only at the password, so a host name holding the marker is fine", () => {
     expect(() =>
-      loadConfig({ ...valid, JOBFLOW_ENV: "production", FIREBASE_PROJECT_ID: "jobflow-prod", FIREBASE_API_KEY: "real-key", DATABASE_URL: "postgres://app:real-password@dev-only-replica.internal/x" })
+      loadConfig({ ...valid, JOBFLOW_ENV: "production", FIREBASE_PROJECT_ID: "jobflow-prod", JWT_SIGNING_KEYS: REAL_KEY, DATABASE_URL: "postgres://app:real-password@dev-only-replica.internal/x" })
     ).not.toThrow();
   });
 

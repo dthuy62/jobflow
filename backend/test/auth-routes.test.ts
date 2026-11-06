@@ -1,49 +1,33 @@
-import { ErrorResponseDtoSchema, MeDtoSchema, SsoResponseDtoSchema } from "@jobflow/contract";
-import { createLocalJWKSet, exportJWK, generateKeyPair, SignJWT } from "jose";
+import { ErrorResponseDtoSchema, GuestResponseDtoSchema, MeDtoSchema, SessionTokensDtoSchema, SsoResponseDtoSchema } from "@jobflow/contract";
+import type { InjectOptions } from "fastify";
+import { SignJWT } from "jose";
 import pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { createOidcAuthVerifier } from "../src/adapters/oidc-auth-verifier.js";
-import { createPgDeviceRepository } from "../src/adapters/pg-device-repository.js";
-import { createPgUserRepository, GUEST_MERGE_STEPS, type GuestMergeStep } from "../src/adapters/pg-user-repository.js";
-import { AuthUnavailableError, InvalidTokenError } from "../src/core/identity.js";
-import type { AuthVerifier } from "../src/core/ports.js";
+import { ACCESS_TOKEN_AUDIENCE, ACCESS_TOKEN_ISSUER } from "../src/adapters/jwt-access-tokens.js";
+import { GUEST_MERGE_STEPS, type GuestMergeStep } from "../src/adapters/pg-user-repository.js";
+import { createPgUserRepository } from "../src/adapters/pg-user-repository.js";
+import { hashRefreshToken } from "../src/core/auth-service.js";
+import type { UserId } from "../src/core/identity.js";
 import { migrateUp } from "../src/db/migrate.js";
 import { createPool } from "../src/db/pool.js";
 import { createServer } from "../src/server.js";
+import { GUEST_LIMIT_PER_MINUTE } from "../src/http/rate-limits.js";
 import { withTestDatabase, type TestDatabase } from "./support/database.js";
-import { asUser, createTestServer, stubAuthVerifier, testConfig } from "./support/server.js";
+import { createRealAuth, createTestServer, testConfig } from "./support/server.js";
 
-/**
- * On top of the stub: `stale-<name>` is an anonymous token for the subject of `test-<name>`, issued
- * before Firebase linked that user, so Firebase no longer calls the user anonymous.
- * `outage-<name>` cannot be checked. `no-lookup-<name>` passes the signature check, but Firebase
- * cannot be asked. `gone-<name>` passes it, but Firebase no longer knows the user.
- */
-const authVerifier: AuthVerifier = {
-  async verify(token) {
-    for (const prefix of ["stale-", "no-lookup-", "gone-"]) {
-      if (token.startsWith(prefix)) return { subject: `test-${token.slice(prefix.length)}`, isAnonymous: true };
-    }
-    if (token.startsWith("outage-")) throw new AuthUnavailableError(new Error("keys are down"));
-    return stubAuthVerifier.verify(token);
-  },
-  async stillAnonymous(token) {
-    if (token.startsWith("no-lookup-")) throw new AuthUnavailableError(new Error("Firebase is down"));
-    if (token.startsWith("gone-")) throw new InvalidTokenError();
-    return !token.startsWith("stale-");
-  }
-};
+type Server = Awaited<ReturnType<typeof createServer>>;
+type Tokens = { accessToken: string; refreshToken: string; expiresIn: number };
 
 describe("the auth routes, with real PostgreSQL and the app role", () => {
   let database: TestDatabase;
   let pool: pg.Pool;
-  let server: Awaited<ReturnType<typeof createServer>>;
+  let server: Server;
 
   beforeAll(async () => {
     database = await withTestDatabase();
     await migrateUp(database.ownerUrl);
     pool = createPool(database.appUrl, () => undefined);
-    server = await serverWith(authVerifier);
+    server = await serverWith();
   });
   afterAll(async () => {
     await server.close();
@@ -51,347 +35,402 @@ describe("the auth routes, with real PostgreSQL and the app role", () => {
     await database.drop();
   });
 
-  const serverWith = (verifier: AuthVerifier, steps: readonly GuestMergeStep[] = GUEST_MERGE_STEPS) =>
-    createServer({
-      config: testConfig,
-      pool,
-      authVerifier: verifier,
-      users: createPgUserRepository(pool, steps),
-      devices: createPgDeviceRepository(pool)
-    });
+  const serverWith = (steps: readonly GuestMergeStep[] = GUEST_MERGE_STEPS) =>
+    createServer({ config: testConfig, pool, auth: createRealAuth(pool, { steps }) });
 
-  const me = (name: string) => server.inject({ url: "/api/v1/me", headers: asUser(name) });
-  const guest = (name: string) => server.inject({ method: "POST", url: "/api/v1/auth/guest", headers: asUser(name) });
-  const sso = (name: string, body: unknown = {}, target = server) =>
-    target.inject({ method: "POST", url: "/api/v1/auth/sso", headers: asUser(name), payload: body as object });
-  const logout = (name: string, body: unknown) => server.inject({ method: "POST", url: "/api/v1/auth/logout", headers: asUser(name), payload: body as object });
+  // Each call from its own address, so the per-address limits never decide a test that is not about them.
+  let address = 0;
+  const call = (options: InjectOptions, target = server) => {
+    address += 1;
+    return target.inject({ remoteAddress: `10.${(address >> 16) & 255}.${(address >> 8) & 255}.${address & 255}`, ...options });
+  };
+  const bearer = (tokens: Pick<Tokens, "accessToken">) => ({ authorization: `Bearer ${tokens.accessToken}` });
 
-  const userRow = async (name: string) =>
-    (await pool.query("select id, deleted_at, merged_into, xmin::text as version from users where auth_subject = $1", [`test-${name}`])).rows[0];
-  const seedDevice = async (name: string, installationId: string) => {
-    await me(name);
-    const { id } = await userRow(name);
-    await pool.query("insert into devices (user_id, installation_id, fcm_token) values ($1, $2, 'synthetic-fcm')", [id, installationId]);
-  };
-  const devicesOf = async (name: string) => {
-    const { id } = await userRow(name);
-    return (await pool.query("select installation_id from devices where user_id = $1 order by 1", [id])).rows.map((row) => row.installation_id);
-  };
-  const codeOf = (response: { json(): unknown }) => ErrorResponseDtoSchema.parse(response.json()).error.code;
-  const merged = (response: { statusCode: number; json(): unknown }) => {
+  const newGuest = async () => {
+    const response = await call({ method: "POST", url: "/api/v1/auth/guest" });
     expect(response.statusCode).toBe(200);
-    return SsoResponseDtoSchema.parse(response.json()).guestMerged;
+    return GuestResponseDtoSchema.parse(response.json());
   };
+  const sso = (body: object, target = server) => call({ method: "POST", url: "/api/v1/auth/sso", payload: body }, target);
+  const signIn = async (subject: string, guestRefreshToken?: string) => {
+    const response = await sso({ idToken: `id-${subject}`, ...(guestRefreshToken === undefined ? {} : { guestRefreshToken }) });
+    expect(response.statusCode, response.body).toBe(200);
+    return SsoResponseDtoSchema.parse(response.json());
+  };
+  const refresh = (refreshToken: string) => call({ method: "POST", url: "/api/v1/auth/refresh", payload: { refreshToken } });
+  const refreshed = async (refreshToken: string) => {
+    const response = await refresh(refreshToken);
+    expect(response.statusCode, response.body).toBe(200);
+    return SessionTokensDtoSchema.parse(response.json());
+  };
+  const me = (tokens: Pick<Tokens, "accessToken">) => call({ url: "/api/v1/me", headers: bearer(tokens) });
+  const logout = (tokens: Pick<Tokens, "accessToken">, body: unknown) =>
+    call({ method: "POST", url: "/api/v1/auth/logout", headers: bearer(tokens), payload: body as object });
+
+  const codeOf = (response: { json(): unknown }) => ErrorResponseDtoSchema.parse(response.json()).error.code;
+  const userRow = async (userId: string) =>
+    (await pool.query("select id, auth_subject, deleted_at, merged_into, xmin::text as version from users where id = $1", [userId])).rows[0];
+  const sessionOf = async (tokens: Pick<Tokens, "refreshToken">) =>
+    (
+      await pool.query("select id, revoked_at, revoked_reason from sessions where refresh_token_hash = $1", [hashRefreshToken(tokens.refreshToken)])
+    ).rows[0];
+  const seedDevice = (userId: string, installationId: string) =>
+    pool.query("insert into devices (user_id, installation_id, fcm_token) values ($1, $2, 'synthetic-fcm')", [userId, installationId]);
+  const devicesOf = async (userId: string) =>
+    (await pool.query("select installation_id from devices where user_id = $1 order by 1", [userId])).rows.map((row) => row.installation_id);
 
   describe("POST /auth/guest", () => {
-    it("creates the user for an anonymous token and returns the account", async () => {
-      const response = await guest("anon-new");
-      expect(response.statusCode).toBe(200);
-      expect(MeDtoSchema.parse(response.json()).isAnonymous).toBe(true);
+    it("creates a guest with a session: a 15-minute access token that works, and a refresh token", async () => {
+      const { tokens, account } = await newGuest();
+      expect(account.isAnonymous).toBe(true);
+      expect(tokens.expiresIn).toBe(900);
+      expect(tokens.refreshToken).toMatch(/^[A-Za-z0-9_-]{43}$/);
+      expect(MeDtoSchema.parse((await me(tokens)).json())).toEqual(account);
+      expect((await userRow(account.userId)).auth_subject).toBeNull();
     });
 
-    it("gives the same account on a retry, and writes nothing", async () => {
-      const first = (await guest("anon-retry")).json();
-      const { version } = await userRow("anon-retry");
-      expect((await guest("anon-retry")).json()).toEqual(first);
-      expect((await userRow("anon-retry")).version).toBe(version);
+    it("needs no token, and makes a new guest on each call", async () => {
+      const first = await newGuest();
+      const second = await newGuest();
+      expect(first.account.userId).not.toBe(second.account.userId);
     });
 
-    it("gives the account the safety net already created", async () => {
-      const account = (await me("anon-early")).json();
-      expect((await guest("anon-early")).json()).toEqual(account);
+    it("stores only the refresh token's hash", async () => {
+      const { tokens } = await newGuest();
+      const stored = (await pool.query("select encode(refresh_token_hash, 'hex') as hash from sessions")).rows.map((row) => row.hash as string);
+      expect(stored).toContain(hashRefreshToken(tokens.refreshToken).toString("hex"));
+      const dump = JSON.stringify((await pool.query("select * from sessions")).rows);
+      expect(dump).not.toContain(tokens.refreshToken);
     });
 
-    it("refuses a token that is not anonymous, with no 401 that would sign the app out", async () => {
-      const response = await guest("member-at-guest");
-      expect(response.statusCode).toBe(409);
-      expect(codeOf(response)).toBe("CONFLICT");
+    it(`allows ${GUEST_LIMIT_PER_MINUTE} a minute per address, and other addresses go on`, async () => {
+      const fromOne = () => server.inject({ method: "POST", url: "/api/v1/auth/guest", remoteAddress: "192.0.2.10" });
+      for (let index = 0; index < GUEST_LIMIT_PER_MINUTE; index += 1) expect((await fromOne()).statusCode).toBe(200);
+      const limited = await fromOne();
+      expect(limited.statusCode).toBe(429);
+      expect(codeOf(limited)).toBe("RATE_LIMITED");
+      expect((await server.inject({ method: "POST", url: "/api/v1/auth/guest", remoteAddress: "192.0.2.11" })).statusCode).toBe(200);
+      // Only guests count: the same address still refreshes.
+      const { tokens } = await newGuest();
+      expect((await server.inject({ method: "POST", url: "/api/v1/auth/refresh", remoteAddress: "192.0.2.10", payload: { refreshToken: tokens.refreshToken } })).statusCode).toBe(200);
+    });
+  });
+
+  describe("POST /auth/refresh", () => {
+    it("gives a new access token for the same session and user, and the same refresh token", async () => {
+      const { tokens, account } = await newGuest();
+      const next = await refreshed(tokens.refreshToken);
+      expect(next.refreshToken).toBe(tokens.refreshToken);
+      expect(next.expiresIn).toBe(900);
+      expect(MeDtoSchema.parse((await me(next)).json()).userId).toBe(account.userId);
+    });
+
+    it("works again and again, also in parallel, because nothing is rotated", async () => {
+      const { tokens } = await newGuest();
+      for (let attempt = 0; attempt < 3; attempt += 1) await refreshed(tokens.refreshToken);
+      const responses = await Promise.all([1, 2, 3].map(() => refresh(tokens.refreshToken)));
+      expect(responses.map((response) => response.statusCode)).toEqual([200, 200, 200]);
+      expect((await sessionOf(tokens)).revoked_at).toBeNull();
+    });
+
+    it("gives each session its own token: another session of the user is unaffected", async () => {
+      const phone = await signIn("two-phones");
+      const tablet = await signIn("two-phones");
+      expect(phone.tokens.refreshToken).not.toBe(tablet.tokens.refreshToken);
+      await logout(phone.tokens, { installationId: "phone" });
+      expect((await refresh(phone.tokens.refreshToken)).statusCode).toBe(401);
+      expect(await refreshed(tablet.tokens.refreshToken)).toBeDefined();
+    });
+
+    it.each([
+      ["unknown", "x".repeat(43)],
+      ["empty", ""],
+      ["very long", "x".repeat(10_000)]
+    ])("an %s token gets 401", async (_name, token) => {
+      const response = await refresh(token);
+      expect(response.statusCode).toBe(401);
+      expect(codeOf(response)).toBe("UNAUTHORIZED");
+    });
+
+    it("a token of a logged-out session gets 401", async () => {
+      const { tokens } = await signIn("logged-out");
+      expect((await logout(tokens, { installationId: "phone" })).statusCode).toBe(204);
+      expect((await refresh(tokens.refreshToken)).statusCode).toBe(401);
+      expect((await sessionOf(tokens)).revoked_reason).toBe("logout");
+    });
+
+    it("a deleted user's token gets 401", async () => {
+      const { tokens, account } = await signIn("refresh-deleted");
+      await pool.query("update users set deleted_at = now() where id = $1", [account.userId]);
+      expect((await refresh(tokens.refreshToken)).statusCode).toBe(401);
+    });
+
+    it.each([
+      ["no token", {}],
+      ["a token that is not a string", { refreshToken: 1 }],
+      ["an extra field", { refreshToken: "x", userId: "user_2" }]
+    ])("answers 400 to %s", async (_name, body) => {
+      const response = await call({ method: "POST", url: "/api/v1/auth/refresh", payload: body });
+      expect(response.statusCode).toBe(400);
+      expect(codeOf(response)).toBe("VALIDATION_ERROR");
+    });
+  });
+
+  describe("the auth hook", () => {
+    const forge = (claims: { sub: string; sid: string }, secret = testConfig.jwtSigningKeys[0]?.secret ?? "") =>
+      new SignJWT({ sid: claims.sid })
+        .setProtectedHeader({ alg: "HS256", kid: "test-1" })
+        .setIssuer(ACCESS_TOKEN_ISSUER)
+        .setAudience(ACCESS_TOKEN_AUDIENCE)
+        .setSubject(claims.sub)
+        .setIssuedAt()
+        .setExpirationTime("15m")
+        .sign(new TextEncoder().encode(secret));
+
+    it("refuses a token that pairs one user with another user's session", async () => {
+      const victim = await signIn("hook-victim");
+      const attacker = await signIn("hook-attacker");
+      const token = await forge({ sub: attacker.account.userId, sid: (await sessionOf(victim.tokens)).id });
+      expect((await me({ accessToken: token })).statusCode).toBe(401);
+      const reverse = await forge({ sub: victim.account.userId, sid: (await sessionOf(attacker.tokens)).id });
+      expect((await me({ accessToken: reverse })).statusCode).toBe(401);
+    });
+
+    it("refuses a token signed with a key it does not hold", async () => {
+      const { tokens, account } = await signIn("hook-key");
+      const token = await forge({ sub: account.userId, sid: (await sessionOf(tokens)).id }, "dev-only-some-other-secret-0123456789abcdef");
+      expect((await me({ accessToken: token })).statusCode).toBe(401);
+    });
+
+    it("gives every user only their own account", async () => {
+      const one = await newGuest();
+      const two = await signIn("hook-two");
+      expect(MeDtoSchema.parse((await me(one.tokens)).json()).userId).toBe(one.account.userId);
+      expect(MeDtoSchema.parse((await me(two.tokens)).json()).userId).toBe(two.account.userId);
+    });
+
+    it("reads the session and the user in one query", async () => {
+      const { tokens } = await newGuest();
+      const queries: string[] = [];
+      const counting = { query: (async (sql: string, args: unknown[]) => (queries.push(sql), pool.query(sql, args as never[]))) as never, connect: pool.connect.bind(pool) };
+      const counted = await createServer({ config: testConfig, pool, auth: createRealAuth(counting) });
+      expect((await call({ url: "/api/v1/me", headers: bearer(tokens) }, counted)).statusCode).toBe(200);
+      await counted.close();
+      expect(queries).toHaveLength(1);
     });
   });
 
   describe("POST /auth/sso", () => {
-    it("creates the target user and reports no merge when there is no guestToken", async () => {
-      const response = await sso("member-new");
-      expect(merged(response)).toBe(false);
-      const { account } = SsoResponseDtoSchema.parse(response.json());
-      expect(account.isAnonymous).toBe(false);
-      expect(account.userId).toBe((await userRow("member-new")).id);
+    it("creates the member on the first sign-in and finds it after, each time with its own session", async () => {
+      const first = await signIn("member-new");
+      expect(first.account.isAnonymous).toBe(false);
+      expect(first.guestMerged).toBe(false);
+      const second = await signIn("member-new");
+      expect(second.account).toEqual(first.account);
+      expect((await sessionOf(second.tokens)).id).not.toBe((await sessionOf(first.tokens)).id);
+      expect((await me(first.tokens)).statusCode).toBe(200);
+      expect((await me(second.tokens)).statusCode).toBe(200);
+      expect((await userRow(first.account.userId)).auth_subject).toBe("member-new");
     });
 
-    it("gives the same account on a retry, and writes nothing", async () => {
-      const first = (await sso("member-retry")).json();
-      const { version } = await userRow("member-retry");
-      expect((await sso("member-retry")).json()).toEqual(first);
-      expect((await userRow("member-retry")).version).toBe(version);
+    it("writes nothing to the member's row when it signs in again", async () => {
+      const { account } = await signIn("member-quiet");
+      const { version } = await userRow(account.userId);
+      await signIn("member-quiet");
+      expect((await userRow(account.userId)).version).toBe(version);
     });
 
-    it("refuses an anonymous token, and does not read the body first", async () => {
-      const response = await sso("anon-at-sso", { guestToken: "test-anon-other" });
+    it("refuses an anonymous ID token with 403, and creates no one", async () => {
+      const response = await sso({ idToken: "id-anon-someone" });
       expect(response.statusCode).toBe(403);
       expect(codeOf(response)).toBe("SIGN_IN_REQUIRED");
-      expect(await userRow("anon-other")).toBeUndefined();
+      expect((await pool.query("select 1 from users where auth_subject = 'anon-someone'")).rowCount).toBe(0);
     });
 
-    it("takes the target only from the Bearer token: a body cannot name one", async () => {
-      await me("victim");
-      const response = await sso("attacker", { userId: (await userRow("victim")).id });
+    it("refuses an invalid ID token with 401, and leaves the guest as it was", async () => {
+      const guest = await newGuest();
+      const response = await sso({ idToken: "garbage", guestRefreshToken: guest.tokens.refreshToken });
+      expect(response.statusCode).toBe(401);
+      expect(codeOf(response)).toBe("UNAUTHORIZED");
+      expect((await me(guest.tokens)).statusCode).toBe(200);
+      expect((await userRow(guest.account.userId)).deleted_at).toBeNull();
+    });
+
+    it("answers 503 AUTH_UNAVAILABLE when the ID token cannot be checked, and the guest stays", async () => {
+      const guest = await newGuest();
+      const response = await sso({ idToken: "id-outage", guestRefreshToken: guest.tokens.refreshToken });
+      expect(response.statusCode).toBe(503);
+      expect(codeOf(response)).toBe("AUTH_UNAVAILABLE");
+      expect((await me(guest.tokens)).statusCode).toBe(200);
+    });
+
+    it("refuses a member that was deleted, and does not revive it", async () => {
+      const { account } = await signIn("member-deleted");
+      await pool.query("update users set deleted_at = now() where id = $1", [account.userId]);
+      expect((await sso({ idToken: "id-member-deleted" })).statusCode).toBe(401);
+      expect((await userRow(account.userId)).deleted_at).not.toBeNull();
+    });
+
+    it.each([
+      ["no idToken", {}],
+      ["an idToken that is not a string", { idToken: 1 }],
+      ["a guestRefreshToken that is not a string", { idToken: "id-member-bad", guestRefreshToken: 1 }],
+      ["a user id in the body", { idToken: "id-member-bad", userId: "user_2" }]
+    ])("answers 400 to %s", async (_name, body) => {
+      const response = await sso(body);
       expect(response.statusCode).toBe(400);
       expect(codeOf(response)).toBe("VALIDATION_ERROR");
     });
 
-    it("merges a guest: closes it, and its token then gets 401", async () => {
-      await me("anon-merge");
-      expect(merged(await sso("member-merge", { guestToken: "test-anon-merge" }))).toBe(true);
-      const row = await userRow("anon-merge");
+    it("merges a guest: moves its data, closes it, and revokes its session", async () => {
+      const guest = await newGuest();
+      await seedDevice(guest.account.userId, "guest-phone");
+      const result = await signIn("member-merge", guest.tokens.refreshToken);
+      expect(result.guestMerged).toBe(true);
+      const row = await userRow(guest.account.userId);
       expect(row.deleted_at).not.toBeNull();
-      expect(row.merged_into).toBe((await userRow("member-merge")).id);
-      expect((await me("anon-merge")).statusCode).toBe(401);
-      expect((await guest("anon-merge")).statusCode).toBe(401);
-      expect((await me("member-merge")).statusCode).toBe(200);
+      expect(row.merged_into).toBe(result.account.userId);
+      expect((await sessionOf(guest.tokens)).revoked_reason).toBe("merged");
+      expect((await me(guest.tokens)).statusCode).toBe(401);
+      expect((await refresh(guest.tokens.refreshToken)).statusCode).toBe(401);
+      expect((await me(result.tokens)).statusCode).toBe(200);
+      expect(await devicesOf(guest.account.userId)).toEqual([]);
     });
 
-    it("answers a retry of a merge the same way, and changes nothing", async () => {
-      await me("anon-twice");
-      expect(merged(await sso("member-twice", { guestToken: "test-anon-twice" }))).toBe(true);
-      const before = await userRow("anon-twice");
-      expect(merged(await sso("member-twice", { guestToken: "test-anon-twice" }))).toBe(true);
-      expect(await userRow("anon-twice")).toEqual(before);
+    it("drops the guest's devices and leaves the member's", async () => {
+      const member = await signIn("member-phone");
+      await seedDevice(member.account.userId, "member-phone");
+      const guest = await newGuest();
+      await seedDevice(guest.account.userId, "guest-phone");
+      expect((await signIn("member-phone", guest.tokens.refreshToken)).guestMerged).toBe(true);
+      expect(await devicesOf(member.account.userId)).toEqual(["member-phone"]);
+    });
+
+    it("answers a retry of a merge the same way, with a new session, and changes nothing else", async () => {
+      const guest = await newGuest();
+      const first = await signIn("member-twice", guest.tokens.refreshToken);
+      const before = await userRow(guest.account.userId);
+      const retry = await signIn("member-twice", guest.tokens.refreshToken);
+      expect(retry.guestMerged).toBe(true);
+      expect(retry.account).toEqual(first.account);
+      expect(await userRow(guest.account.userId)).toEqual(before);
     });
 
     it("merges once when retries run in parallel", async () => {
       for (let round = 0; round < 5; round += 1) {
-        await me(`anon-race-${round}`);
-        const responses = await Promise.all([1, 2, 3].map(() => sso(`member-race-${round}`, { guestToken: `test-anon-race-${round}` })));
-        expect(responses.map(merged)).toEqual([true, true, true]);
+        const guest = await newGuest();
+        const responses = await Promise.all([1, 2, 3].map(() => sso({ idToken: `id-member-race-${round}`, guestRefreshToken: guest.tokens.refreshToken })));
+        expect(responses.map((response) => SsoResponseDtoSchema.parse(response.json()).guestMerged)).toEqual([true, true, true]);
       }
     });
 
     it("merges for only one member when different members race for a guest", async () => {
       for (let round = 0; round < 10; round += 1) {
-        await me(`anon-contested-${round}`);
-        const responses = await Promise.all(["a", "b", "c"].map((name) => sso(`member-${name}-${round}`, { guestToken: `test-anon-contested-${round}` })));
-        expect(responses.map(merged).filter(Boolean)).toHaveLength(1);
+        const guest = await newGuest();
+        const responses = await Promise.all(
+          ["a", "b", "c"].map((name) => sso({ idToken: `id-member-${name}-${round}`, guestRefreshToken: guest.tokens.refreshToken }))
+        );
+        expect(responses.map((response) => SsoResponseDtoSchema.parse(response.json()).guestMerged).filter(Boolean)).toHaveLength(1);
       }
     });
 
-    it("closes a guest that never reached the API, so its token stops working too", async () => {
-      expect(merged(await sso("member-early", { guestToken: "test-anon-unseen" }))).toBe(true);
-      expect((await me("anon-unseen")).statusCode).toBe(401);
-    });
-
-    it("does not close an account the server never saw, through its anonymous token from before Firebase linked it", async () => {
-      expect(merged(await sso("thief-early", { guestToken: "stale-unseen-account" }))).toBe(false);
-      expect(await userRow("unseen-account")).toBeUndefined();
-      expect((await me("unseen-account")).statusCode).toBe(200);
-    });
-
     it("does not merge a guest already merged into someone else", async () => {
-      await me("anon-taken");
-      expect(merged(await sso("member-first", { guestToken: "test-anon-taken" }))).toBe(true);
-      const before = await userRow("anon-taken");
-      expect(merged(await sso("member-second", { guestToken: "test-anon-taken" }))).toBe(false);
-      expect(await userRow("anon-taken")).toEqual(before);
+      const guest = await newGuest();
+      expect((await signIn("member-first", guest.tokens.refreshToken)).guestMerged).toBe(true);
+      const before = await userRow(guest.account.userId);
+      expect((await signIn("member-second", guest.tokens.refreshToken)).guestMerged).toBe(false);
+      expect(await userRow(guest.account.userId)).toEqual(before);
+    });
+
+    it("never closes a member through its refresh token, its own or another member's", async () => {
+      const victim = await signIn("member-victim");
+      expect((await signIn("member-thief", victim.tokens.refreshToken)).guestMerged).toBe(false);
+      expect((await signIn("member-victim", victim.tokens.refreshToken)).guestMerged).toBe(false);
+      expect((await userRow(victim.account.userId)).deleted_at).toBeNull();
+      expect((await me(victim.tokens)).statusCode).toBe(200);
+    });
+
+    it("merges with a guest token that has been refreshed with, since it does not change", async () => {
+      const guest = await newGuest();
+      await refreshed(guest.tokens.refreshToken);
+      expect((await signIn("member-after-refresh", guest.tokens.refreshToken)).guestMerged).toBe(true);
+    });
+
+    it("does not merge a guest whose session was revoked", async () => {
+      const guest = await newGuest();
+      await pool.query("update sessions set revoked_at = now(), revoked_reason = 'logout' where user_id = $1", [guest.account.userId]);
+      expect((await signIn("member-revoked-guest", guest.tokens.refreshToken)).guestMerged).toBe(false);
+      expect((await userRow(guest.account.userId)).deleted_at).toBeNull();
     });
 
     it("does not merge a guest deleted some other way", async () => {
-      await me("anon-gone");
-      await pool.query("update users set deleted_at = now() where auth_subject = 'test-anon-gone'");
-      expect(merged(await sso("member-gone", { guestToken: "test-anon-gone" }))).toBe(false);
-      expect((await userRow("anon-gone")).merged_into).toBeNull();
-    });
-
-    it("does not merge a user into itself: Firebase linked it, so the data is already there", async () => {
-      await me("linked");
-      expect(merged(await sso("linked", { guestToken: "stale-linked" }))).toBe(false);
-      const row = await userRow("linked");
-      expect(row.deleted_at).toBeNull();
-      expect(row.merged_into).toBeNull();
-      expect((await me("linked")).statusCode).toBe(200);
-    });
-
-    it("does not merge a user into itself even if Firebase called it anonymous a moment ago", async () => {
-      await me("self-race");
-      const { id } = await userRow("self-race");
-      await expect(createPgUserRepository(pool).mergeGuest("test-self-race", id)).resolves.toBe(false);
-      expect((await userRow("self-race")).deleted_at).toBeNull();
-    });
-
-    it("does not ask Firebase when the guest token is this same user, so an outage cannot get in the way", async () => {
-      await me("same-uid");
-      expect(merged(await sso("same-uid", { guestToken: "no-lookup-same-uid" }))).toBe(false);
-    });
-
-    it("does not merge into a member that is already closed", async () => {
-      await me("closed-member");
-      await me("anon-for-closed");
-      await pool.query("update users set deleted_at = now() where auth_subject = 'test-closed-member'");
-      const { id } = await userRow("closed-member");
-      await expect(createPgUserRepository(pool).mergeGuest("test-anon-for-closed", id)).resolves.toBe(false);
-      expect((await userRow("anon-for-closed")).deleted_at).toBeNull();
-    });
-
-    it("waits for a merge closing the member, and then merges nothing into it", async () => {
-      await pool.query("insert into users (auth_subject) values ('test-closing'), ('test-closer'), ('test-anon-second')");
-      let release = () => {};
-      const gate = new Promise<void>((resolve) => (release = resolve));
-      let locked = () => {};
-      const holdingLock = new Promise<void>((resolve) => (locked = resolve));
-      const slow = createPgUserRepository(pool, [
-        async () => {
-          locked();
-          await gate;
-        }
-      ]);
-      const { id: closingId } = await userRow("closing");
-      const closing = slow.mergeGuest("test-closing", (await userRow("closer")).id);
-      await holdingLock;
-
-      const second = createPgUserRepository(pool).mergeGuest("test-anon-second", closingId);
-      await expect
-        .poll(async () => (await pool.query("select 1 from pg_stat_activity where wait_event_type = 'Lock' and query like '%FOR SHARE%' and pid <> pg_backend_pid()")).rowCount)
-        .toBe(1);
-      release();
-
-      await expect(closing).resolves.toBe(true);
-      await expect(second).resolves.toBe(false);
-      expect((await userRow("anon-second")).deleted_at).toBeNull();
-    });
-
-    it("does not close a member through an anonymous token from before Firebase linked it", async () => {
-      await sso("real-account");
-      expect(merged(await sso("thief", { guestToken: "stale-real-account" }))).toBe(false);
-      expect((await userRow("real-account")).deleted_at).toBeNull();
-      expect((await me("real-account")).statusCode).toBe(200);
-    });
-
-    it("does not close a member whose /auth/sso failed, once Firebase has linked them", async () => {
-      await me("safety-net");
-      expect(merged(await sso("thief-net", { guestToken: "stale-safety-net" }))).toBe(false);
-      expect((await me("safety-net")).statusCode).toBe(200);
-    });
-
-    it("does not close a linked user whose new token never reached the server, though the row looks like a guest", async () => {
-      await server.inject({ url: "/api/v1/me", headers: { authorization: "Bearer stale-silent" } });
-      const before = await userRow("silent");
-      expect(merged(await sso("thief-silent", { guestToken: "stale-silent" }))).toBe(false);
-      expect(await userRow("silent")).toEqual(before);
-      expect((await me("silent")).statusCode).toBe(200);
-    });
-
-    it("answers 503 and changes nothing when Firebase cannot say whether the guest is still anonymous", async () => {
-      await me("anon-lookup");
-      const before = await userRow("anon-lookup");
-      const response = await sso("member-lookup", { guestToken: "no-lookup-anon-lookup" });
-      expect(response.statusCode).toBe(503);
-      expect(codeOf(response)).toBe("AUTH_UNAVAILABLE");
-      expect(await userRow("anon-lookup")).toEqual(before);
-    });
-
-    it("signs in without merging when Firebase no longer knows the guest", async () => {
-      await me("anon-gone-firebase");
-      expect(merged(await sso("member-gone-firebase", { guestToken: "gone-anon-gone-firebase" }))).toBe(false);
-      expect((await userRow("anon-gone-firebase")).deleted_at).toBeNull();
-    });
-
-    it("does not merge a token that is not anonymous, and does not touch that member", async () => {
-      await me("other-member");
-      expect(merged(await sso("member-wrong-kind", { guestToken: "test-other-member" }))).toBe(false);
-      expect((await userRow("other-member")).deleted_at).toBeNull();
+      const guest = await newGuest();
+      await pool.query("update users set deleted_at = now() where id = $1", [guest.account.userId]);
+      expect((await signIn("member-gone", guest.tokens.refreshToken)).guestMerged).toBe(false);
+      expect((await userRow(guest.account.userId)).merged_into).toBeNull();
     });
 
     it.each([
-      ["signed by no one", "garbage"],
-      ["with spaces", "not a token"],
+      ["unknown", "x".repeat(43)],
       ["empty", ""],
+      ["with spaces", "not a token"],
       ["over 4096 characters", "x".repeat(4097)]
-    ])("still signs in when the guestToken is %s", async (_name, guestToken) => {
-      const response = await sso("member-bad-token", { guestToken });
-      expect(merged(response)).toBe(false);
+    ])("still signs in when the guestRefreshToken is %s", async (_name, guestRefreshToken) => {
+      expect((await signIn("member-bad-guest", guestRefreshToken)).guestMerged).toBe(false);
     });
 
-    it("answers 400 to a guestToken that is not a string", async () => {
-      const response = await sso("member-bad-type", { guestToken: 1 });
-      expect(response.statusCode).toBe(400);
+    it("does not merge into a member that is already closed", async () => {
+      const { account } = await signIn("closed-member");
+      const guest = await newGuest();
+      await pool.query("update users set deleted_at = now() where id = $1", [account.userId]);
+      await expect(createPgUserRepository(pool).mergeGuest(hashRefreshToken(guest.tokens.refreshToken), account.userId as UserId)).resolves.toBe(false);
+      expect((await userRow(guest.account.userId)).deleted_at).toBeNull();
     });
 
-    it("answers 503, not a false 'no merge', when the guestToken cannot be checked, so the app retries", async () => {
-      await me("anon-outage");
-      const response = await sso("member-outage", { guestToken: "outage-anon-outage" });
-      expect(response.statusCode).toBe(503);
-      expect(codeOf(response)).toBe("AUTH_UNAVAILABLE");
-      expect((await me("anon-outage")).statusCode).toBe(200);
-    });
-
-    it("with a real verifier, an expired guest token signs in without merging; a fresh one merges", async () => {
-      const { privateKey, publicKey } = await generateKeyPair("RS256");
-      const issuer = "https://issuer.example";
-      const real = createOidcAuthVerifier({
-        issuer,
-        audience: "aud",
-        keys: createLocalJWKSet({ keys: [{ ...(await exportJWK(publicKey)), kid: "key-1", alg: "RS256", use: "sig" }] }),
-        isAnonymous: (payload) => payload.anonymous === true,
-        stillAnonymous: async () => true
-      });
-      const sign = (subject: string, anonymous: boolean, exp: number) =>
-        new SignJWT({ anonymous })
-          .setProtectedHeader({ alg: "RS256", kid: "key-1" })
-          .setIssuer(issuer)
-          .setAudience("aud")
-          .setSubject(subject)
-          .setIssuedAt(exp - 3600)
-          .setExpirationTime(exp)
-          .sign(privateKey);
-      const now = Math.floor(Date.now() / 1000);
-      const realServer = await serverWith(real);
-      const call = async (guestToken: string) =>
-        realServer.inject({
-          method: "POST",
-          url: "/api/v1/auth/sso",
-          headers: { authorization: `Bearer ${await sign("real-member", false, now + 3600)}` },
-          payload: { guestToken }
-        });
-
-      await realServer.inject({ url: "/api/v1/me", headers: { authorization: `Bearer ${await sign("real-guest", true, now + 3600)}` } });
-      expect(merged(await call(await sign("real-guest", true, now - 3600)))).toBe(false);
-      expect(merged(await call(await sign("real-guest", true, now + 3600)))).toBe(true);
-      await realServer.close();
-    });
-
-    it("drops the guest's devices and leaves the member's", async () => {
-      await seedDevice("anon-phone", "guest-phone");
-      await seedDevice("member-phone", "member-phone");
-      expect(merged(await sso("member-phone", { guestToken: "test-anon-phone" }))).toBe(true);
-      expect(await devicesOf("anon-phone")).toEqual([]);
-      expect(await devicesOf("member-phone")).toEqual(["member-phone"]);
+    it("waits for anything holding the member, and then merges nothing into a member it closed", async () => {
+      const { account } = await signIn("closing-member");
+      const guest = await newGuest();
+      const holder = await pool.connect();
+      await holder.query("begin");
+      await holder.query("select 1 from users where id = $1 for update", [account.userId]);
+      const merge = createPgUserRepository(pool).mergeGuest(hashRefreshToken(guest.tokens.refreshToken), account.userId as UserId);
+      await expect
+        .poll(async () => (await pool.query("select 1 from pg_stat_activity where wait_event_type = 'Lock' and query like '%FOR SHARE%'")).rowCount)
+        .toBe(1);
+      await holder.query("update users set deleted_at = now() where id = $1", [account.userId]);
+      await holder.query("commit");
+      holder.release();
+      await expect(merge).resolves.toBe(false);
+      expect((await userRow(guest.account.userId)).deleted_at).toBeNull();
     });
 
     it("rolls the whole merge back when a table's step fails, and the retry then works", async () => {
-      await seedDevice("anon-rollback", "kept-phone");
-      await sso("member-rollback");
-      const failing = await serverWith(authVerifier, [
+      const guest = await newGuest();
+      await seedDevice(guest.account.userId, "kept-phone");
+      const failing = await serverWith([
         ...GUEST_MERGE_STEPS,
         async () => {
           throw new Error("a table's step failed");
         }
       ]);
-      const response = await sso("member-rollback", { guestToken: "test-anon-rollback" }, failing);
+      const response = await sso({ idToken: "id-member-rollback", guestRefreshToken: guest.tokens.refreshToken }, failing);
       await failing.close();
 
       expect(response.statusCode).toBe(503);
       expect(codeOf(response)).toBe("UNAVAILABLE");
-      expect(await devicesOf("anon-rollback")).toEqual(["kept-phone"]);
-      expect((await userRow("anon-rollback")).deleted_at).toBeNull();
-      expect((await me("anon-rollback")).statusCode).toBe(200);
-      expect(merged(await sso("member-rollback", { guestToken: "test-anon-rollback" }))).toBe(true);
+      expect(await devicesOf(guest.account.userId)).toEqual(["kept-phone"]);
+      expect((await userRow(guest.account.userId)).deleted_at).toBeNull();
+      expect((await me(guest.tokens)).statusCode).toBe(200);
+      expect((await signIn("member-rollback", guest.tokens.refreshToken)).guestMerged).toBe(true);
     });
 
     it("answers 503 and keeps running when the database connection dies during a merge, and the retry works", async () => {
-      await me("anon-dropped");
+      const guest = await newGuest();
       const uncaught: unknown[] = [];
       const onUncaught = (error: unknown) => uncaught.push(error);
       process.on("uncaughtException", onUncaught);
-      const dropping = await serverWith(authVerifier, [(client) => client.query("select pg_terminate_backend(pg_backend_pid())")]);
-      const response = await sso("member-dropped", { guestToken: "test-anon-dropped" }, dropping);
+      const dropping = await serverWith([(client) => client.query("select pg_terminate_backend(pg_backend_pid())")]);
+      const response = await sso({ idToken: "id-member-dropped", guestRefreshToken: guest.tokens.refreshToken }, dropping);
       await dropping.close();
       // The client reports the lost socket just after the query fails.
       await new Promise((resolve) => setTimeout(resolve, 50));
@@ -399,80 +438,103 @@ describe("the auth routes, with real PostgreSQL and the app role", () => {
 
       expect(uncaught).toEqual([]);
       expect(response.statusCode).toBe(503);
-      expect((await userRow("anon-dropped")).deleted_at).toBeNull();
-      expect(merged(await sso("member-dropped", { guestToken: "test-anon-dropped" }))).toBe(true);
+      expect((await userRow(guest.account.userId)).deleted_at).toBeNull();
+      expect((await signIn("member-dropped", guest.tokens.refreshToken)).guestMerged).toBe(true);
     });
 
     it("gives every connection back to the pool, whatever the outcome", async () => {
-      await me("anon-pool");
-      await sso("member-pool", { guestToken: "test-anon-pool" });
-      await sso("member-pool", { guestToken: "test-anon-pool" });
+      const guest = await newGuest();
+      await signIn("member-pool", guest.tokens.refreshToken);
+      await signIn("member-pool", guest.tokens.refreshToken);
+      await refresh(guest.tokens.refreshToken);
+      await refresh("x".repeat(43));
       expect(pool.totalCount - pool.idleCount).toBe(0);
     });
   });
 
   describe("POST /auth/logout", () => {
-    it("removes this user's row for this installation, and no other", async () => {
-      await seedDevice("device-owner", "phone");
-      await seedDevice("device-owner", "tablet");
-      const response = await logout("device-owner", { installationId: "phone" });
+    it("revokes this session only: its tokens get 401, another session of the user goes on", async () => {
+      const phone = await signIn("logout-two");
+      const tablet = await signIn("logout-two");
+      const response = await logout(phone.tokens, { installationId: "phone" });
       expect(response.statusCode).toBe(204);
       expect(response.body).toBe("");
-      expect(await devicesOf("device-owner")).toEqual(["tablet"]);
+      expect((await me(phone.tokens)).statusCode).toBe(401);
+      expect((await refresh(phone.tokens.refreshToken)).statusCode).toBe(401);
+      expect((await me(tablet.tokens)).statusCode).toBe(200);
+    });
+
+    it("removes this user's row for this installation, and no other", async () => {
+      const { tokens, account } = await signIn("device-owner");
+      await seedDevice(account.userId, "phone");
+      await seedDevice(account.userId, "tablet");
+      await logout(tokens, { installationId: "phone" });
+      expect(await devicesOf(account.userId)).toEqual(["tablet"]);
     });
 
     it("cannot remove another user's device, even with the same installation id", async () => {
-      await seedDevice("device-a", "shared-id");
-      await seedDevice("device-b", "shared-id");
-      expect((await logout("device-b", { installationId: "shared-id" })).statusCode).toBe(204);
-      expect(await devicesOf("device-a")).toEqual(["shared-id"]);
-      expect(await devicesOf("device-b")).toEqual([]);
-    });
-
-    it("answers the same on a retry and for an id never registered", async () => {
-      await seedDevice("device-retry", "phone");
-      expect((await logout("device-retry", { installationId: "phone" })).statusCode).toBe(204);
-      expect((await logout("device-retry", { installationId: "phone" })).statusCode).toBe(204);
-      expect((await logout("device-retry", { installationId: "never-seen" })).statusCode).toBe(204);
-    });
-
-    it("works for a guest too", async () => {
-      await seedDevice("anon-device", "phone");
-      expect((await logout("anon-device", { installationId: "phone" })).statusCode).toBe(204);
-      expect(await devicesOf("anon-device")).toEqual([]);
+      const a = await signIn("device-a");
+      const b = await signIn("device-b");
+      await seedDevice(a.account.userId, "shared-id");
+      await seedDevice(b.account.userId, "shared-id");
+      expect((await logout(b.tokens, { installationId: "shared-id" })).statusCode).toBe(204);
+      expect(await devicesOf(a.account.userId)).toEqual(["shared-id"]);
+      expect(await devicesOf(b.account.userId)).toEqual([]);
     });
 
     it.each([
       ["a path in the id", { installationId: "../x" }],
       ["no id", {}],
       ["an extra field", { installationId: "phone", userId: "user_2" }]
-    ])("answers 400 to %s", async (_name, body) => {
-      const response = await logout("device-bad", body);
+    ])("answers 400 to %s, and keeps the session", async (_name, body) => {
+      const { tokens } = await signIn("device-bad");
+      const response = await logout(tokens, body);
       expect(response.statusCode).toBe(400);
       expect(codeOf(response)).toBe("VALIDATION_ERROR");
+      expect((await me(tokens)).statusCode).toBe(200);
+    });
+
+    it("refuses a guest, whose only session it would end for good, and changes nothing", async () => {
+      const guest = await newGuest();
+      await seedDevice(guest.account.userId, "phone");
+      const response = await logout(guest.tokens, { installationId: "phone" });
+      expect(response.statusCode).toBe(403);
+      expect(codeOf(response)).toBe("SIGN_IN_REQUIRED");
+      expect(await devicesOf(guest.account.userId)).toEqual(["phone"]);
+      expect((await me(guest.tokens)).statusCode).toBe(200);
+      expect(await refreshed(guest.tokens.refreshToken)).toBeDefined();
     });
 
     it("answers 401 with no token", async () => {
-      const response = await server.inject({ method: "POST", url: "/api/v1/auth/logout", payload: { installationId: "phone" } });
+      const response = await call({ method: "POST", url: "/api/v1/auth/logout", payload: { installationId: "phone" } });
       expect(response.statusCode).toBe(401);
     });
   });
 
-  it("never logs a guest token", async () => {
-    const { server: logged, logs } = await createTestServer();
-    await logged.inject({ method: "POST", url: "/api/v1/auth/sso", headers: asUser("member-logs"), payload: { guestToken: "test-anon-secret-in-body" } });
+  it("never logs a token from a body or a header", async () => {
+    const { server: logged, logs } = await createTestServer({ pool, auth: createRealAuth(pool) });
+    const guest = GuestResponseDtoSchema.parse((await logged.inject({ method: "POST", url: "/api/v1/auth/guest" })).json());
+    await logged.inject({ method: "POST", url: "/api/v1/auth/sso", payload: { idToken: "id-secret-subject", guestRefreshToken: guest.tokens.refreshToken } });
+    await logged.inject({ method: "POST", url: "/api/v1/auth/sso", payload: { idToken: "secret-bad-id-token" } });
+    await logged.inject({ method: "POST", url: "/api/v1/auth/refresh", payload: { refreshToken: "secret-unknown-refresh" } });
+    await logged.inject({ method: "POST", url: "/api/v1/auth/refresh", payload: { refreshToken: guest.tokens.refreshToken } });
+    await logged.inject({ url: "/api/v1/me", headers: bearer(guest.tokens) });
     await logged.close();
-    expect(logs()).not.toContain("secret-in-body");
+    for (const secret of ["secret-subject", "secret-bad-id-token", "secret-unknown-refresh", guest.tokens.refreshToken, guest.tokens.accessToken]) {
+      expect(logs()).not.toContain(secret);
+    }
   });
 
-  it("deleting a user takes its devices along, and a guest merged into it survives with no pointer", async () => {
-    await seedDevice("member-leaving", "phone");
-    await me("anon-of-leaving");
-    await sso("member-leaving", { guestToken: "test-anon-of-leaving" });
-    const { id } = await userRow("member-leaving");
+  it("deleting a user takes its sessions, tokens and devices along, and a guest merged into it survives with no pointer", async () => {
+    const guest = await newGuest();
+    const member = await signIn("member-leaving", guest.tokens.refreshToken);
+    await seedDevice(member.account.userId, "phone");
+    const id = member.account.userId as UserId;
     await pool.query("delete from users where id = $1", [id]);
     expect((await pool.query("select count(*)::int as n from devices where user_id = $1", [id])).rows[0].n).toBe(0);
-    const closed = await userRow("anon-of-leaving");
+    expect((await pool.query("select count(*)::int as n from sessions where user_id = $1", [id])).rows[0].n).toBe(0);
+    expect((await refresh(member.tokens.refreshToken)).statusCode).toBe(401);
+    const closed = await userRow(guest.account.userId);
     expect(closed.merged_into).toBeNull();
     expect(closed.deleted_at).not.toBeNull();
   });
