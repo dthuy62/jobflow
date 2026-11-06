@@ -14,6 +14,8 @@ Status: in progress. Plan: `docs/superpowers/plans/2026-11-02-hosted-backend-pha
 - [x] Backend skeleton, database, Compose and CI.
 - [x] Authentication, authorization and rate limits.
 - [x] Sign-in API: guest, SSO with guest merge, logout.
+- [x] Backend-owned guests and sessions: Firebase only signs in; JWT access
+  token and a refresh token per session (#52).
 - [x] Queue and worker.
 - [x] Vendor Career Ops.
 - [ ] Android: base URL, auth layer, Room.
@@ -34,7 +36,8 @@ account deletion.
 ### Before Public Release
 
 Status: planned. The Security baseline items marked "Release", including the
-rehearsal on a cloud host.
+rehearsal on a cloud host. Firebase App Check with Play Integrity on every
+route but `/health`: logged first, then enforced.
 
 ### Phase 4: Next Features
 
