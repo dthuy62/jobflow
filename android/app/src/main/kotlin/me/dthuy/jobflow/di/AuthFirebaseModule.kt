@@ -7,7 +7,6 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import javax.inject.Singleton
-import me.dthuy.jobflow.data.auth.IdTokenSource
 import me.dthuy.jobflow.data.auth.IdentityProvider
 import me.dthuy.jobflow.data.auth.InstallationIdSource
 import me.dthuy.jobflow.data.auth.firebase.FirebaseIdentityProvider
@@ -19,9 +18,6 @@ import me.dthuy.jobflow.data.auth.firebase.FirebaseInstallationIdSource
 abstract class AuthFirebaseModule {
     @Binds
     abstract fun bindIdentityProvider(impl: FirebaseIdentityProvider): IdentityProvider
-
-    @Binds
-    abstract fun bindIdTokenSource(impl: FirebaseIdentityProvider): IdTokenSource
 
     @Binds
     abstract fun bindInstallationIdSource(impl: FirebaseInstallationIdSource): InstallationIdSource

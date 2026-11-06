@@ -19,18 +19,19 @@ simple screens.
 ## Authentication
 
 The design is in [system architecture](system-architecture.md#authentication) and
-[ADR 13](decisions/0013-keep-auth-self-contained-with-one-session-source.md). Read `AuthenticationService.session` to know who is
+[ADR 15](decisions/0015-sign-in-through-the-backend-and-keep-only-its-session.md). Read `AuthenticationService.session` to know who is
 signed in. A screen that offers sign-in takes its own `AuthViewModel` and sends `AuthIntent.SignInWithGoogle` with
 `requestGoogleIdToken(context, webClientId)` to run, as `SettingsScreen` does. To clear data of your own when the user changes,
 implement `SessionObserver` and register it with `@IntoSet`, as `FeedSessionCleanup` does. To add a sign-in method, add it to
-`SignInMethod`, follow the compile error, and write one more strategy in `SignInStrategies.kt`.
+`SignInMethod`, follow the compile error, write one more strategy in `SignInStrategies.kt`, and give `IdentityProvider` a method
+that turns the new credential into the vendor's ID token.
 
 To reuse auth in another project, copy `domain/auth`, `data/auth`, `ui/auth`, `di/AuthModule.kt`, `di/AuthFirebaseModule.kt`,
 `core/common`, `core/mvi` and the `error_auth_*` strings from `strings.xml`. Then provide an `@ApplicationScope` `CoroutineScope`
 (`di/CoroutinesModule.kt`) and add `BearerTokenInterceptor` and `TokenAuthenticator` to the OkHttp client, with your public
 routes (`di/NetworkModule.kt`).
 
-Session rules and sagas are tested on the JVM with `AuthFakes.kt`. What a fake cannot prove runs the real SDK against the
+Session rules and token refresh are tested on the JVM with `AuthFakes.kt`. What a fake cannot prove runs the real SDK against the
 local Auth emulator, outside the verify command because it needs a device. With an emulator or device connected:
 
 ```bash
@@ -43,22 +44,23 @@ Gradle runs these on every connected device, and uninstalls the app from each af
 
 | Case | Result | Proven by |
 |---|---|---|
-| First open | `SignedOut`, no user created | Auth emulator, unit |
+| First open | `SignedOut`, nothing created | Unit |
+| A stored guest or member at start | Restored offline, no signed-out flash | Unit |
+| Guest | Kept and shown only after the backend answered and the pair is on disk | Unit |
 | Guest again after this install's guest | Refused, only Google is offered | Unit |
-| Guest or Google, the backend confirms | Session moves only at the end | Unit |
-| Provider fails | Session unchanged, backend not called | Unit |
-| Backend fails after the provider | Signed out on the device, `/auth/logout` not called, can try again | Unit |
-| App dies between the two | Rolled back on the next launch, before any session shows | Unit |
-| App dies during Google sign-in, provider never moved | The guest stays | Unit |
+| Guest signs out | Not offered, and the service ignores it | Unit |
+| Google from signed out or as a member | Firebase's ID token goes to `/auth/sso`, no guest token | Unit |
+| Google as a guest | The guest's refresh token goes too, and the backend merges | Unit |
+| The backend fails, or the pair cannot be written | Nothing changes; a guest is still the guest and can retry | Unit |
+| Firebase gives a token | Its own session is gone right after | Auth emulator |
+| A Google account already used | That account's token | Auth emulator |
+| That Google account is disabled | `AccountDisabled`, nothing changes | Auth emulator |
 | Caller leaves the screen during a sign-in | The sign-in finishes | Unit |
-| Guest links Google | Same uid, `Member`, observers not run | Auth emulator, unit |
-| Guest picks a Google account already used here | New uid, guest token sent, observers run | Auth emulator, unit |
-| That switch fails at the backend | Guest token kept, and sent only if the same account signs in again | Unit |
-| That Google account is disabled | `AccountDisabled`, the guest stays | Auth emulator |
-| Account disabled while in use | Rejected when the token refreshes; the service ends the session, after any running sign-in | Auth emulator, unit |
-| Account deleted while in use | Same | Not proven: the emulator answers differently from the docs |
-| Sign out | Backend told as best effort, works offline, starts no guest | Unit |
-| Restart with a stored session | Known at once, no signed-out flash | Auth emulator, one manual run |
+| Access token about to end | Refreshed before the request, refresh token unchanged | Unit |
+| A 401 | One refresh and one retry; requests at once share one refresh | Unit |
+| Refresh answers 401 | Session ended, observers run | Unit |
+| Offline or a 5xx during refresh | Session kept; a token not yet ended is still used | Unit |
+| Sign out | Backend told as best effort with the token, works offline, starts no guest | Unit |
 | A failing observer | Session and other observers unaffected | Unit |
 | Second tap, or a command running on another screen | Ignored, and that screen shows loading | Unit |
 | Google's sheet: closed, no account, no Play services | No error, `NoGoogleAccount`, `GoogleUnavailable` | Unit for the mapping; not run on a device |

@@ -1,35 +1,19 @@
 package me.dthuy.jobflow.data.auth
 
-import kotlinx.coroutines.flow.Flow
 import me.dthuy.jobflow.core.common.Either
 import me.dthuy.jobflow.domain.auth.AuthError
 import me.dthuy.jobflow.domain.auth.IdToken
-import me.dthuy.jobflow.domain.auth.Uid
-
-data class IdentityUser(val uid: Uid, val isAnonymous: Boolean)
 
 /**
- * The boundary with the identity vendor. Nothing above it knows how linking works, so changing that mechanism or the
- * vendor means replacing the implementation, which lives in `data/auth/firebase`.
+ * The boundary with the identity vendor, which only answers "who is this". The backend's session is the only one, so
+ * the vendor keeps nothing on the device. Changing vendor means another implementation, in its own folder like
+ * `data/auth/firebase`, and on the backend another `IdentityVerifier`.
  */
-interface IdentityProvider : IdTokenSource {
-    /** Emits when collected and on every change. */
-    val user: Flow<IdentityUser?>
+interface IdentityProvider {
+    /** Turns Google's token into the vendor's ID token for the backend, signed out of the vendor again either way. */
+    suspend fun signInWithGoogle(idToken: IdToken): Either<AuthError, IdToken>
 
-    val currentUser: IdentityUser?
-
-    /** The vendor no longer accepts this user, found while fetching a token. The service decides what to do. */
-    val rejected: Flow<Uid>
-
-    suspend fun startGuest(): Either<AuthError, Unit>
-
-    /**
-     * Upgrades a guest and keeps their identity if it can. If this Google account already exists, the guest cannot be
-     * reached again afterwards, so [guestTokens] gets the proof of who they were first, for the backend to merge.
-     */
-    suspend fun signInWithGoogle(idToken: IdToken, guestTokens: GuestTokenKeeper): Either<AuthError, Unit>
-
-    /** On this device only: the backend is not told. */
+    /** Forgets the Google account picked on this device, so the next sign-in asks again. Best effort. */
     suspend fun signOut()
 }
 

@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Nothing here should move to another device: the database is a per-user cache the API can rebuild, preferences hold
-     Firebase's session, and DataStore holds auth's own state, including a guest's token. allowBackup="false" stops cloud
+     SDK state, and DataStore holds the backend's session, including a guest's refresh token. allowBackup="false" stops cloud
      backup, but some manufacturers' device-to-device transfer ignores it. -->
 <data-extraction-rules>
     <cloud-backup>

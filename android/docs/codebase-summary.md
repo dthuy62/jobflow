@@ -12,7 +12,7 @@ done with `mobile-app-config`.
 | `domain/model`              | plain data classes and enums (`Health`, `HealthSnapshot`, `Job`, `FeedItem`)               | annotations from Room or serialization |
 | `domain/repository`         | interfaces (ports): `HealthRepository`                                  | implementations                        |
 | `domain/auth`               | `AuthenticationService`, `Session`, `SignInMethod`, `AuthError`, `SessionObserver` | Firebase or Android types              |
-| `data/auth`                 | Session source, sign-in sagas, bearer token; Firebase only in `firebase/`       | anything outside auth and `core/common` |
+| `data/auth`                 | Session source and store, sign-in strategies, token refresh, bearer token; Firebase only in `firebase/` | anything outside auth and `core/common` |
 | `data/remote`               | `JobFlowApi`, `ApiJson`, `toApiError`, `healthOrThrow`, `normalizeBaseUrl` | UI types              |
 | `data/remote/dto`           | `@Serializable` API DTOs and their `toDomain()` mappers             | domain rules                           |
 | `data/local`                | Room 3: `JobFlowDatabase`, `toLocalError`, `StringListConverter`         | UI types and domain rules |

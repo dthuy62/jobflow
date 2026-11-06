@@ -16,7 +16,7 @@ import me.dthuy.jobflow.domain.auth.IdToken
 import me.dthuy.jobflow.domain.auth.Session
 import me.dthuy.jobflow.domain.auth.SignInMethod
 import me.dthuy.jobflow.testing.FakeAuthenticationService
-import me.dthuy.jobflow.testing.OTHER_USER
+import me.dthuy.jobflow.testing.MEMBER_ID
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -28,7 +28,7 @@ import org.junit.Test
 @OptIn(ExperimentalCoroutinesApi::class)
 class AuthViewModelTest {
     private val token = IdToken("token")
-    private val member = Session.Member(OTHER_USER.uid)
+    private val member = Session.Member(MEMBER_ID)
 
     @Before
     fun setUp() = Dispatchers.setMain(UnconfinedTestDispatcher())

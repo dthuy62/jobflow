@@ -8,7 +8,7 @@ import me.dthuy.jobflow.data.local.dao.FeedDao
 import me.dthuy.jobflow.data.local.entity.FeedItemEntity
 import me.dthuy.jobflow.data.local.entity.FeedItemWithJob
 import me.dthuy.jobflow.data.local.entity.JobEntity
-import me.dthuy.jobflow.domain.auth.Uid
+import me.dthuy.jobflow.domain.auth.UserId
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -18,7 +18,7 @@ class FeedSessionCleanupTest {
 
     @Test
     fun `a signed-in user keeps only their own feed`() = runTest {
-        cleanup.onUserChanged(Uid("uid_a"))
+        cleanup.onUserChanged(UserId("uid_a"))
 
         assertEquals(listOf("except uid_a"), dao.cleanups)
     }

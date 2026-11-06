@@ -92,20 +92,24 @@ recovers at once.
 
 ## Authentication
 
-Firebase says who the user is; the API decides what they may do. The app only displays `isAnonymous`, it never authorizes with
-it. The reasons are in [ADR 13](decisions/0013-keep-auth-self-contained-with-one-session-source.md); [ADR 15](decisions/0015-sign-in-through-the-backend-and-keep-only-its-session.md) replaces its guest and session parts.
+Firebase only proves who signed in; the backend issues the session and decides what the user may do. The app only
+displays whether the user is a guest, it never authorizes with it. The reasons are in
+[ADR 15](decisions/0015-sign-in-through-the-backend-and-keep-only-its-session.md), which replaces the guest and session parts of
+[ADR 13](decisions/0013-keep-auth-self-contained-with-one-session-source.md).
 
 | Piece | Job | Never |
 |---|---|---|
 | `ui/auth/AuthViewModel.kt` | MVI. One per screen, holding only that screen's error and sign-in in progress | Knows Firebase or the API |
 | `ui/auth/GoogleCredentials.kt` | Shows Google's sheet, which needs an Activity, and returns an ID token | Holds session logic |
 | `domain/auth` | `AuthenticationService`, `Session`, `SignInMethod`, `AuthError`, `SessionObserver` | Knows Firebase or Android |
-| `data/auth/AuthenticationServiceImpl.kt` | The one source of the session and `isBusy`; runs commands one at a time on the app's scope; publishes a session only after observers ran | Calls an SDK |
-| `data/auth/SignInStrategies.kt` | One saga per method: provider, then API, then commit or sign out on the device | Holds session state |
-| `data/auth/IdentityProvider.kt` | The boundary with the identity vendor | Mentions Firebase |
-| `data/auth/firebase/` | The only code that imports Firebase; `linkWithCredential` lives here | Holds product rules |
-| `data/auth/AuthApi.kt` | `POST /auth/guest`, `/auth/sso`, `/auth/logout` | |
-| `data/auth/BearerToken.kt` | Adds the token, and retries a 401 once with a fresh one | Creates a user |
+| `data/auth/AuthenticationServiceImpl.kt` | The one source of the session and `isBusy`; runs commands one at a time on the app's scope; keeps a new session in one write; publishes it only after observers ran | Calls an SDK |
+| `data/auth/SignInStrategies.kt` | One strategy per method that gets a session from the backend, and the best-effort logout call | Keeps or publishes a session |
+| `data/auth/SessionStore.kt` | The backend's token pair, user id and expiry, in the auth DataStore | |
+| `data/auth/SessionTokens.kt` | Refreshes the access token before it ends and after a 401, one refresh at a time; a 401 from refresh ends the session | Signs out for a network failure or a 5xx |
+| `data/auth/IdentityProvider.kt` | The boundary with the identity vendor: Google's token in, the vendor's ID token out | Mentions Firebase |
+| `data/auth/firebase/` | The only code that imports Firebase; it signs out of Firebase right after every sign-in | Holds product rules or a session |
+| `data/auth/AuthApi.kt` | `POST /auth/guest`, `/auth/sso`, `/auth/refresh`, `/auth/logout` | |
+| `data/auth/BearerToken.kt` | Adds the access token, and retries a 401 once with a refreshed one | |
 
 ```mermaid
 sequenceDiagram
@@ -114,41 +118,40 @@ sequenceDiagram
     participant I as IdentityProvider
     participant A as AuthApi
     VM->>S: signIn(Google)
-    S->>S: mark PendingLogin
     S->>I: signInWithGoogle
     alt provider fails
         I-->>S: error
-        S-->>VM: error, session unchanged
+        S-->>VM: error, nothing changed
     else provider succeeds
-        Note over S,I: Before a switch, the guest token is saved first
-        I-->>S: done
-        S->>A: POST /auth/sso, with the saved token if it was kept for this account
+        I-->>S: the vendor's ID token, signed out of the vendor again
+        S->>A: POST /auth/sso, with a guest's refresh token if the user is a guest
         alt API succeeds
-            A-->>S: account
-            S->>S: run observers, publish session
+            A-->>S: tokens and account
+            S->>S: keep the pair in one write, run observers, publish session
             S-->>VM: done
         else API fails
-            S->>I: signOut, on the device only
-            S->>S: publish SignedOut
-            S-->>VM: error
+            S-->>VM: error, nothing written, a guest is still the guest
         end
     end
 ```
 
-- `Session` is `Unknown` (the vendor has not answered), `SignedOut`, `Guest` or `Member`. It is known offline, and a `Guest` or
-  `Member` means the backend confirmed it, so navigation reads it.
-- A guest starts once per install (`GuestLedger`). Signing out does not start one, and after the install's guest only Google is
-  left. Uninstalling resets it. This is a product rule, not abuse protection: the API's limits and, from phase 3, Play Integrity
-  are what stop scripts.
-- **Only signing in is all or nothing.** A signed-in user is never signed out for a network failure, a 5xx or an API 401. Only an
-  account the vendor no longer accepts ends a session, because for a guest that loses their identity for good.
-- The user pressing sign out calls `/auth/logout` as best effort, then signs out on the device. It works offline.
+- `Session` is `Unknown` (not read from the device yet), `SignedOut`, `Guest` or `Member`. It is known offline, so
+  navigation reads it.
+- A guest starts once per install (`GuestLedger`), through `POST /auth/guest`. After the install's guest only Google is left.
+  Uninstalling resets it. This is a product rule, not abuse protection: the API's limits and Play Integrity stop scripts.
+- A guest has no sign-out, because it would lose their data. Before a guest signs in with Google, the screen says their data
+  moves to the account they pick.
+- **A sign-in is all or nothing.** A new session replaces the old one in one write, only after the backend answered. If
+  anything fails, nothing is written. `/auth/sso` is safe to repeat, also after a merge whose answer was lost.
+- The access token is refreshed before a request when less than 60 seconds are left, counted from when it arrived, and once
+  after a 401. Only a 401 from `/auth/refresh` ends a session. A network failure or a 5xx keeps it.
+- The user pressing sign out calls `/auth/logout` as best effort, then forgets the session on the device. It works offline.
 
-| Change | uid | Session | Observers run |
+| Change | User id | Session | Observers run |
 |---|---|---|---|
-| A guest links Google | Same | `Member` | No |
-| A guest picks a Google account already used here | New | `Member`, and the backend merges | Yes |
-| Sign-out, or the account is deleted or disabled | None | `SignedOut` | Yes |
+| A guest starts | New | `Guest` | Yes |
+| A guest signs in with Google | The member's | `Member`, and the backend merges | Yes |
+| Sign-out, or the backend ends the session | None | `SignedOut` | Yes |
 
 ## Errors
 

@@ -19,7 +19,7 @@ sealed interface AuthError {
 
     data object AccountDisabled : AuthError
 
-    /** The identity service no longer accepts this user, so the session is over. */
+    /** The backend ended the session: signed out elsewhere, merged or deleted. */
     data object SessionEnded : AuthError
 
     /** This install already had its guest. */

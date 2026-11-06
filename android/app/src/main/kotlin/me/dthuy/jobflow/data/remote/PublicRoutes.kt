@@ -2,7 +2,7 @@ package me.dthuy.jobflow.data.remote
 
 import okhttp3.Request
 
-private const val HEALTH_PATH = "api/v1/health"
+// Health, so checking the service never depends on a session, and the calls that get or refresh one.
+private val PUBLIC_PATHS = listOf("api/v1/health", "api/v1/auth/guest", "api/v1/auth/sso", "api/v1/auth/refresh")
 
-/** The only public route, so checking the service never depends on a session. */
-fun Request.isPublicRoute(): Boolean = url.encodedPath.endsWith(HEALTH_PATH)
+fun Request.isPublicRoute(): Boolean = PUBLIC_PATHS.any(url.encodedPath::endsWith)

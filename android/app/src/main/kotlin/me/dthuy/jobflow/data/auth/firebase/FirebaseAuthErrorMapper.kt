@@ -4,7 +4,6 @@ import com.google.firebase.FirebaseException
 import com.google.firebase.FirebaseNetworkException
 import com.google.firebase.FirebaseTooManyRequestsException
 import com.google.firebase.auth.FirebaseAuthInvalidUserException
-import java.io.IOException
 import kotlinx.coroutines.CancellationException
 import me.dthuy.jobflow.core.common.unexpected
 import me.dthuy.jobflow.domain.auth.AuthError
@@ -19,9 +18,7 @@ object FirebaseAuthErrorMapper {
         is FirebaseNetworkException -> AuthError.Network
         is FirebaseTooManyRequestsException -> AuthError.TooManyAttempts
         is FirebaseAuthInvalidUserException ->
-            if (error.errorCode == ERROR_USER_DISABLED) AuthError.AccountDisabled else AuthError.SessionEnded
-        // The guest token could not be saved, and the switch stopped before losing the guest.
-        is IOException -> AuthError.SignInFailed
+            if (error.errorCode == ERROR_USER_DISABLED) AuthError.AccountDisabled else AuthError.SignInFailed
         is FirebaseException -> {
             Timber.w(error, "Firebase sign-in failed")
             AuthError.SignInFailed

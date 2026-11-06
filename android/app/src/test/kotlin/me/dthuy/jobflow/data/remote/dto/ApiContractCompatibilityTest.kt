@@ -9,6 +9,13 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.put
+import me.dthuy.jobflow.data.auth.GuestResponseDto
+import me.dthuy.jobflow.data.auth.LogoutRequest
+import me.dthuy.jobflow.data.auth.MeDto
+import me.dthuy.jobflow.data.auth.RefreshRequest
+import me.dthuy.jobflow.data.auth.SessionTokensDto
+import me.dthuy.jobflow.data.auth.SsoRequest
+import me.dthuy.jobflow.data.auth.SsoResponseDto
 import me.dthuy.jobflow.data.remote.ApiJson
 import me.dthuy.jobflow.testing.contractExamplesDir
 import me.dthuy.jobflow.testing.contractFixture

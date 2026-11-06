@@ -3,6 +3,9 @@ package me.dthuy.jobflow.ui.settings
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -14,6 +17,7 @@ import me.dthuy.jobflow.core.common.Either
 import me.dthuy.jobflow.domain.auth.AuthError
 import me.dthuy.jobflow.domain.auth.IdToken
 import me.dthuy.jobflow.ui.auth.AuthIntent
+import me.dthuy.jobflow.ui.auth.AuthKind
 import me.dthuy.jobflow.ui.auth.AuthState
 import me.dthuy.jobflow.ui.auth.AuthViewModel
 import me.dthuy.jobflow.ui.auth.requestGoogleIdToken
@@ -51,10 +55,22 @@ fun SettingsContent(
     requestGoogleToken: suspend () -> Either<AuthError, IdToken?>,
     modifier: Modifier = Modifier,
 ) {
+    var confirmingMerge by rememberSaveable { mutableStateOf(false) }
+    val signIn = { onAuthIntent(AuthIntent.SignInWithGoogle(requestGoogleToken)) }
+    if (confirmingMerge) {
+        MergeNoticeDialog(
+            onConfirm = {
+                confirmingMerge = false
+                signIn()
+            },
+            onDismiss = { confirmingMerge = false },
+        )
+    }
     JobFlowPage(title = stringResource(R.string.settings_title), contentPadding = contentPadding, modifier = modifier) {
         AccountCard(
             state = auth,
-            onSignIn = { onAuthIntent(AuthIntent.SignInWithGoogle(requestGoogleToken)) },
+            // A guest is told first that their data moves to the account they pick.
+            onSignIn = { if (auth.kind == AuthKind.GUEST) confirmingMerge = true else signIn() },
             onContinueAsGuest = { onAuthIntent(AuthIntent.ContinueAsGuest) },
             onSignOut = { onAuthIntent(AuthIntent.SignOut) },
         )

@@ -1,5 +1,6 @@
 package me.dthuy.jobflow.ui.settings
 
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.res.stringResource
@@ -45,4 +46,15 @@ private fun AuthKind.message(): Int = when (this) {
     AuthKind.SIGNED_OUT -> R.string.account_signed_out
     AuthKind.GUEST -> R.string.account_guest
     AuthKind.MEMBER -> R.string.account_google
+}
+
+@Composable
+fun MergeNoticeDialog(onConfirm: () -> Unit, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.account_merge_title), fontWeight = FontWeight.Black) },
+        text = { Text(stringResource(R.string.account_merge_message), fontWeight = FontWeight.SemiBold) },
+        confirmButton = { AccountButton(R.string.account_merge_confirm, onConfirm) },
+        dismissButton = { AccountButton(R.string.account_merge_cancel, onDismiss, primary = false) },
+    )
 }

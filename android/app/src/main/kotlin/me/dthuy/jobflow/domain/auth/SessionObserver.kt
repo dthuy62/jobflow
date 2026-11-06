@@ -5,6 +5,6 @@ package me.dthuy.jobflow.domain.auth
  * runs before anyone sees the new session; a failure is logged and blocks neither the session nor other observers.
  */
 fun interface SessionObserver {
-    /** Runs when the signed-in user changes, not when a guest upgrades and keeps their uid. Null means nobody. */
-    suspend fun onUserChanged(uid: Uid?)
+    /** Runs when the user changes, also when a guest signs in with Google and their data moves. Null means nobody. */
+    suspend fun onUserChanged(userId: UserId?)
 }

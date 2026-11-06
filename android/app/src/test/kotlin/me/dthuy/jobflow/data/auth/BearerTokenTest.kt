@@ -24,52 +24,64 @@ class BearerTokenTest {
         .build()
 
     @Test
-    fun `a protected call carries the bearer token`() {
+    fun `a protected call carries the access token`() {
         call("api/v1/me")
 
-        assertEquals("Bearer token-0", server.requests.single().header("Authorization"))
+        assertEquals("Bearer access", server.requests.single().header("Authorization"))
     }
 
     @Test
-    fun `health is public, so it neither carries a token nor signs anyone in`() {
-        call("api/v1/health")
+    fun `health and the calls that get or refresh a session carry no token`() {
+        listOf("api/v1/health", "api/v1/auth/guest", "api/v1/auth/sso", "api/v1/auth/refresh").forEach(::call)
 
-        assertNull(server.requests.single().header("Authorization"))
-        assertEquals(0, tokens.calls)
+        assertTrue(server.requests.all { it.header("Authorization") == null })
+        assertEquals(0, tokens.reads)
     }
 
     @Test
-    fun `a 401 asks for a fresh token and retries with it`() {
-        val retry = authenticator.authenticate(null, unauthorized())
+    fun `logout carries the token, because it ends this session`() {
+        call("api/v1/auth/logout")
 
-        assertEquals("Bearer token-0", retry?.header("Authorization"))
-        assertEquals(listOf(true), tokens.forceRefreshes)
+        assertEquals("Bearer access", server.requests.single().header("Authorization"))
     }
 
     @Test
-    fun `a 401 on a public route neither asks for a token nor sends one`() {
-        assertNull(authenticator.authenticate(null, unauthorized("api/v1/health")))
-        assertEquals(0, tokens.calls)
+    fun `a 401 refreshes the token it was sent with, and retries with the new one`() {
+        val retry = authenticator.authenticate(null, unauthorized(bearer = "access"))
+
+        assertEquals("Bearer fresh", retry?.header("Authorization"))
+        assertEquals(listOf("access"), tokens.rejected)
     }
 
     @Test
-    fun `a second 401 gives up, so the app can ask the user to sign in`() {
-        val second = unauthorized().newBuilder().priorResponse(unauthorized()).build()
+    fun `a 401 on a call sent without a token comes back to the app`() {
+        assertNull(authenticator.authenticate(null, unauthorized(bearer = null)))
+        assertTrue(tokens.rejected.isEmpty())
+    }
+
+    @Test
+    fun `a 401 on a public route is not retried`() {
+        assertNull(authenticator.authenticate(null, unauthorized("api/v1/auth/refresh", bearer = null)))
+    }
+
+    @Test
+    fun `a second 401 gives up`() {
+        val second = unauthorized(bearer = "fresh").newBuilder().priorResponse(unauthorized(bearer = "access")).build()
 
         assertNull(authenticator.authenticate(null, second))
-        assertEquals(0, tokens.calls)
+        assertTrue(tokens.rejected.isEmpty())
     }
 
     @Test
-    fun `a 401 with no fresh token to try comes back to the app`() {
-        tokens.available = false
+    fun `a session that ended comes back to the app as the 401`() {
+        tokens.fresh = null
 
-        assertNull(authenticator.authenticate(null, unauthorized()))
+        assertNull(authenticator.authenticate(null, unauthorized(bearer = "access")))
     }
 
     @Test
-    fun `no token means the call goes out without one`() {
-        tokens.available = false
+    fun `no session means the call goes out without a token`() {
+        tokens.current = null
 
         call("api/v1/me")
 
@@ -86,26 +98,35 @@ class BearerTokenTest {
 
     private fun call(path: String): Int = client.newCall(request(path)).execute().use { it.code }
 
-    private fun request(path: String) = Request.Builder().url("http://10.0.2.2:4010/$path").build()
+    private fun request(path: String, bearer: String? = null) = Request.Builder()
+        .url("http://10.0.2.2:4010/$path")
+        .apply { bearer?.let { header("Authorization", "Bearer $it") } }
+        .build()
 
-    private fun unauthorized(path: String = "api/v1/me") = Response.Builder()
-        .request(request(path))
+    private fun unauthorized(path: String = "api/v1/me", bearer: String?) = Response.Builder()
+        .request(request(path, bearer))
         .protocol(Protocol.HTTP_1_1)
         .code(401)
         .message("x")
         .body("".toResponseBody(null))
         .build()
 
-    private class FakeTokens : IdTokenSource {
-        var available = true
+    private class FakeTokens : AccessTokenSource {
+        var current: String? = "access"
+        var fresh: String? = "fresh"
         var failure: IOException? = null
-        val forceRefreshes = mutableListOf<Boolean>()
-        val calls get() = forceRefreshes.size
+        var reads = 0
+        val rejected = mutableListOf<String>()
 
-        override fun idToken(forceRefresh: Boolean): String? {
+        override fun accessToken(): String? {
             failure?.let { throw it }
-            forceRefreshes += forceRefresh
-            return if (available) "token-${calls - 1}" else null
+            reads++
+            return current
+        }
+
+        override fun refreshedAccessToken(rejected: String): String? {
+            this.rejected += rejected
+            return fresh
         }
     }
 

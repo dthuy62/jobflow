@@ -7,8 +7,8 @@ import dagger.hilt.components.SingletonComponent
 import java.util.concurrent.TimeUnit
 import javax.inject.Singleton
 import me.dthuy.jobflow.BuildConfig
+import me.dthuy.jobflow.data.auth.AccessTokenSource
 import me.dthuy.jobflow.data.auth.BearerTokenInterceptor
-import me.dthuy.jobflow.data.auth.IdTokenSource
 import me.dthuy.jobflow.data.auth.TokenAuthenticator
 import me.dthuy.jobflow.data.remote.ApiJson
 import me.dthuy.jobflow.data.remote.JobFlowApi
@@ -27,7 +27,7 @@ private const val CALL_TIMEOUT_SECONDS = 30L
 object NetworkModule {
     @Provides
     @Singleton
-    fun provideOkHttpClient(tokens: IdTokenSource): OkHttpClient = OkHttpClient.Builder()
+    fun provideOkHttpClient(tokens: AccessTokenSource): OkHttpClient = OkHttpClient.Builder()
         .addInterceptor(BearerTokenInterceptor(tokens, isPublic = Request::isPublicRoute))
         .authenticator(TokenAuthenticator(tokens, isPublic = Request::isPublicRoute))
         .callTimeout(CALL_TIMEOUT_SECONDS, TimeUnit.SECONDS)

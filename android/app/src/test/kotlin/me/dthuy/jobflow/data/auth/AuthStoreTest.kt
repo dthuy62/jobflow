@@ -14,7 +14,8 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
-import me.dthuy.jobflow.domain.auth.Uid
+import me.dthuy.jobflow.testing.MEMBER_ID
+import me.dthuy.jobflow.testing.storedSession
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -47,48 +48,45 @@ class AuthStoreTest {
     }
 
     @Test
-    fun `the mark is on disk once begin returns, so a new process sees it`() = runTest {
-        assertTrue(DataStorePendingLogin(store()).begin(PendingSignIn.GOOGLE))
+    fun `a session is on disk once saved, so a new process sees it`() = runTest {
+        DataStoreSessionStore(store()).save(member)
         scopes.forEach { it.cancel() }
 
-        assertEquals(PendingSignIn.GOOGLE, DataStorePendingLogin(store()).running())
+        assertEquals(member, DataStoreSessionStore(store()).read())
     }
 
     @Test
-    fun `finishing clears the mark`() = runTest {
-        val pending = DataStorePendingLogin(store())
-        pending.begin(PendingSignIn.GUEST)
+    fun `a new access token lands only while its session is still the stored one`() = runTest {
+        val sessions = DataStoreSessionStore(store())
+        sessions.save(member)
 
-        pending.finish()
+        sessions.updateAccessToken(member.refreshToken, "fresh", 42)
+        assertEquals(member.copy(accessToken = "fresh", expiresAt = 42), sessions.read())
 
-        assertNull(pending.running())
+        sessions.updateAccessToken("refresh_of_an_ended_session", "stale", 1)
+        assertEquals("fresh", sessions.read()?.accessToken)
     }
 
     @Test
-    fun `the guest token is only for the account it was bound to`() = runTest {
-        val pending = DataStorePendingLogin(store())
-        pending.keepGuestToken("guest_token")
-        assertNull(pending.guestTokenFor(Uid("uid_a")))
-
-        pending.bindGuestToken(Uid("uid_a"))
-
-        assertEquals("guest_token", pending.guestTokenFor(Uid("uid_a")))
-        assertNull(pending.guestTokenFor(Uid("uid_b")))
-        assertNull(pending.guestTokenFor(null))
-    }
-
-    @Test
-    fun `finishing leaves the token, and clearing removes it`() = runTest {
+    fun `clearing removes every part of the session`() = runTest {
         val store = store()
-        val pending = DataStorePendingLogin(store)
-        pending.keepGuestToken("guest_token")
-        pending.bindGuestToken(Uid("uid_a"))
+        val sessions = DataStoreSessionStore(store)
+        sessions.save(member)
 
-        pending.finish()
-        assertEquals("guest_token", pending.guestTokenFor(Uid("uid_a")))
+        sessions.clear()
 
-        pending.clearGuestToken()
+        assertNull(sessions.read())
         assertEquals(emptyPreferences(), store.data.first())
+    }
+
+    @Test
+    fun `clearing for an ended session leaves a newer one`() = runTest {
+        val sessions = DataStoreSessionStore(store())
+        sessions.save(member)
+
+        sessions.clear(onlyIf = "refresh_of_an_ended_session")
+
+        assertEquals(member, sessions.read())
     }
 
     @Test
@@ -102,26 +100,25 @@ class AuthStoreTest {
     }
 
     @Test
-    fun `a corrupt file starts empty, which never signs anyone out`() = runTest {
+    fun `a corrupt file starts empty, which only signs this device out`() = runTest {
         file().writeText("not a preferences file")
 
-        val pending = DataStorePendingLogin(store())
-
-        assertNull(pending.running())
-        assertTrue(pending.begin(PendingSignIn.GOOGLE))
+        assertNull(DataStoreSessionStore(store()).read())
     }
 
     @Test
-    fun `a file that cannot be used reads as nothing, and begin says it failed`() = runTest {
+    fun `a file that cannot be used reads as nothing, and saving says it failed`() = runTest {
         val blocked = File(folder.newFile("not_a_folder"), "auth.preferences_pb")
+        val sessions = DataStoreSessionStore(store(blocked))
 
-        val pending = DataStorePendingLogin(store(blocked))
+        assertNull(sessions.read())
+        assertThrows(IOException::class.java) { runBlocking { sessions.save(member) } }
+        // These run while a request waits or a session ends, where a throw would fail the wrong thing.
+        sessions.updateAccessToken(member.refreshToken, "fresh", 1)
+        sessions.clear()
+    }
 
-        assertNull(pending.running())
-        assertFalse(pending.begin(PendingSignIn.GOOGLE))
-        assertThrows(IOException::class.java) { runBlocking { pending.keepGuestToken("guest_token") } }
-        // These run after the provider moved, where a throw would skip the rollback.
-        pending.bindGuestToken(Uid("uid_a"))
-        pending.clearGuestToken()
+    private companion object {
+        val member = storedSession(MEMBER_ID, isGuest = false, expiresAt = 1_000)
     }
 }

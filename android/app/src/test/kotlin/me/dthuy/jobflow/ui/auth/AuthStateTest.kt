@@ -2,7 +2,7 @@ package me.dthuy.jobflow.ui.auth
 
 import me.dthuy.jobflow.domain.auth.AuthError
 import me.dthuy.jobflow.domain.auth.Session
-import me.dthuy.jobflow.domain.auth.Uid
+import me.dthuy.jobflow.domain.auth.UserId
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -10,8 +10,8 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class AuthStateTest {
-    private val guest = Session.Guest(Uid("uid"))
-    private val member = Session.Member(Uid("uid"))
+    private val guest = Session.Guest(UserId("uid"))
+    private val member = Session.Member(UserId("uid"))
     private val failure = AuthError.Network.toUiError()
 
     @Test

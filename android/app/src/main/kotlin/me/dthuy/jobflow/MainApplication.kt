@@ -8,7 +8,7 @@ import timber.log.Timber
 
 @HiltAndroidApp
 class MainApplication : Application() {
-    // Created at start so an interrupted sign-in is rolled back before anything reads the session.
+    // Created at start, so the session is read from the device before any screen asks for it.
     @Inject
     lateinit var authentication: AuthenticationService
 

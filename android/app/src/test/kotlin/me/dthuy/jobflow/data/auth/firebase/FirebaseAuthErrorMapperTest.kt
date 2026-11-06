@@ -6,7 +6,6 @@ import com.google.firebase.FirebaseTooManyRequestsException
 import com.google.firebase.auth.FirebaseAuthException
 import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
 import com.google.firebase.auth.FirebaseAuthInvalidUserException
-import java.io.IOException
 import kotlinx.coroutines.CancellationException
 import me.dthuy.jobflow.domain.auth.AuthError
 import org.junit.Assert.assertEquals
@@ -20,9 +19,9 @@ class FirebaseAuthErrorMapperTest {
     }
 
     @Test
-    fun `an account that no longer exists ends the session`() {
+    fun `a Google account Firebase no longer knows can be retried`() {
         assertEquals(
-            AuthError.SessionEnded,
+            AuthError.SignInFailed,
             FirebaseAuthErrorMapper.map(FirebaseAuthInvalidUserException("ERROR_USER_NOT_FOUND", "x")),
         )
     }
@@ -52,11 +51,6 @@ class FirebaseAuthErrorMapperTest {
     fun `any other Firebase failure can be retried, and keeps the session`() {
         assertEquals(AuthError.SignInFailed, FirebaseAuthErrorMapper.map(FirebaseAuthException("code", "x")))
         assertEquals(AuthError.SignInFailed, FirebaseAuthErrorMapper.map(FirebaseException("x")))
-    }
-
-    @Test
-    fun `a guest token that could not be saved can be retried`() {
-        assertEquals(AuthError.SignInFailed, FirebaseAuthErrorMapper.map(IOException("disk full")))
     }
 
     @Test

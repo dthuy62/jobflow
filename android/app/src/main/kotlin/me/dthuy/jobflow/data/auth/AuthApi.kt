@@ -1,16 +1,27 @@
 package me.dthuy.jobflow.data.auth
 
 import kotlinx.serialization.Serializable
+import retrofit2.Call
 import retrofit2.http.Body
 import retrofit2.http.POST
 
-/** The backend's sign-in endpoints. Calls throw on failure; every call carries the identity token as its bearer. */
+/**
+ * The backend's auth endpoints. Guest, sign-in and refresh are public; logout carries the session's access token.
+ * Calls throw on failure.
+ */
 interface AuthApi {
     @POST("api/v1/auth/guest")
-    suspend fun guest(): MeDto
+    suspend fun guest(): GuestResponseDto
 
     @POST("api/v1/auth/sso")
     suspend fun sso(@Body request: SsoRequest): SsoResponseDto
+
+    /**
+     * Not suspending: it runs inside an OkHttp request that is waiting for a token, and a synchronous call needs no
+     * free slot in OkHttp's dispatcher, which those waiting requests may all be holding.
+     */
+    @POST("api/v1/auth/refresh")
+    fun refresh(@Body request: RefreshRequest): Call<SessionTokensDto>
 
     @POST("api/v1/auth/logout")
     suspend fun logout(@Body request: LogoutRequest)
@@ -20,10 +31,25 @@ interface AuthApi {
 data class MeDto(val userId: String, val isAnonymous: Boolean, val createdAt: String)
 
 @Serializable
-data class SsoRequest(val guestToken: String? = null)
+data class SessionTokensDto(val accessToken: String, val refreshToken: String, val expiresIn: Long) {
+    override fun toString(): String = "SessionTokensDto(expiresIn=$expiresIn)"
+}
 
 @Serializable
-data class SsoResponseDto(val account: MeDto, val guestMerged: Boolean)
+data class GuestResponseDto(val tokens: SessionTokensDto, val account: MeDto)
+
+@Serializable
+data class SsoRequest(val idToken: String, val guestRefreshToken: String? = null) {
+    override fun toString(): String = "SsoRequest(***)"
+}
+
+@Serializable
+data class SsoResponseDto(val tokens: SessionTokensDto, val account: MeDto, val guestMerged: Boolean)
+
+@Serializable
+data class RefreshRequest(val refreshToken: String) {
+    override fun toString(): String = "RefreshRequest(***)"
+}
 
 @Serializable
 data class LogoutRequest(val installationId: String)
