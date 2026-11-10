@@ -17,6 +17,9 @@ have no test?
 
 1. Each NEW test listed as "passes without change" is a finding (LOW) unless
    it is a regression guard for behavior that existed before; say which.
+   Read each test file listed as inconclusive (it only failed to load because
+   an added source file was removed): one that would pass with the change
+   reverted is a finding (LOW) too.
 2. For each risk area, list the hostile or malformed inputs that matter
    (impossible dates, out-of-range numbers, path-like text, symlinks, huge
    files, empty files, duplicate rows, concurrent requests) and whether a

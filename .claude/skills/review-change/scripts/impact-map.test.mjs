@@ -478,6 +478,35 @@ test("keeps the risk area and gate when a file is renamed out of a risk path", (
   assert.deepEqual(leftBackend.gates, [BACKEND_GATE]);
 });
 
+test("reads the content rules of a file renamed to a test or non-code name, as when it is deleted", () => {
+  const from = "career-ops-wrapper/src/services/session.ts";
+  const files = { [from]: "export const token = readToken();\n" };
+  const deleted = mapAfterMutation(files, (root) => git(root, "rm", "-q", from));
+  for (const to of ["career-ops-wrapper/src/services/session.ts.off", "career-ops-wrapper/test/session.test.ts"]) {
+    const renamed = mapAfterMutation(files, (root) => {
+      mkdirSync(path.dirname(path.join(root, to)), { recursive: true });
+      git(root, "mv", from, to);
+    });
+    for (const report of [deleted, renamed]) {
+      assert.ok(report.risks["auth-token"], to);
+      assert.equal(report.tier, "L", to);
+      assert.ok(report.reviewers.includes("security"), to);
+    }
+  }
+});
+
+test("does not flag auth-token or redaction for the review skill's own question text", () => {
+  const before = 'const RISK_CHECKS = { env: "Does a secret reach a log?" };\n';
+  const after = 'const RISK_CHECKS = { env: "Does a secret, token or unredacted path reach a log?" };\n';
+  const own = mapAfterCommit({ ".claude/skills/review-change/scripts/impact-map.mjs": { before, after } });
+  assert.deepEqual(own.risks, {});
+  assert.equal(own.tier, "M");
+  assert.deepEqual(own.reviewers, ["standard"]);
+
+  const backend = mapAfterCommit({ ...BACKEND_EXISTS, "backend/src/core/checks.ts": { before, after } });
+  assert.ok(backend.risks["auth-token"] && backend.risks.redaction);
+});
+
 test("still prints the backend gate when a change deletes the backend manifest", () => {
   const report = mapAfterMutation({ "backend/package.json": "{}\n", "backend/src/http/routes/x.ts": "export const a = 1;\n" }, (root) => {
     write(root, "backend/src/http/routes/x.ts", "export const a = 2;\n");

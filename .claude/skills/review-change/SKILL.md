@@ -82,8 +82,9 @@ node .claude/skills/review-change/scripts/tests-prove-change.mjs --base $BASE --
 ```
 
 It installs and builds in a throwaway worktree, reverts `<dir>/src/**` to `$BASE`,
-and re-runs the added/changed tests. New tests that still pass prove nothing; the
-Tests reviewer judges each one. Android has no automated equivalent: the Tests
+and re-runs the added/changed tests. New tests that still pass prove nothing, nor
+do tests reported inconclusive (they only failed to load because a reverted
+source file was added or moved); the Tests reviewer judges each one. Android has no automated equivalent: the Tests
 reviewer checks Android tests by reading them.
 
 ## Layer 1: impact map

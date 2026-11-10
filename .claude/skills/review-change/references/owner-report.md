@@ -8,7 +8,7 @@ Paste into the PR description under "Decisions for the reviewer" and
 
 Risk: LOW | MEDIUM | HIGH — <one sentence why>
 Components: <wrapper, contracts, android, docs>
-Gates: <each gate> PASS/FAIL; tests-prove-change: <n> failed without change, <n> new tests prove nothing
+Gates: <each gate> PASS/FAIL; tests-prove-change: <n> failed without change, <n> inconclusive, <n> new tests prove nothing
 Impact: <changed routes/schemas/contracts>; Android DTOs touched: <yes/no, which>
 Tier: S | M | L — <reasons from the impact map>
 Reviewers run: spec | standard | spec, impact, tests[, security]
