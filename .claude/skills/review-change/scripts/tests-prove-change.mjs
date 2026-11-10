@@ -110,12 +110,17 @@ function summarize(vitest, baseNames) {
     });
   }
   const all = files.flatMap((entry) => entry.tests);
+  // Reverting an added (or moved) source file deletes it, so a test that imports it fails
+  // to load whatever it asserts: that proves nothing about the change.
+  const addedSource = sourceFiles.some(({ status }) => status === "A");
+  for (const entry of files) entry.inconclusive = entry.loadFailed && addedSource;
   return {
     skipped: false,
     revertedSource: sourceFiles.map(({ status, file }) => `${status} ${file}`),
     testFiles: testFiles.map(({ file }) => file),
     counts: {
-      failedWithoutChange: all.filter((test) => test.status === "failed").length + files.filter((entry) => entry.loadFailed).length,
+      failedWithoutChange: all.filter((test) => test.status === "failed").length + files.filter((entry) => entry.loadFailed && !entry.inconclusive).length,
+      inconclusive: files.filter((entry) => entry.inconclusive).length,
       newStillPassing: all.filter((test) => test.isNew && test.status === "passed").length,
       existingStillPassing: all.filter((test) => !test.isNew && test.status === "passed").length
     },
@@ -136,11 +141,12 @@ function emit(result) {
   }
   out.push("", `Reverted ${result.revertedSource.length} source file(s) to ${args.base}; ran ${result.testFiles.length} added/changed test file(s).`);
   out.push(`- failed without the change (good): ${result.counts.failedWithoutChange}`);
+  out.push(`- failed to load because an added source file was removed (inconclusive, read the test): ${result.counts.inconclusive}`);
   out.push(`- NEW tests still passing without the change (prove nothing): ${result.counts.newStillPassing}`);
   out.push(`- existing tests still passing (expected for untouched behavior): ${result.counts.existingStillPassing}`);
   for (const entry of result.files) {
     if (entry.loadFailed) {
-      out.push("", `## ${entry.file}: whole file failed to load (good): ${entry.message}`);
+      out.push("", `## ${entry.file}: whole file failed to load (${entry.inconclusive ? "INCONCLUSIVE, an added source file was removed" : "good"}): ${entry.message}`);
       continue;
     }
     const suspicious = entry.tests.filter((test) => test.isNew && test.status === "passed");

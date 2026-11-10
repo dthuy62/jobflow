@@ -50,7 +50,7 @@ function createWorkspace() {
     root,
     "tools/fake-vitest/bin.mjs",
     `#!/usr/bin/env node
-import { readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
 const argv = process.argv.slice(2);
@@ -59,7 +59,12 @@ const files = argv.filter((arg) => arg.endsWith(".test.ts"));
 const entry = createRequire(path.join(process.cwd(), "x.js")).resolve("@jobflow/lib");
 const { value } = await import(entry);
 const testResults = files.map((file) => {
-  const expected = readFileSync(file, "utf8").split("\\n")[0].replace("// expects ", "");
+  const first = readFileSync(file, "utf8").split("\\n")[0];
+  // "// imports <file>": the file fails to load, as vitest reports it, when <file> is missing.
+  if (first.startsWith("// imports ") && !existsSync(first.replace("// imports ", ""))) {
+    return { name: path.resolve(file), status: "failed", message: "Failed to load " + first.replace("// imports ", ""), assertionResults: [] };
+  }
+  const expected = first.replace("// expects ", "");
   const passed = value === expected;
   return { name: path.resolve(file), status: passed ? "passed" : "failed", assertionResults: [{ fullName: file, status: passed ? "passed" : "failed" }] };
 });
@@ -111,7 +116,7 @@ test("loads workspace packages from the worktree, not from the main checkout", (
     assert.equal(report.skipped, false);
     assert.deepEqual(report.revertedSource, ["M app/src/main.js"]);
     assert.equal(report.files[0].file, "app/test/main.test.ts");
-    assert.deepEqual(report.counts, { failedWithoutChange: 0, newStillPassing: 1, existingStillPassing: 0 });
+    assert.deepEqual(report.counts, { failedWithoutChange: 0, inconclusive: 0, newStillPassing: 1, existingStillPassing: 0 });
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
@@ -130,6 +135,24 @@ test("reverts only the named package's source", () => {
 
     assert.deepEqual(report.revertedSource, ["M app/src/main.js"]);
     assert.equal(report.counts.newStillPassing, 1);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("reports a test file that fails to load as inconclusive when reverted source was added", () => {
+  const root = createWorkspace();
+  try {
+    // A moved source file: the base has no file at the new path, so the test cannot load.
+    git(root, "mv", "app/src/main.js", "app/src/moved.js");
+    write(root, "app/test/moved.test.ts", "// imports src/moved.js\n");
+    git(root, "add", "-A");
+    git(root, "commit", "-qm", "head");
+
+    const report = prove(root, "--package", "app");
+
+    assert.deepEqual(report.revertedSource, ["D app/src/main.js", "A app/src/moved.js"]);
+    assert.deepEqual(report.counts, { failedWithoutChange: 0, inconclusive: 1, newStillPassing: 0, existingStillPassing: 0 });
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

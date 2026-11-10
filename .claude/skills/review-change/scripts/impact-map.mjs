@@ -47,9 +47,10 @@ const WORKSPACE_FILES = /^(compose\.yaml|package\.json|package-lock\.json|\.npmr
 const CONTENT_RISKS = [
   { area: "process-spawn", pattern: /child_process|\bspawn\(|\bexecFile\(|\bexec\(|\bfork\(/ },
   { area: "workspace-write", pattern: /\b(writeFile|appendFile|rename|unlink|rm|rmdir|mkdir|copyFile|createWriteStream|truncate)\s*\(/ },
-  { area: "auth-token", pattern: /pairing|token|authorization|x-career-ops-token/i },
+  // The review skill's scripts hold these words as question text, not as code that handles them.
+  { area: "auth-token", pattern: /pairing|token|authorization|x-career-ops-token/i, notIn: /^\.claude\/skills\/review-change\/scripts\// },
   { area: "env", pattern: /process\.env/ },
-  { area: "redaction", pattern: /redact|sanitiz/i },
+  { area: "redaction", pattern: /redact|sanitiz/i, notIn: /^\.claude\/skills\/review-change\/scripts\// },
   { area: "schema-parse", pattern: /Schema\.(parse|safeParse)\(/ }
 ];
 
@@ -122,10 +123,16 @@ function analyzeFile(file) {
   const risks = new Set();
   // A rename out of a risk path needs the same review as deleting the file there.
   for (const rule of PATH_RISKS) if (rule.pattern.test(file.path) || (file.oldPath && rule.pattern.test(file.oldPath))) risks.add(rule.area);
-  const isTest = /\.test\.|\/test\/|\/src\/test\//.test(file.path);
-  const isCode = /\.(ts|mts|mjs|js|kt)$/.test(file.path);
+  // A rename is test only if both names are tests, and code if either name is code,
+  // so renaming source to `x.test.ts` or `x.ts.off` is read like deleting it.
+  const paths = [file.path, file.oldPath].filter(Boolean);
+  const isTest = paths.every((name) => /\.test\.|\/test\/|\/src\/test\//.test(name));
+  const isCode = paths.some((name) => /\.(ts|mts|mjs|js|kt)$/.test(name));
   if (isCode && !isTest) {
-    for (const rule of CONTENT_RISKS) if (touched.some(({ text }) => rule.pattern.test(text))) risks.add(rule.area);
+    for (const rule of CONTENT_RISKS) {
+      if (rule.notIn && paths.every((name) => rule.notIn.test(name))) continue;
+      if (touched.some(({ text }) => rule.pattern.test(text))) risks.add(rule.area);
+    }
   }
 
   let symbols = [];
