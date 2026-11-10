@@ -21,14 +21,19 @@ for (const [network, prefix] of [
 ] as const) {
   blocked.addSubnet(network, prefix, "ipv4");
 }
+// IPv6 outside global unicast 2000::/3 is refused, then these non-public parts of it.
+const globalUnicast = new BlockList();
+globalUnicast.addSubnet("2000::", 3, "ipv6");
 for (const [network, prefix] of [
-  ["::", 128],
-  ["::1", 128],
-  ["100::", 64],
+  // Teredo and 6to4 tunnel to an IPv4 address of the attacker's choosing.
+  ["2001::", 32],
+  ["2002::", 16],
+  // Documentation, benchmarking and ORCHID: never on the public internet.
   ["2001:db8::", 32],
-  ["fc00::", 7],
-  ["fe80::", 10],
-  ["ff00::", 8]
+  ["3fff::", 20],
+  ["2001:2::", 48],
+  ["2001:10::", 28],
+  ["2001:20::", 28]
 ] as const) {
   blocked.addSubnet(network, prefix, "ipv6");
 }
@@ -52,7 +57,7 @@ export function isBlockedAddress(address: string): boolean {
   if (embedded !== undefined) {
     return blocked.check(embedded, "ipv4");
   }
-  return blocked.check(ip, "ipv6");
+  return !globalUnicast.check(ip, "ipv6") || blocked.check(ip, "ipv6");
 }
 
 /**

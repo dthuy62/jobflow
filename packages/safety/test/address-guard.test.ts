@@ -28,13 +28,32 @@ describe("isBlockedAddress", () => {
     "::ffff:a9fe:a9fe",
     "::127.0.0.1",
     "64:ff9b::7f00:1",
+    "2001:db8::1",
+    "3fff::1",
+    "2001:2::1",
+    "2001:10::1",
+    "2001:20::1",
+    "2002:a9fe:a9fe::1",
+    "64:ff9b:1::a9fe:a9fe",
+    "2001:0:a9fe:a9fe::1",
+    "::ffff:0:a9fe:a9fe",
+    "::7f",
+    "fec0::1",
     "not-an-ip",
     ""
   ])("blocks %s", (address) => {
     expect(isBlockedAddress(address)).toBe(true);
   });
 
-  it.each(["8.8.8.8", "1.1.1.1", "172.32.0.1", "2606:4700::1111", "::ffff:8.8.8.8", "64:ff9b::808:808"])(
+  it.each([
+    "8.8.8.8",
+    "1.1.1.1",
+    "172.32.0.1",
+    "2606:4700::1111",
+    "2001:4860:4860::8888",
+    "::ffff:8.8.8.8",
+    "64:ff9b::808:808"
+  ])(
     "allows %s",
     (address) => {
       expect(isBlockedAddress(address)).toBe(false);
