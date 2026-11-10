@@ -28,7 +28,12 @@ for (const [network, prefix] of [
   // Teredo and 6to4 tunnel to an IPv4 address of the attacker's choosing.
   ["2001::", 32],
   ["2002::", 16],
-  ["2001:db8::", 32]
+  // Documentation, benchmarking and ORCHID: never on the public internet.
+  ["2001:db8::", 32],
+  ["3fff::", 20],
+  ["2001:2::", 48],
+  ["2001:10::", 28],
+  ["2001:20::", 28]
 ] as const) {
   blocked.addSubnet(network, prefix, "ipv6");
 }
