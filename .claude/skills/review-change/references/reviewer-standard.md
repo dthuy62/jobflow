@@ -24,7 +24,9 @@ would its tests catch it being wrong?
 2. Answer each risk-area question in the impact map for this diff, and check
    the references it lists for callers the change could break.
 3. Each NEW test listed as "passes without change" is a finding (LOW) unless
-   it guards behavior that existed before.
+   it guards behavior that existed before. Read each test file listed as
+   inconclusive: one that would pass with the change reverted is a finding
+   (LOW) too.
 4. Behavior no requirement asks for is a finding (LOW unless it changes a
    security boundary or the Android contract).
 
