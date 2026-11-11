@@ -1,17 +1,24 @@
 # Quick start
 
-Requirements: Android Studio (current stable), JDK 21, Android SDK 37, and Docker for the mock.
+Requirements: Android Studio (current stable), JDK 21, Android SDK 37, and Docker for the server.
 
-## Run against the mock
+## Run
+
+Start a server first: the backend (`../docs/deployment-guide.md`) or the contract's mock (`../contracts/README.md`). The
+mock also needs `devApiBaseUrl` in `local.properties`; see `app/build.gradle.kts`.
+
+A fresh clone needs two ignored files before it builds, once per machine:
 
 ```bash
-cd ..
-docker compose --profile mock up -d mock
-curl http://127.0.0.1:4010/api/v1/health
+cd android
+base64 --decode < debug.keystore.base64 > debug.keystore
+cp ci/google-services.json app/google-services.json
 ```
 
-Then run the `app` configuration with the `devDebug` variant on an emulator; `dev` reaches the host at
-`http://10.0.2.2:4010`. From a shell:
+The second is a placeholder: enough to compile and run unit tests, but signing in needs the real file from the Firebase
+project (skill `setup-starter`).
+
+Then run the `app` configuration with the `devDebug` variant on an emulator. From a shell:
 
 ```bash
 ./gradlew assembleDevDebug
@@ -23,7 +30,7 @@ Verify everything before saying a task is done:
 ./gradlew assembleDevDebug testDevDebugUnitTest lintDevDebug detekt ktlintCheck
 ```
 
-`./gradlew ktlintFormat` fixes formatting. This is the same command CI runs.
+`./gradlew ktlintFormat` fixes formatting. CI runs this command, and also compiles the instrumented tests.
 
 ## Add a screen
 

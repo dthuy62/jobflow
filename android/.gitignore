@@ -9,6 +9,8 @@ captures/
 *.jks
 *.keystore
 google-services.json
+# CI only compiles and runs unit tests, so it needs no real project. Holds no real values.
+!ci/google-services.json
 /secrets.properties
 .kotlin/
 .claude/settings.local.json

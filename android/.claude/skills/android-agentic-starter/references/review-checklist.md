@@ -2,11 +2,11 @@
 
 - Does `ui/` import from `data/`, or `domain/` import Android, Room or DataStore types?
 - Does one feature import another instead of going through `NavGraph.kt`?
-- Does anything reach something other than the hosted API?
+- Does product data come from anything but the hosted API, or a platform SDK get called outside its adapter?
 - Is each screen MVVM-lite or MVI, not both, and would MVVM-lite have been enough?
 - Is every layer (use case, mapper, separate model) justified by a concrete need, not by habit?
 - Is UI state one immutable value with explicit exclusive states?
-- Are expected failures `Either<AppError, T>` mapped only at the source mapper and `toUiError()`, with no `Throwable`
+- Are expected failures `Either` values mapped only at the SDK mapper, a feature `when` and `toUiError()`, with no `Throwable`
   in state, and is `CancellationException` rethrown?
 - Is every new string in `strings.xml` and every spacing from `Spacing`?
 - Does new ViewModel or use case logic have a unit test with fakes?

@@ -15,12 +15,6 @@ Requirements: Android Studio (current stable), JDK 21, Android SDK 37.
 ./gradlew assembleDevDebug testDevDebugUnitTest lintDevDebug detekt ktlintCheck
 ```
 
-The `dev` flavor reaches the contract's mock on the host at `http://10.0.2.2:4010` from the emulator:
-
-```bash
-cd .. && docker compose --profile mock up -d mock
-```
-
 Architecture rules are checked by Konsist tests, code smells by detekt (`config/detekt/detekt.yml`), formatting by
 ktlint (`./gradlew ktlintFormat` fixes it). Contract tests read the hosted contract's JSON examples, so a contract
 change fails here until the DTOs follow.
@@ -29,9 +23,9 @@ change fails here until the DTOs follow.
 
 ```
 app/src/main/kotlin/me/dthuy/jobflow
-├── core/        common (Either, AppError, ApiErrorCode, unexpected), mvi (MviViewModel)
+├── core/        common (Either, DataSourceError, ApiErrorCode, unexpected), network (toRemoteError, ApiJson), mvi
 ├── domain/      model (Health, HealthSnapshot), repository (interfaces)
-├── data/        remote (JobFlowApi, DTOs, toApiError), repository/impl
+├── data/        remote (JobFlowApi, DTOs), auth, local, repository/impl
 ├── di/          Hilt modules
 ├── navigation/  NavGraph, tabs, glass bottom bar
 └── ui/          theme, components, health (shared), home (MVI), inputs, settings (MVVM-lite)

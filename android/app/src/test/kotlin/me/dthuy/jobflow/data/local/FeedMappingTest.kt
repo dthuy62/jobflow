@@ -2,9 +2,9 @@ package me.dthuy.jobflow.data.local
 
 import java.time.Instant
 import java.time.format.DateTimeParseException
+import me.dthuy.jobflow.core.network.ApiJson
 import me.dthuy.jobflow.data.local.entity.toDomain
 import me.dthuy.jobflow.data.local.entity.toEntity
-import me.dthuy.jobflow.data.remote.ApiJson
 import me.dthuy.jobflow.data.remote.dto.FeedPageDto
 import me.dthuy.jobflow.data.remote.dto.JobSummaryDto
 import me.dthuy.jobflow.domain.model.FeedItem

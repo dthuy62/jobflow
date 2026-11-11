@@ -35,8 +35,8 @@ The Android app is a single-module native app.
 | --- | --- |
 | Build | `android/settings.gradle.kts`, `android/build.gradle.kts`, `android/app/build.gradle.kts`, `android/gradle/libs.versions.toml` |
 | App root | `MainApplication.kt` (Hilt), `MainActivity.kt` |
-| Core | `core/common/` (`Either`, `AppError`, `ApiErrorCode`), `core/mvi/` |
-| Data | `data/remote/` (`JobFlowApi`, DTOs, `toApiError`), `data/local/` (Room cache), `data/repository/impl/` |
+| Core | `core/common/` (`Either`, `DataSourceError`, `ApiErrorCode`), `core/network/` (`toRemoteError`), `core/mvi/` |
+| Data | `data/remote/` (`JobFlowApi`, DTOs), `data/auth/`, `data/local/` (Room cache), `data/repository/impl/` |
 | Domain | `domain/model/`, `domain/repository/` |
 | UI | `ui/home/`, `ui/inputs/`, `ui/settings/`, shared `ui/components/`, `ui/health/`, `ui/theme/`; `navigation/` |
 | DI | `di/` Hilt modules |
@@ -50,7 +50,7 @@ Key implementation facts:
   bottom of the stack.
 - Retrofit/OkHttp/kotlinx.serialization call the hosted API; contract tests parse
   `contracts/examples` and `contracts/error-codes.json`.
-- Errors: `Either<AppError, T>`, one mapper per data source, one UI mapper.
+- Errors: `Either` values; one mapper per SDK, a `when` per feature with its own errors, one UI mapper per error type (ADR 16).
 - Konsist enforces layers; detekt and ktlint run in the verify command and CI.
 - `dev` and `prod` product flavors exist; `dev` allows cleartext access to
   `10.0.2.2`.

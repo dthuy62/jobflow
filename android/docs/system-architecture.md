@@ -15,8 +15,9 @@ flowchart LR
 - `ui/` depends on `domain/`. `domain/` depends on Kotlin only. `data/` depends on `domain/`.
 - The domain defines ports (`HealthRepository`); `data/` implements them; `di/RepositoryModule`
   binds them. Replacing Retrofit or adding a cache touches `data/` plus one binding.
-- The app reaches nothing but the hosted API; the backend owns authorization, user data and job sources
-  (`../../docs/system-architecture.md`).
+- Product data comes only from the hosted API; the backend owns authorization, user data and job sources
+  (`../../docs/system-architecture.md`). Firebase Auth is the one other service: it says who the user is
+  ([Authentication](#authentication)).
 - It is one Gradle module on purpose ([ADR 1](decisions/0001-use-a-single-app-module.md)). The compiler cannot stop
   `ui/` from importing `data/`, so Konsist tests do (see [code standards](code-standards.md#automated-checks)).
 - How many layers a feature really needs is a per-feature decision
@@ -65,7 +66,7 @@ sequenceDiagram
     else stale, failed, not ready or forced
         R->>A: GET api/v1/health
         A-->>R: HealthDto or exception
-        R->>R: Either.catch(Throwable::toApiError), toDomain(), checkedAt = clock
+        R->>R: Either.catch(Throwable::toRemoteError), toDomain(), checkedAt = clock
         R-->>V: HealthSnapshot (also published on latest)
     end
     V-->>S: state.health, showUnhealthyDialog (once)
@@ -82,32 +83,104 @@ recovers at once.
 
 - `data/remote/JobFlowApi.kt` declares the endpoints under `api/v1/`. Calls are `suspend` and throw on failure. Health
   returns a `Response`, because `healthOrThrow` treats its 503 with a health body as an answer.
-- `di/NetworkModule.kt` builds one `OkHttpClient` (the bearer token interceptor arrives with the auth layer; health needs
-  no token) and one `Retrofit` using `ApiJson` (`ignoreUnknownKeys = true`).
+- `di/NetworkModule.kt` builds one `OkHttpClient` with the bearer token interceptor and authenticator (health needs no
+  token) and one `Retrofit` using `ApiJson` (`ignoreUnknownKeys = true`).
 - The base URL comes from the flavor: `BuildConfig.API_BASE_URL`. Only `dev` allows cleartext, and only to
   `10.0.2.2` and `localhost` (`app/src/dev/res/xml/network_security_config.xml`).
 - DTOs in `data/remote/dto` mirror the hosted contract. Wire enums map unknown values to `UNKNOWN` instead of
   failing. `ApiContractCompatibilityTest` parses every example in `../contracts/examples`.
 
+## Authentication
+
+Firebase only proves who signed in; the backend issues the session and decides what the user may do. The app only
+displays whether the user is a guest, it never authorizes with it. The reasons are in
+[ADR 15](decisions/0015-sign-in-through-the-backend-and-keep-only-its-session.md), which replaces the guest and session parts of
+[ADR 13](decisions/0013-keep-auth-self-contained-with-one-session-source.md).
+
+| Piece | Job | Never |
+|---|---|---|
+| `ui/auth/AuthViewModel.kt` | MVI. One per screen, holding only that screen's error and sign-in in progress | Knows Firebase or the API |
+| `ui/auth/GoogleCredentials.kt` | Shows Google's sheet, which needs an Activity, and returns an ID token | Holds session logic |
+| `domain/auth` | `AuthenticationService`, `Session`, `SignInMethod`, `AuthError`, `SessionObserver` | Knows Firebase or Android |
+| `data/auth/AuthenticationServiceImpl.kt` | The one source of the session and `isBusy`; runs commands one at a time on the app's scope; keeps a new session in one write; publishes it only after observers ran | Calls an SDK |
+| `data/auth/SignInStrategies.kt` | One strategy per method that gets a session from the backend, and the best-effort logout call | Keeps or publishes a session |
+| `data/auth/SessionStore.kt` | The backend's token pair, user id and expiry, in the auth DataStore | |
+| `data/auth/SessionTokens.kt` | Refreshes the access token before it ends and after a 401, one refresh at a time; a 401 from refresh ends the session | Signs out for a network failure or a 5xx |
+| `data/auth/IdentityProvider.kt` | The boundary with the identity vendor: Google's token in, the vendor's ID token out | Mentions Firebase |
+| `data/auth/firebase/` | The only code that imports Firebase; it signs out of Firebase right after every sign-in | Holds product rules or a session |
+| `data/auth/AuthApi.kt` | `POST /auth/guest`, `/auth/sso`, `/auth/refresh`, `/auth/logout` | |
+| `data/auth/BearerToken.kt` | Adds the access token, and retries a 401 once with a refreshed one | |
+
+```mermaid
+sequenceDiagram
+    participant VM as AuthViewModel
+    participant S as AuthenticationService
+    participant I as IdentityProvider
+    participant A as AuthApi
+    VM->>S: signIn(Google)
+    S->>I: signInWithGoogle
+    alt provider fails
+        I-->>S: error
+        S-->>VM: error, nothing changed
+    else provider succeeds
+        I-->>S: the vendor's ID token, signed out of the vendor again
+        S->>A: POST /auth/sso, with a guest's refresh token if the user is a guest
+        alt API succeeds
+            A-->>S: tokens and account
+            S->>S: keep the pair in one write, run observers, publish session
+            S-->>VM: done
+        else API fails
+            S-->>VM: error, nothing written, a guest is still the guest
+        end
+    end
+```
+
+- `Session` is `Unknown` (not read from the device yet), `SignedOut`, `Guest` or `Member`. It is known offline, so
+  navigation reads it.
+- A guest starts once per install (`GuestLedger`), through `POST /auth/guest`. After the install's guest only Google is left.
+  Uninstalling resets it. This is a product rule, not abuse protection: the API's limits and Play Integrity stop scripts.
+- A guest has no sign-out, because it would lose their data. Before a guest signs in with Google, the screen says their data
+  moves to the account they pick.
+- **A sign-in is all or nothing.** A new session replaces the old one in one write, only after the backend answered. If
+  anything fails, nothing is written. `/auth/sso` is safe to repeat, also after a merge whose answer was lost.
+- The access token is refreshed before a request when less than 60 seconds are left, counted from when it arrived, and once
+  after a 401. Only a 401 from `/auth/refresh` ends a session. A network failure or a 5xx keeps it.
+- The user pressing sign out calls `/auth/logout` as best effort, then forgets the session on the device. It works offline.
+
+| Change | User id | Session | Observers run |
+|---|---|---|---|
+| A guest starts | New | `Guest` | Yes |
+| A guest signs in with Google | The member's | `Member`, and the backend merges | Yes |
+| Sign-out, or the backend ends the session | None | `SignedOut` | Yes |
+
 ## Errors
 
-Expected failures are values: repositories return `Either<AppError, T>` (Left is the error)
-([ADR 10](decisions/0010-use-either-and-two-boundary-error-mapping.md)). Errors change shape at exactly two places:
+Expected failures are values (`Either`, Left is the error). They change shape at three boundaries, and each layer keeps
+only what it decides something with ([ADR 16](decisions/0016-translate-errors-at-three-boundaries.md)):
 
 ```mermaid
 flowchart LR
-    X["Exception in data/<br/>(IO, HTTP, serialization)"] --> M["source mapper<br/>Throwable.toApiError()"]
-    M --> L["Either.Left(AppError)"]
-    L --> P["repository / ViewModel<br/>pass through, intercept business cases"]
-    P --> U["AppError.toUiError()<br/>string resource + action"]
+    X["Exception from an SDK"] --> M["one mapper per SDK<br/>Throwable.toRemoteError() / toLocalError()"]
+    M --> D["DataSourceError<br/>Remote, Local, Unknown"]
+    D --> F["feature translation, if it has its own failures<br/>DataSourceError.toAuthError()"]
+    O["SDK only one feature uses<br/>Firebase, Credential Manager"] --> F2["Throwable.toAuthError()"]
+    F --> E["AuthError"]
+    F2 --> E
+    D --> U["toUiError()<br/>string resource + action"]
+    E --> U
 ```
 
-- One mapper per data **source**, not per feature. It knows the SDK's exception types and nothing else does. Unknown
-  exceptions go to `unexpected()`: rethrown in debug, logged and mapped to `AppError.Unknown` in release.
-- `AppError` holds no `Throwable`, so states compare equal and exception text never reaches the UI.
+- One mapper per **SDK**. It knows the SDK's exception types and nothing else does. Unknown exceptions go to
+  `unexpected()`: rethrown in debug, logged and mapped to `DataSourceError.Unknown` in release.
+- A source shared by several features is a group in `DataSourceError`; a source one feature uses maps straight to that
+  feature's error.
+- A feature translation is a pure exhaustive `when`; it never sees an exception. A feature without failures of its own
+  passes `DataSourceError` through.
+- Every `toUiError()` is exhaustive with no `else`: errors that show the same thing share a branch, and "show nothing"
+  is a branch.
+- No error holds a `Throwable`, so states compare equal and exception text never reaches the UI.
 - An API error code (`ApiErrorCode`, mirrored from `contracts/error-codes.json` and checked by `ApiErrorCodeContractTest`) that
-  is a normal branch of a flow becomes part of the success type; one a feature shows as an error becomes
-  `AppError.Feature(<its sealed FeatureError>)`.
+  is a normal branch of a flow becomes part of the success type.
 - `CancellationException` is always rethrown. Konsist fails the build if `ui/` or `domain/` catches exceptions.
 
 ## Dependency injection and lifetimes

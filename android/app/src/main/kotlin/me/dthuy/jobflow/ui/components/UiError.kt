@@ -1,33 +1,23 @@
 package me.dthuy.jobflow.ui.components
 
-import androidx.annotation.StringRes
 import me.dthuy.jobflow.R
 import me.dthuy.jobflow.core.common.ApiErrorCode
-import me.dthuy.jobflow.core.common.AppError
-import timber.log.Timber
-
-/** What the UI shows for an error: a message resource and the one action the user can take. */
-data class UiError(@param:StringRes val message: Int, val action: ErrorAction)
-
-enum class ErrorAction { Retry, SignIn, None }
+import me.dthuy.jobflow.core.common.DataSourceError
+import me.dthuy.jobflow.core.common.ErrorAction
+import me.dthuy.jobflow.core.common.UiError
 
 /**
- * The app-wide mapping from [AppError] to what the user sees. Exhaustive on purpose: a new [AppError] case does
- * not compile until it has a message. Features map their own [AppError.Feature] reasons in their screens and fall
- * back to this for everything else.
+ * The app-wide mapping from [DataSourceError] to what the user sees. Exhaustive on purpose: a new case does not
+ * compile until it has a message. A feature with its own error type maps that type in its own UI code.
  */
-fun AppError.toUiError(): UiError = when (this) {
-    AppError.Unreachable -> UiError(R.string.error_unreachable, ErrorAction.Retry)
-    AppError.Unauthorized -> UiError(R.string.error_sign_in_required, ErrorAction.SignIn)
-    is AppError.Rejected -> code.toUiError()
-    is AppError.ServerFailure -> UiError(R.string.error_server, ErrorAction.Retry)
-    AppError.InvalidResponse -> UiError(R.string.error_incompatible, ErrorAction.None)
-    AppError.StorageFailure -> UiError(R.string.error_storage, ErrorAction.Retry)
-    AppError.Unknown -> UiError(R.string.error_unexpected, ErrorAction.Retry)
-    is AppError.Feature -> {
-        Timber.w("Unhandled feature error %s; showing the generic message", reason::class.simpleName)
-        AppError.Unknown.toUiError()
-    }
+fun DataSourceError.toUiError(): UiError = when (this) {
+    DataSourceError.Remote.Unreachable -> UiError(R.string.error_unreachable, ErrorAction.Retry)
+    DataSourceError.Remote.Unauthorized -> UiError(R.string.error_sign_in_required, ErrorAction.SignIn)
+    is DataSourceError.Remote.Rejected -> code.toUiError()
+    is DataSourceError.Remote.ServerFailure -> UiError(R.string.error_server, ErrorAction.Retry)
+    DataSourceError.Remote.InvalidResponse -> UiError(R.string.error_incompatible, ErrorAction.None)
+    DataSourceError.Local.StorageFailure -> UiError(R.string.error_storage, ErrorAction.Retry)
+    DataSourceError.Unknown -> UiError(R.string.error_unexpected, ErrorAction.Retry)
 }
 
 // One flat line per code, exhaustive on purpose: the count is the contract's size, not branching logic.

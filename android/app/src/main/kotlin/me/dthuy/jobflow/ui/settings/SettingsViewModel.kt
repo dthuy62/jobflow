@@ -25,11 +25,11 @@ data class SettingsUiState(val health: HealthUiState = HealthUiState())
  * It talks to the repository directly: a use case here would be a pass-through.
  */
 @HiltViewModel
-class SettingsViewModel @Inject constructor(private val healthRepository: HealthRepository) : ViewModel() {
+class SettingsViewModel @Inject constructor(private val repository: HealthRepository) : ViewModel() {
     private val refreshing = MutableStateFlow(false)
 
     val uiState: StateFlow<SettingsUiState> =
-        combine(healthRepository.latest, refreshing) { snapshot, isRefreshing ->
+        combine(repository.latest, refreshing) { snapshot, isRefreshing ->
             val health = snapshot.toHealthUiState()
             SettingsUiState(health = if (isRefreshing) health.copy(kind = HealthUiKind.LOADING) else health)
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), SettingsUiState())
@@ -38,7 +38,7 @@ class SettingsViewModel @Inject constructor(private val healthRepository: Health
         if (refreshing.value) return
         viewModelScope.launch {
             refreshing.value = true
-            healthRepository.refresh(force = true)
+            repository.refresh(force = true)
             refreshing.value = false
         }
     }

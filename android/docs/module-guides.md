@@ -16,6 +16,57 @@ Use it as the model when a screen has async work, interdependent state or naviga
 injecting the repositories directly because a use case would be a pass-through. Use it as the model for forms and
 simple screens.
 
+## Authentication
+
+The design is in [system architecture](system-architecture.md#authentication) and
+[ADR 15](decisions/0015-sign-in-through-the-backend-and-keep-only-its-session.md). Read `AuthenticationService.session` to know who is
+signed in. A screen that offers sign-in takes its own `AuthViewModel` and sends `AuthIntent.SignInWithGoogle` with
+`requestGoogleIdToken(context, webClientId)` to run, as `SettingsScreen` does. To clear data of your own when the user changes,
+implement `SessionObserver` and register it with `@IntoSet`, as `FeedSessionCleanup` does. To add a sign-in method, add it to
+`SignInMethod`, follow the compile error, write one more strategy in `SignInStrategies.kt`, and give `IdentityProvider` a method
+that turns the new credential into the vendor's ID token.
+
+To reuse auth in another project, copy `domain/auth`, `data/auth`, `ui/auth`, `di/AuthModule.kt`, `di/AuthFirebaseModule.kt`,
+`core/common`, `core/mvi` and the `error_auth_*` strings from `strings.xml`. Then provide an `@ApplicationScope` `CoroutineScope`
+(`di/CoroutinesModule.kt`) and add `BearerTokenInterceptor` and `TokenAuthenticator` to the OkHttp client, with your public
+routes (`di/NetworkModule.kt`).
+
+Session rules and token refresh are tested on the JVM with `AuthFakes.kt`. What a fake cannot prove runs the real SDK against the
+local Auth emulator, outside the verify command because it needs a device. With an emulator or device connected:
+
+```bash
+firebase emulators:start --only auth --project demo-jobflow
+./gradlew connectedDevDebugAndroidTest
+```
+
+Gradle runs these on every connected device, and uninstalls the app from each afterwards. With a phone plugged in, set
+`ANDROID_SERIAL` to the emulator: on a phone they cannot reach the Auth emulator at `10.0.2.2`.
+
+| Case | Result | Proven by |
+|---|---|---|
+| First open | `SignedOut`, nothing created | Unit |
+| A stored guest or member at start | Restored offline, no signed-out flash | Unit |
+| Guest | Kept and shown only after the backend answered and the pair is on disk | Unit |
+| Guest again after this install's guest | Refused, only Google is offered | Unit |
+| Guest signs out | Not offered, and the service ignores it | Unit |
+| Google from signed out or as a member | Firebase's ID token goes to `/auth/sso`, no guest token | Unit |
+| Google as a guest | The guest's refresh token goes too, and the backend merges | Unit |
+| The backend fails, or the pair cannot be written | Nothing changes; a guest is still the guest and can retry | Unit |
+| Firebase gives a token | Its own session is gone right after | Auth emulator |
+| A Google account already used | That account's token | Auth emulator |
+| That Google account is disabled | `AccountDisabled`, nothing changes | Auth emulator |
+| Caller leaves the screen during a sign-in | The sign-in finishes | Unit |
+| Access token about to end | Refreshed before the request, refresh token unchanged | Unit |
+| A 401 | One refresh and one retry; requests at once share one refresh | Unit |
+| Refresh answers 401 | Session ended, observers run | Unit |
+| Offline or a 5xx during refresh | Session kept; a token not yet ended is still used | Unit |
+| Sign out | Backend told as best effort with the token, works offline, starts no guest | Unit |
+| A failing observer | Session and other observers unaffected | Unit |
+| Second tap, or a command running on another screen | Ignored, and that screen shows loading | Unit |
+| Google's sheet: closed, no account, no Play services | No error, `NoGoogleAccount`, `GoogleUnavailable` | Unit for the mapping; not run on a device |
+| Rotate while the sheet is open | Sign-in should finish | Not proven |
+| Reinstall | New guest allowed | Not proven: follows from the backup rules |
+
 ## Add a screen
 
 ```bash
@@ -36,10 +87,24 @@ skill `new-feature`.
    `contractFixture(...)` from the test `testing` package). Never copy the JSON into Android.
 3. Declare the call in `JobFlowApi` (path relative, e.g. `@GET("api/v1/cv")`).
 4. Implement the domain port in `data/repository/impl` with
-   `Either.catch(onError = Throwable::toApiError) { api.getCv() }.map { it.toDomain() }`.
+   `Either.catch(onError = Throwable::toRemoteError) { api.getCv() }.map { it.toDomain() }`.
 5. If an API error code means something to this feature, intercept it in the repository: a normal branch goes into
-   the success type, a failure the UI shows becomes `AppError.Feature(<sealed FeatureError>)`. The screen maps its own
-   `FeatureError` exhaustively and falls back to `AppError.toUiError()` for the rest.
+   the success type. If the UI shows it as an error, give the feature its own error type, as in
+   [Add a feature error type](#add-a-feature-error-type).
+
+## Add a feature error type
+
+Only for a feature with failures of its own ([ADR 16](decisions/0016-translate-errors-at-three-boundaries.md));
+otherwise keep `DataSourceError`. Auth is the model.
+
+1. Define a sealed `<Feature>Error`. Each case must change what the user sees or can do.
+2. Return `Either<<Feature>Error, T>` from the repository.
+3. For the API or Room, translate the shared error with a pure exhaustive `when`, as `DataSourceError.toAuthError()`
+   does, and use it as `Either.catch(onError = Throwable::toRemoteError) { ... }.mapLeft(DataSourceError::toXError)`.
+4. For an SDK only this feature uses, write one `Throwable.toXError()` in its adapter, as `data/auth/firebase` does. It
+   matches known exception types, rethrows `CancellationException` and sends the rest to `unexpected()`. If a second
+   feature starts using that SDK, move it into a new `DataSourceError` group instead.
+5. Write an exhaustive `toUiError()` with no `else` in the feature's UI code, and test each case's action and message.
 
 ## Share logic between features
 
@@ -66,14 +131,14 @@ to Room. Data that is not cached, like health, goes straight from DTO to domain.
 1. Add an entity in `data/local/entity` and a DAO in `data/local/dao`, list the entity in `JobFlowDatabase`, and provide
    the DAO in `DatabaseModule`. Per-user data has `ownerUserId` in its key; public data like a job does not.
 2. Keep wire enums as strings in the entity and parse them in `toDomain()`. Parse timestamps to epoch millis in
-   `toEntity()`, and call `toEntity()` inside `Either.catch(onError = Throwable::toApiError) { ... }`, not in a later
+   `toEntity()`, and call `toEntity()` inside `Either.catch(onError = Throwable::toRemoteError) { ... }`, not in a later
    `.map`, so a malformed one becomes `InvalidResponse` and reading a row cannot fail.
 3. Wrap suspend calls with `Either.catch(onError = Throwable::toLocalError) { ... }`. That does not cover a DAO's `Flow`,
    which fails when collected: map it to `Either` and add `.catch { emit(Either.Left(it.toLocalError())) }`.
 4. Because the database is a rebuildable cache, a destructive migration is acceptable, and `DatabaseModule` uses one.
 5. Expose cached data with its sync time and last refresh error instead of replacing data with an error.
-6. The auth layer must call `deleteFeed` on sign-out and in-app account deletion, and `deleteFeedsExcept` whenever the
-   signed-in user changes. A later per-user table joins both, and `deleteUnusedJobs` must keep any job it references.
+6. `FeedSessionCleanup` calls `deleteAllFeeds` when nobody is signed in and `deleteFeedsExcept` whenever the user changes.
+   A later per-user table joins both, and `deleteUnusedJobs` must keep any job it references.
 
 DAO tests run real SQL on the JVM (`FeedDaoTest`). `@Upsert` does not work there: it reads the error code from the
 message of `SQLException`, which the Android stub drops. Use `@Insert(onConflict = REPLACE)`, and no foreign key to a

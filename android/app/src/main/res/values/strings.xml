@@ -23,13 +23,21 @@
     <string name="inputs_portals_body">Future job portal and search configuration area.</string>
     <string name="inputs_coming_soon">COMING SOON</string>
 
-    <!-- Errors: one message per AppError case (ui/components/UiError.kt) -->
+    <!-- Errors: one message per DataSourceError case (ui/components/UiError.kt) -->
     <string name="error_unreachable">Cannot reach JobFlow right now. Try again in a moment.</string>
     <string name="error_sign_in_required">Your session has ended. Sign in again.</string>
     <string name="error_server">JobFlow hit a problem. Try again in a moment.</string>
     <string name="error_incompatible">JobFlow answered in an unexpected format. Update the app.</string>
     <string name="error_storage">Saved data could not be read. Try again.</string>
     <string name="error_unexpected">Something went wrong. Please try again.</string>
+    <!-- One message per AuthError case (ui/auth/AuthErrorUi.kt) -->
+    <string name="error_auth_network">Check your connection and try again.</string>
+    <string name="error_auth_no_google_account">Add a Google account to this device, then sign in.</string>
+    <string name="error_auth_google_unavailable">Google sign-in is not available on this device.</string>
+    <string name="error_auth_sign_in_failed">Sign-in did not finish. Try again.</string>
+    <string name="error_auth_too_many_attempts">Too many sign-in attempts. Try again later.</string>
+    <string name="error_auth_account_disabled">This account has been disabled.</string>
+    <string name="error_auth_guest_already_used">Guest mode was already used on this device. Sign in with Google.</string>
     <string name="error_code_validation_error">Some values are not valid. Check them and save again.</string>
     <string name="error_code_unauthorized">Your session has ended. Sign in again.</string>
     <string name="error_code_sign_in_required">Sign in with Google to use this.</string>
@@ -46,6 +54,20 @@
     <string name="error_code_auth_unavailable">Sign-in could not be checked right now. Try again in a moment.</string>
     <string name="error_code_unavailable">JobFlow is unavailable right now. Try again in a moment.</string>
     <string name="error_code_unknown">JobFlow refused the request.</string>
+
+    <!-- Account -->
+    <string name="account_section">ACCOUNT</string>
+    <string name="account_loading">Checking your account.</string>
+    <string name="account_guest">You are using JobFlow as a guest.</string>
+    <string name="account_google">Signed in with Google.</string>
+    <string name="account_signed_out">You are not signed in.</string>
+    <string name="account_continue_as_guest">CONTINUE AS GUEST</string>
+    <string name="account_sign_in">SIGN IN WITH GOOGLE</string>
+    <string name="account_sign_out">SIGN OUT</string>
+    <string name="account_merge_title">Move your guest data?</string>
+    <string name="account_merge_message">Everything you saved as a guest moves to the Google account you pick. After that, it is in that account only.</string>
+    <string name="account_merge_confirm">CONTINUE</string>
+    <string name="account_merge_cancel">CANCEL</string>
 
     <!-- Health -->
     <string name="health_section_system">SYSTEM HEALTH</string>

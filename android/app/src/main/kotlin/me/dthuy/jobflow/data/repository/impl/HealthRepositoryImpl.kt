@@ -13,10 +13,10 @@ import me.dthuy.jobflow.core.common.Either
 import me.dthuy.jobflow.core.common.catch
 import me.dthuy.jobflow.core.common.getOrNull
 import me.dthuy.jobflow.core.common.map
+import me.dthuy.jobflow.core.network.toRemoteError
 import me.dthuy.jobflow.data.remote.JobFlowApi
 import me.dthuy.jobflow.data.remote.dto.toDomain
 import me.dthuy.jobflow.data.remote.healthOrThrow
-import me.dthuy.jobflow.data.remote.toApiError
 import me.dthuy.jobflow.domain.model.HealthSnapshot
 import me.dthuy.jobflow.domain.model.HealthStatus
 import me.dthuy.jobflow.domain.repository.HealthRepository
@@ -37,7 +37,7 @@ class HealthRepositoryImpl @Inject constructor(private val api: JobFlowApi, priv
     override suspend fun refresh(force: Boolean): HealthSnapshot = mutex.withLock {
         _latest.value?.takeIf { !force && it.isFreshReady() }
             ?: HealthSnapshot(
-                result = Either.catch(onError = Throwable::toApiError) { api.getHealth().healthOrThrow() }
+                result = Either.catch(onError = Throwable::toRemoteError) { api.getHealth().healthOrThrow() }
                     .map { it.toDomain() },
                 checkedAt = clock.instant(),
             ).also { _latest.value = it }

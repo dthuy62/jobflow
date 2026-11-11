@@ -21,19 +21,19 @@ covers the Android app's engineering requirements.
 1. One Gradle module, `:app`, organized by package ([ADR 1](decisions/0001-use-a-single-app-module.md)).
 2. MVVM-lite by default and MVI where a screen needs it; one pattern per screen
    ([ADR 2](decisions/0002-default-to-mvvm-lite-and-use-mvi-when-needed.md)).
-3. Expected failures are `Either<AppError, T>` values mapped at two boundaries, and cancellation is never swallowed
+3. Expected failures are `Either` values translated at three boundaries (ADR 16), and cancellation is never swallowed
    ([ADR 10](decisions/0010-use-either-and-two-boundary-error-mapping.md)).
 4. API access goes through Retrofit and kotlinx.serialization with DTOs that mirror the hosted contract
    ([ADR 9](decisions/0009-retrofit-kotlinx-serialization-network-layer.md)).
 5. App identity changes only through the `mobile-app-config` plugin
    ([ADR 4](decisions/0004-change-identity-via-mobile-app-config.md)).
 6. Dependency versions live only in `gradle/libs.versions.toml`.
-7. Logs and UI never show tokens, workspace paths or CV/profile content; `AppError` carries no exception text.
+7. Logs and UI never show tokens, workspace paths or CV/profile content; no error carries exception text.
 8. Konsist, detekt, ktlint, contract tests and docs checks run in the verify command and in CI.
 
 ## Non-goals (for now)
 
-A production endpoint and HTTPS pinning, offline viewing on screens, Firebase SDKs, a Play release pipeline,
+A production endpoint and HTTPS pinning, offline viewing on screens, a Play release pipeline,
 feature modules, and a shared base ViewModel hierarchy beyond `MviViewModel`.
 
 ## Acceptance

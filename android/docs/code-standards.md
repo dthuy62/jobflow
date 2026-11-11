@@ -5,11 +5,11 @@
 - **Screens:** `XScreen` (stateful) + `XContent` (stateless, previewable, testable without Hilt).
 - **State:** immutable data class; sealed interface when states are exclusive; `ImmutableList` for lists. Never
   parallel booleans such as `isLoading` + `hasError`.
-- **Errors:** repositories return `Either<AppError, T>`. Each data source has one mapper (`Throwable.toApiError()`)
-  used through `Either.catch(onError = ...)`; it maps only known exception types and sends the rest to `unexpected()`.
-  Layers in between pass errors through. The UI maps them once with `AppError.toUiError()`, and a feature maps its own
-  `AppError.Feature` reasons. No `Throwable` in `AppError` or UI state
-  ([ADR 10](decisions/0010-use-either-and-two-boundary-error-mapping.md)).
+- **Errors:** repositories return `Either<DataSourceError, T>`, or a feature's own error. Each SDK has one mapper
+  (`Throwable.toRemoteError()`, `Throwable.toLocalError()`) used through `Either.catch(onError = ...)`; it maps only
+  known exception types and sends the rest to `unexpected()`. A feature with failures of its own translates with a pure
+  `when` (`DataSourceError.toAuthError()`). The UI maps each error type once with an exhaustive `toUiError()`. No
+  `Throwable` in errors or UI state ([ADR 16](decisions/0016-translate-errors-at-three-boundaries.md)).
 - **Coroutines:** inject `DispatcherProvider`, never reference `Dispatchers.IO` directly; never swallow
   `CancellationException`.
 - **Use cases:** only for real logic or reuse. No pass-through wrappers; JobFlow has none yet.
@@ -43,7 +43,7 @@ Logic or a repository used by several features goes in `domain/`, never inside o
 - ViewModels and use cases: plain JVM tests with fakes of domain interfaces and `Dispatchers.setMain`; no mocking
   library. Shared fakes and fixtures live in the test `testing` package (`FakeHealthRepository`, `healthFixture`).
 - Assert on `state.value` and collected effects, not on internal calls. One behaviour per test, named after the
-  behaviour. Cover the failure path with a fake that returns `Either.Left(AppError...)`.
+  behaviour. Cover the failure path with a fake that returns `Either.Left(DataSourceError...)`.
 - Wire contracts: parse the hosted contract's examples with the production `ApiJson`; never copy fixture JSON.
 - Add Compose tests against `XContent` only when a screen has non-trivial rendering.
 

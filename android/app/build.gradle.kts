@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
@@ -7,7 +9,20 @@ plugins {
     alias(libs.plugins.room3)
     alias(libs.plugins.detekt)
     alias(libs.plugins.ktlint)
+    alias(libs.plugins.google.services)
 }
+
+// Each machine picks its server in local.properties, e.g. `devApiBaseUrl=http://10.0.2.2:4010` for the contract's mock.
+// Without it, dev reaches the local backend from the emulator. Cleartext is allowed only to 10.0.2.2 and localhost, so a
+// phone uses `adb reverse tcp:8080 tcp:8080` with `http://localhost:8080`.
+val devApiBaseUrl: String =
+    providers
+        .fileContents(rootProject.layout.projectDirectory.file("local.properties"))
+        .asText
+        .map { text ->
+            Properties().apply { load(text.reader()) }.getProperty("devApiBaseUrl")?.takeIf(String::isNotBlank)
+        }.orElse("http://10.0.2.2:8080")
+        .get()
 
 android {
     namespace = "me.dthuy.jobflow"
@@ -19,6 +34,7 @@ android {
         targetSdk = 37
         versionCode = providers.gradleProperty("versionCode").map(String::toInt).orElse(1).get()
         versionName = "0.1.0"
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     flavorDimensions += "environment"
@@ -27,14 +43,17 @@ android {
         create("dev") {
             dimension = "environment"
             applicationIdSuffix = ".dev"
-            // The contract's mock: `docker compose --profile mock up -d mock`. Local `api` is on :8080.
-            buildConfigField("String", "API_BASE_URL", "\"http://10.0.2.2:4010\"")
         }
         create("prod") {
             dimension = "environment"
             // No production endpoint yet; .invalid never resolves, so a prod build reaches nothing by accident.
             buildConfigField("String", "API_BASE_URL", "\"https://api.jobflow.invalid\"")
         }
+    }
+
+    // Outside productFlavors, which the mobile-app-config plugin rewrites from android-app-config.json.
+    productFlavors.getByName("dev") {
+        buildConfigField("String", "API_BASE_URL", "\"$devApiBaseUrl\"")
     }
 
     // Signing values only come from the environment (CI or a developer shell); without them release stays unsigned.
@@ -137,6 +156,16 @@ dependencies {
     implementation(libs.hilt.navigation.compose)
     ksp(libs.hilt.compiler)
 
+    implementation(platform(libs.firebase.bom))
+    implementation(libs.firebase.auth)
+    implementation(libs.firebase.installations)
+    implementation(libs.kotlinx.coroutines.play.services)
+    implementation(libs.androidx.credentials)
+    implementation(libs.androidx.credentials.play.services.auth)
+    implementation(libs.googleid)
+
+    implementation(libs.androidx.datastore.preferences)
+
     implementation(libs.androidx.room3.runtime)
     ksp(libs.androidx.room3.compiler)
 
@@ -147,4 +176,7 @@ dependencies {
     testImplementation(libs.konsist)
     // The JVM build of SQLite, so DAO tests run real SQL without a device.
     testImplementation(libs.androidx.sqlite.bundled.jvm)
+
+    androidTestImplementation(libs.androidx.test.runner)
+    androidTestImplementation(libs.androidx.test.ext.junit)
 }
