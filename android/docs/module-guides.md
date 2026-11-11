@@ -26,7 +26,7 @@ implement `SessionObserver` and register it with `@IntoSet`, as `FeedSessionClea
 `SignInMethod`, follow the compile error, write one more private sign-in step in `AuthenticationServiceImpl.kt`, and give `IdentityProvider` a method
 that turns the new credential into the vendor's ID token.
 
-To reuse auth in another project, copy `domain/auth`, `data/auth`, `ui/auth`, `di/AuthModule.kt`, `di/AuthFirebaseModule.kt`,
+To reuse auth in another project, copy `domain/auth`, `data/auth`, `ui/auth`, `di/AuthModule.kt`,
 `core/common`, `core/mvi` and the `error_auth_*` strings from `strings.xml`. Then provide an `@ApplicationScope` `CoroutineScope`
 (`di/CoroutinesModule.kt`) and add `BearerTokenInterceptor` and `TokenAuthenticator` to the OkHttp client, with your public
 routes (`di/NetworkModule.kt`).

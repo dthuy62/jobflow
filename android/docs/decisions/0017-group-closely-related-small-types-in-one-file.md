@@ -21,10 +21,11 @@ type (what made auth bulky), and splitting `data/auth` into `remote` and `local`
 
 ## Consequences
 
-Auth went from 25 files to 11. One flow reads in one file, and a reader finds a type by opening the file of the type it serves.
+Auth went from 25 files to 10. One flow reads in one file, and a reader finds a type by opening the file of the type it serves.
 
 A file still splits past ~400 lines ([code standards](../code-standards.md)), and a type that gets a second user or a second
 implementation can move to its own file again. Finding a type by file name works less often, so search by symbol.
 
-`di/AuthFirebaseModule.kt` stays its own file: Konsist exempts it by name as the one place that picks the identity vendor,
-so merging it into `AuthModule` would widen that exemption.
+`di/AuthFirebaseModule.kt` is merged into `di/AuthModule.kt` (owner, 2026-11-11). Konsist exempts the vendor module by
+file name, so the exemption moved to `AuthModule`: all of auth's wiring may now import Firebase and the adapter, not only
+the vendor bindings. Every other file is still held to the rule.

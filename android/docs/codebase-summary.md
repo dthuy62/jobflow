@@ -20,7 +20,7 @@ done with `mobile-app-config`.
 | `data/local/dao`            | `FeedDao`                                                                | UI types and domain rules |
 | `data/local/entity`         | `JobEntity`, `FeedItemEntity` and their `toEntity()`/`toDomain()` mappers | UI types and domain rules |
 | `data/repository/impl`      | port implementations (`HealthRepositoryImpl`)                           | UI types                               |
-| `di`                        | Hilt modules: `NetworkModule`, `DatabaseModule`, `RepositoryModule`, `AuthModule`, `AuthFirebaseModule`, `CoroutinesModule`, `TimeModule` | business logic             |
+| `di`                        | Hilt modules: `NetworkModule`, `DatabaseModule`, `RepositoryModule`, `AuthModule`, `CoroutinesModule`, `TimeModule` | business logic             |
 | `navigation`                | `NavGraph.kt` (the only file that knows every feature), `TopLevelTab`, bottom bar | feature logic            |
 | `ui/<feature>`              | Screen, ViewModel, Route, Contract                                      | imports from `data/` or other features |
 | `ui/theme`, `ui/components`, `ui/health`, `ui/auth` | shared UI: `AppTheme`, `Spacing`, soft components, `toUiError`, health cards, `AuthViewModel`, Google's sheet | feature-specific state  |

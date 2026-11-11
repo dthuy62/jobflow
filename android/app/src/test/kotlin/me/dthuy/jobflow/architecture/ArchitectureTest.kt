@@ -124,8 +124,8 @@ class ArchitectureTest {
         .toSet()
 
     private companion object {
-        // The one place that picks the identity vendor (ADR 13).
-        const val VENDOR_MODULE = "AuthFirebaseModule"
+        // The one place that picks the identity vendor (ADR 13), with the rest of auth's wiring (ADR 17).
+        const val VENDOR_MODULE = "AuthModule"
         val CATCHING = Regex("""\btry\s*\{|(?<!\.)\bcatch\s*\(|\brunCatching\b""")
     }
 }
