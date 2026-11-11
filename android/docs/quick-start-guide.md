@@ -4,7 +4,8 @@ Requirements: Android Studio (current stable), JDK 21, Android SDK 37, and Docke
 
 ## Run
 
-Start a server first: the backend (`../docs/deployment-guide.md`) or the contract's mock (`../contracts/README.md`).
+Start a server first: the backend (`../docs/deployment-guide.md`) or the contract's mock (`../contracts/README.md`). The
+mock also needs `devApiBaseUrl` in `local.properties`; see `app/build.gradle.kts`.
 
 A fresh clone needs two ignored files before it builds, once per machine:
 

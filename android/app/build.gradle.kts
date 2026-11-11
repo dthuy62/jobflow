@@ -13,12 +13,15 @@ plugins {
 }
 
 // Each machine picks its server in local.properties, e.g. `devApiBaseUrl=http://10.0.2.2:4010` for the contract's mock.
-// Without it, dev reaches the local backend from the emulator.
+// Without it, dev reaches the local backend from the emulator. Cleartext is allowed only to 10.0.2.2 and localhost, so a
+// phone uses `adb reverse tcp:8080 tcp:8080` with `http://localhost:8080`.
 val devApiBaseUrl: String =
     providers
         .fileContents(rootProject.layout.projectDirectory.file("local.properties"))
         .asText
-        .map { text -> Properties().apply { load(text.reader()) }.getProperty("devApiBaseUrl") }
+        .map { text ->
+            Properties().apply { load(text.reader()) }.getProperty("devApiBaseUrl")?.takeIf(String::isNotBlank)
+        }
         .orNull ?: "http://10.0.2.2:8080"
 
 android {
