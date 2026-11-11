@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
@@ -9,6 +11,15 @@ plugins {
     alias(libs.plugins.ktlint)
     alias(libs.plugins.google.services)
 }
+
+// Each machine picks its server in local.properties, e.g. `devApiBaseUrl=http://10.0.2.2:4010` for the contract's mock.
+// Without it, dev reaches the local backend from the emulator.
+val devApiBaseUrl: String =
+    providers
+        .fileContents(rootProject.layout.projectDirectory.file("local.properties"))
+        .asText
+        .map { text -> Properties().apply { load(text.reader()) }.getProperty("devApiBaseUrl") }
+        .orNull ?: "http://10.0.2.2:8080"
 
 android {
     namespace = "me.dthuy.jobflow"
@@ -29,14 +40,17 @@ android {
         create("dev") {
             dimension = "environment"
             applicationIdSuffix = ".dev"
-            // The contract's mock: `docker compose --profile mock up -d mock`. Local `api` is on :8080.
-            buildConfigField("String", "API_BASE_URL", "\"http://10.0.2.2:4010\"")
         }
         create("prod") {
             dimension = "environment"
             // No production endpoint yet; .invalid never resolves, so a prod build reaches nothing by accident.
             buildConfigField("String", "API_BASE_URL", "\"https://api.jobflow.invalid\"")
         }
+    }
+
+    // Outside productFlavors, which the mobile-app-config plugin rewrites from android-app-config.json.
+    productFlavors.getByName("dev") {
+        buildConfigField("String", "API_BASE_URL", "\"$devApiBaseUrl\"")
     }
 
     // Signing values only come from the environment (CI or a developer shell); without them release stays unsigned.

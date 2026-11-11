@@ -15,12 +15,6 @@ Requirements: Android Studio (current stable), JDK 21, Android SDK 37.
 ./gradlew assembleDevDebug testDevDebugUnitTest lintDevDebug detekt ktlintCheck
 ```
 
-The `dev` flavor reaches the contract's mock on the host at `http://10.0.2.2:4010` from the emulator:
-
-```bash
-cd .. && docker compose --profile mock up -d mock
-```
-
 Architecture rules are checked by Konsist tests, code smells by detekt (`config/detekt/detekt.yml`), formatting by
 ktlint (`./gradlew ktlintFormat` fixes it). Contract tests read the hosted contract's JSON examples, so a contract
 change fails here until the DTOs follow.

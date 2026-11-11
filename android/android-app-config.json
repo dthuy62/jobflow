@@ -5,9 +5,7 @@
     "dev": {
       "applicationIdSuffix": ".dev",
       "appName": "[DEV] JobFlow",
-      "buildConfigFields": {
-        "API_BASE_URL": "http://10.0.2.2:4010"
-      }
+      "buildConfigFields": {}
     },
     "prod": {
       "applicationIdSuffix": "",

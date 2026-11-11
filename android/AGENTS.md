@@ -2,7 +2,7 @@
 
 JobFlow Android: one `:app` module, Jetpack Compose, Hilt, Retrofit + kotlinx.serialization, Navigation 3.
 Package root = `namespace` in `app/build.gradle.kts`. Layers: `ui/` → `domain/` ← `data/`, wired in `di/`.
-Flavors: `dev` (the contract's mock at `http://10.0.2.2:4010`, cleartext allowed) and `prod`. Workspace rules: `../AGENTS.md`.
+Flavors: `dev` (local server, cleartext allowed; pick it with `devApiBaseUrl` in `local.properties`) and `prod`. Workspace rules: `../AGENTS.md`.
 
 ## Verify (run before saying a task is done)
 
