@@ -19,9 +19,7 @@ import me.dthuy.jobflow.data.auth.AccessTokenSource
 import me.dthuy.jobflow.data.auth.AuthApi
 import me.dthuy.jobflow.data.auth.AuthStore
 import me.dthuy.jobflow.data.auth.AuthenticationServiceImpl
-import me.dthuy.jobflow.data.auth.DataStoreGuestLedger
 import me.dthuy.jobflow.data.auth.DataStoreSessionStore
-import me.dthuy.jobflow.data.auth.GuestLedger
 import me.dthuy.jobflow.data.auth.SessionStore
 import me.dthuy.jobflow.data.auth.SessionTokens
 import me.dthuy.jobflow.domain.auth.AuthenticationService
@@ -33,9 +31,6 @@ import retrofit2.Retrofit
 abstract class AuthModule {
     @Binds
     abstract fun bindAuthenticationService(impl: AuthenticationServiceImpl): AuthenticationService
-
-    @Binds
-    abstract fun bindGuestLedger(impl: DataStoreGuestLedger): GuestLedger
 
     @Binds
     abstract fun bindSessionStore(impl: DataStoreSessionStore): SessionStore

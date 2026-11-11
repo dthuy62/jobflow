@@ -9,7 +9,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import me.dthuy.jobflow.core.common.Either
 import me.dthuy.jobflow.data.auth.AuthApi
-import me.dthuy.jobflow.data.auth.GuestLedger
 import me.dthuy.jobflow.data.auth.GuestResponseDto
 import me.dthuy.jobflow.data.auth.IdentityProvider
 import me.dthuy.jobflow.data.auth.LogoutRequest
@@ -47,6 +46,7 @@ fun storedSession(userId: UserId = GUEST_ID, isGuest: Boolean = true, expiresAt:
 class FakeSessionStore(var session: StoredSession? = null) : SessionStore {
     var canWrite = true
     var canRead = true
+    var guestUsed = false
 
     override suspend fun read() = session.takeIf { canRead }
 
@@ -68,6 +68,12 @@ class FakeSessionStore(var session: StoredSession? = null) : SessionStore {
 
     override suspend fun clear(onlyIf: String?) {
         if (onlyIf == null || session?.refreshToken == onlyIf) session = null
+    }
+
+    override suspend fun isGuestUsed() = guestUsed
+
+    override suspend fun markGuestUsed() {
+        guestUsed = true
     }
 }
 
@@ -148,16 +154,6 @@ private class AnsweredCall<T>(private val response: Response<T>) : Call<T> {
     override fun request(): Request = Request.Builder().url("http://localhost/api/v1/auth/refresh").build()
 
     override fun timeout(): Timeout = Timeout.NONE
-}
-
-class FakeGuestLedger : GuestLedger {
-    private var used = false
-
-    override suspend fun isUsed() = used
-
-    override suspend fun markUsed() {
-        used = true
-    }
 }
 
 /** Answers with [result]; set [gate] to hold a command in flight, during which [isBusy] is true. */

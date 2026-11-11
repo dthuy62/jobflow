@@ -30,7 +30,7 @@
     <string name="error_incompatible">JobFlow answered in an unexpected format. Update the app.</string>
     <string name="error_storage">Saved data could not be read. Try again.</string>
     <string name="error_unexpected">Something went wrong. Please try again.</string>
-    <!-- One message per AuthError case (ui/auth/AuthErrorUi.kt) -->
+    <!-- One message per AuthError case (ui/auth/AuthContract.kt) -->
     <string name="error_auth_network">Check your connection and try again.</string>
     <string name="error_auth_no_google_account">Add a Google account to this device, then sign in.</string>
     <string name="error_auth_google_unavailable">Google sign-in is not available on this device.</string>

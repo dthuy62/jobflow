@@ -1,7 +1,9 @@
 package me.dthuy.jobflow.ui.auth
 
 import androidx.compose.runtime.Immutable
+import me.dthuy.jobflow.R
 import me.dthuy.jobflow.core.common.Either
+import me.dthuy.jobflow.core.common.ErrorAction
 import me.dthuy.jobflow.core.common.UiError
 import me.dthuy.jobflow.core.mvi.UiIntent
 import me.dthuy.jobflow.core.mvi.UiState
@@ -41,4 +43,15 @@ fun authState(session: Session, running: Boolean, error: UiError?): AuthState = 
     session is Session.Guest -> AuthState(AuthKind.GUEST, error, canSignIn = true)
     // Only a sign-in can fail for a member, so the button stays while its error shows, to try it again.
     else -> AuthState(AuthKind.MEMBER, error, canSignIn = error != null, canSignOut = true)
+}
+
+/** Exhaustive on purpose: a new [AuthError] does not compile until it has a message. */
+fun AuthError.toUiError(): UiError = when (this) {
+    AuthError.Network -> UiError(R.string.error_auth_network, ErrorAction.Retry)
+    AuthError.NoGoogleAccount -> UiError(R.string.error_auth_no_google_account, ErrorAction.None)
+    AuthError.GoogleUnavailable -> UiError(R.string.error_auth_google_unavailable, ErrorAction.None)
+    AuthError.SignInFailed -> UiError(R.string.error_auth_sign_in_failed, ErrorAction.Retry)
+    AuthError.TooManyAttempts -> UiError(R.string.error_auth_too_many_attempts, ErrorAction.Retry)
+    AuthError.AccountDisabled -> UiError(R.string.error_auth_account_disabled, ErrorAction.None)
+    AuthError.GuestAlreadyUsed -> UiError(R.string.error_auth_guest_already_used, ErrorAction.SignIn)
 }
