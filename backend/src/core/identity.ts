@@ -21,9 +21,13 @@ export interface AuthenticatedUser extends Account {
 
 /** The token is bad: the app must sign in again. */
 export class InvalidTokenError extends Error {
-  constructor() {
+  /** Why, for the logs only: a code and a claim name, never the token or a claim's value. */
+  readonly reason: string | undefined;
+
+  constructor(reason?: string) {
     super("The token is not valid.");
     this.name = "InvalidTokenError";
+    this.reason = reason;
   }
 }
 

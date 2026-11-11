@@ -28,9 +28,11 @@ docker compose up -d postgres
 npm test -w @jobflow/backend
 ```
 
-Each test file creates its own database. Without the owner's Firebase project, real ID tokens
-cannot be tried yet; set `FIREBASE_PROJECT_ID` to it when it exists. Guests, refresh and logout
-need no Firebase at all.
+Each test file creates its own database. Compose and `backend/.env.example` trust ID tokens from
+the development Firebase project, `jobflow-app-dev`, so Google sign-in works locally; set
+`FIREBASE_PROJECT_ID` to use another. Guests, refresh and logout need no Firebase at all. A
+refused token answers 401 and logs `token refused` with the reason, such as
+`ERR_JWT_CLAIM_VALIDATION_FAILED aud` for a token from another project.
 
 To run the API outside Docker, with PostgreSQL still in Compose:
 

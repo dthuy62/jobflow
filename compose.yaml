@@ -36,7 +36,8 @@ services:
       HOST: 0.0.0.0
       PORT: "8080"
       DATABASE_URL: postgres://jobflow_app:dev-only-app@postgres:5432/jobflow
-      FIREBASE_PROJECT_ID: demo-jobflow
+      # The development Firebase project, so Google sign-in works here. Set FIREBASE_PROJECT_ID to use another.
+      FIREBASE_PROJECT_ID: ${FIREBASE_PROJECT_ID:-jobflow-app-dev}
       JWT_SIGNING_KEYS: dev-1:dev-only-jwt-signing-key-0123456789abcdef
     # For the docs at /docs, which only development serves.
     volumes:

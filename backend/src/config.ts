@@ -60,7 +60,7 @@ export function loadConfig(env: NodeJS.ProcessEnv | Record<string, string | unde
   if (JOBFLOW_ENV === "production" && hasDevelopmentPassword(DATABASE_URL)) {
     throw new Error("Invalid configuration: DATABASE_URL holds a development password");
   }
-  // Firebase's own prefix for projects with no real backend, as in .env.example.
+  // Firebase's own prefix for projects with no real backend.
   if (JOBFLOW_ENV === "production" && FIREBASE_PROJECT_ID.startsWith("demo-")) {
     throw new Error("Invalid configuration: FIREBASE_PROJECT_ID is a development project");
   }
