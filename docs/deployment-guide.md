@@ -15,6 +15,12 @@ the worker with the app role. The worker logs a heartbeat every minute. All port
 `127.0.0.1`. To rebuild the image alone, use `docker compose build migrate`, the one service
 that builds it.
 
+In development the API serves the contract as Swagger UI at http://127.0.0.1:8080/docs, and
+the raw document at `/openapi.json`. The page is on the API's own origin, so "Try it out"
+calls the running API; press "Authorize" and paste an access token from `/api/v1/auth/guest`.
+It lists every phase's routes, and those not built yet answer 404. Other environments do not
+serve either route.
+
 To run the backend's tests, start only the database:
 
 ```bash
