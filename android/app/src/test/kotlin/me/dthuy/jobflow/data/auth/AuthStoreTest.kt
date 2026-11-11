@@ -98,13 +98,24 @@ class AuthStoreTest {
     }
 
     @Test
-    fun `the guest ledger remembers across processes`() = runTest {
-        val ledger = DataStoreGuestLedger(store())
-        assertFalse(ledger.isUsed())
-        ledger.markUsed()
+    fun `the guest mark remembers across processes`() = runTest {
+        val sessions = DataStoreSessionStore(store())
+        assertFalse(sessions.isGuestUsed())
+        sessions.markGuestUsed()
         closeStores()
 
-        assertTrue(DataStoreGuestLedger(store()).isUsed())
+        assertTrue(DataStoreSessionStore(store()).isGuestUsed())
+    }
+
+    @Test
+    fun `clearing the session keeps the guest mark`() = runTest {
+        val sessions = DataStoreSessionStore(store())
+        sessions.save(storedSession())
+        sessions.markGuestUsed()
+
+        sessions.clear()
+
+        assertTrue(sessions.isGuestUsed())
     }
 
     @Test

@@ -3,6 +3,8 @@
 Status: Accepted (2026-11-05)
 
 Its guest, linking and session parts are superseded by [ADR 15](0015-sign-in-through-the-backend-and-keep-only-its-session.md).
+`GuestSignIn` and `GoogleSignIn` are now private steps of `AuthenticationServiceImpl`, with files grouped by
+[ADR 17](0017-group-closely-related-small-types-in-one-file.md).
 
 ## Context
 

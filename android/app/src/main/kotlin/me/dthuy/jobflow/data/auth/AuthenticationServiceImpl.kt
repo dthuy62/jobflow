@@ -1,5 +1,6 @@
 package me.dthuy.jobflow.data.auth
 
+import java.time.Clock
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CoroutineScope
@@ -11,12 +12,16 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import me.dthuy.jobflow.core.common.ApplicationScope
+import me.dthuy.jobflow.core.common.DataSourceError
 import me.dthuy.jobflow.core.common.Either
 import me.dthuy.jobflow.core.common.catch
 import me.dthuy.jobflow.core.common.flatMap
 import me.dthuy.jobflow.core.common.getOrNull
+import me.dthuy.jobflow.core.common.mapLeft
+import me.dthuy.jobflow.core.network.toRemoteError
 import me.dthuy.jobflow.domain.auth.AuthError
 import me.dthuy.jobflow.domain.auth.AuthenticationService
+import me.dthuy.jobflow.domain.auth.IdToken
 import me.dthuy.jobflow.domain.auth.Session
 import me.dthuy.jobflow.domain.auth.SessionObserver
 import me.dthuy.jobflow.domain.auth.SignInMethod
@@ -27,11 +32,10 @@ import timber.log.Timber
 class AuthenticationServiceImpl @Inject constructor(
     private val store: SessionStore,
     private val tokens: SessionTokens,
-    private val guestSignIn: GuestSignIn,
-    private val googleSignIn: GoogleSignIn,
+    private val api: AuthApi,
     private val identity: IdentityProvider,
-    private val logout: BackendLogout,
-    private val guests: GuestLedger,
+    private val installations: InstallationIdSource,
+    private val clock: Clock,
     private val observers: Set<@JvmSuppressWildcards SessionObserver>,
     @ApplicationScope private val scope: CoroutineScope,
 ) : AuthenticationService {
@@ -56,7 +60,7 @@ class AuthenticationServiceImpl @Inject constructor(
         val result = when (method) {
             SignInMethod.Guest -> startGuest()
             is SignInMethod.Google -> current()
-                .flatMap { googleSignIn.signIn(method.idToken, guest = it?.takeIf(StoredSession::isGuest)) }
+                .flatMap { googleSession(method.idToken, guest = it?.takeIf(StoredSession::isGuest)) }
                 .flatMap { keep(it) }
         }
         publish()
@@ -67,7 +71,7 @@ class AuthenticationServiceImpl @Inject constructor(
         val current = store.read()
         // A guest has no sign-out: it would lose their data for good.
         if (current == null || current.isGuest) return@command
-        logout.tellTheBackend()
+        tellTheBackend()
         store.clear()
         identity.signOut()
         publish()
@@ -76,8 +80,36 @@ class AuthenticationServiceImpl @Inject constructor(
     private suspend fun startGuest(): Either<AuthError, Unit> = current().flatMap { current ->
         when {
             current != null -> Either.Right(Unit)
-            guests.isUsed() -> Either.Left(AuthError.GuestAlreadyUsed)
-            else -> guestSignIn.signIn().flatMap { keep(it) }
+            store.isGuestUsed() -> Either.Left(AuthError.GuestAlreadyUsed)
+            else -> guestSession().flatMap { keep(it) }
+        }
+    }
+
+    // Each sign-in step only gets a session. The service keeps it, so a failure anywhere leaves the device as it was.
+
+    private suspend fun guestSession(): Either<AuthError, StoredSession> =
+        Either.catch(onError = Throwable::toRemoteError) {
+            val answer = api.guest()
+            answer.tokens.toStoredSession(answer.account, clock)
+        }.mapLeft(DataSourceError::toAuthError)
+
+    /** With [guest], the backend moves that guest's data to this account. It is safe to repeat after a lost answer. */
+    private suspend fun googleSession(idToken: IdToken, guest: StoredSession?): Either<AuthError, StoredSession> =
+        identity.signInWithGoogle(idToken).flatMap { proof ->
+            Either.catch(onError = Throwable::toRemoteError) {
+                val answer = api.sso(SsoRequest(proof.value, guest?.refreshToken))
+                if (guest != null && !answer.guestMerged) Timber.w("The guest's data did not move to the account")
+                answer.tokens.toStoredSession(answer.account, clock)
+            }.mapLeft(DataSourceError::toAuthError)
+        }
+
+    /**
+     * Best effort: signing out must work offline. Ends this session on the backend, and this install's push
+     * registration when its id can be read.
+     */
+    private suspend fun tellTheBackend() {
+        Either.catch(onError = { Timber.w(it, "Could not tell the backend about the sign-out") }) {
+            api.logout(LogoutRequest(installations.id()))
         }
     }
 
@@ -116,7 +148,7 @@ class AuthenticationServiceImpl @Inject constructor(
         if (read is Either.Left && known) return
         val stored = read.getOrNull()
         // Marks on sight, not on creation, so a crash right after creating the guest cannot lose the mark.
-        if (stored?.isGuest == true) guests.markUsed()
+        if (stored?.isGuest == true) store.markGuestUsed()
         val userId = stored?.userId
         if (!known || knownUserId != userId) {
             notifyObservers(userId)
@@ -124,7 +156,7 @@ class AuthenticationServiceImpl @Inject constructor(
             knownUserId = userId
         }
         _session.value = when {
-            stored == null -> Session.SignedOut(canStartGuest = !guests.isUsed())
+            stored == null -> Session.SignedOut(canStartGuest = !store.isGuestUsed())
             stored.isGuest -> Session.Guest(stored.userId)
             else -> Session.Member(stored.userId)
         }
@@ -135,4 +167,23 @@ class AuthenticationServiceImpl @Inject constructor(
             Either.catch(onError = { Timber.w(it, "A session observer failed") }) { observer.onUserChanged(userId) }
         }
     }
+}
+
+/**
+ * The boundary with the identity vendor, which only answers "who is this". The backend's session is the only one, so
+ * the vendor keeps nothing on the device. Changing vendor means another implementation, in its own folder like
+ * `data/auth/firebase`, and on the backend another `IdentityVerifier`.
+ */
+interface IdentityProvider {
+    /** Turns Google's token into the vendor's ID token for the backend, signed out of the vendor again either way. */
+    suspend fun signInWithGoogle(idToken: IdToken): Either<AuthError, IdToken>
+
+    /** Forgets the Google account picked on this device, so the next sign-in asks again. Best effort. */
+    suspend fun signOut()
+}
+
+/** Identifies this install of the app to the backend, which treats it as an opaque string. */
+fun interface InstallationIdSource {
+    /** Null if it cannot be read right now. */
+    suspend fun id(): String?
 }

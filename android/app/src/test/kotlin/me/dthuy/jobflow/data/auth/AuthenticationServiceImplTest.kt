@@ -17,7 +17,6 @@ import me.dthuy.jobflow.domain.auth.SignInMethod
 import me.dthuy.jobflow.domain.auth.UserId
 import me.dthuy.jobflow.testing.FIXED_CLOCK
 import me.dthuy.jobflow.testing.FakeAuthApi
-import me.dthuy.jobflow.testing.FakeGuestLedger
 import me.dthuy.jobflow.testing.FakeIdentityProvider
 import me.dthuy.jobflow.testing.FakeSessionStore
 import me.dthuy.jobflow.testing.GUEST_ID
@@ -39,7 +38,6 @@ class AuthenticationServiceImplTest {
     private val store = FakeSessionStore()
     private val identity = FakeIdentityProvider()
     private val api = FakeAuthApi()
-    private val guests = FakeGuestLedger()
     private val tokens = SessionTokens(store, { api }, FIXED_CLOCK)
     private val seen = mutableListOf<UserId?>()
     private var observer = SessionObserver { seen += it }
@@ -116,7 +114,7 @@ class AuthenticationServiceImplTest {
         assertEquals(Either.Right(Unit), result)
         assertEquals(Session.Guest(GUEST_ID), service.session.value)
         assertEquals(GUEST_ID, store.session?.userId)
-        assertTrue(guests.isUsed())
+        assertTrue(store.isGuestUsed())
     }
 
     @Test
@@ -128,7 +126,7 @@ class AuthenticationServiceImplTest {
 
         assertEquals(Either.Left(AuthError.Network), result)
         assertEquals(signedOutFresh, service.session.value)
-        assertFalse(guests.isUsed())
+        assertFalse(store.isGuestUsed())
     }
 
     @Test
@@ -144,7 +142,7 @@ class AuthenticationServiceImplTest {
 
     @Test
     fun `once this install has had a guest, only Google is left`() = test {
-        guests.markUsed()
+        store.markGuestUsed()
         val service = service()
 
         val result = service.signIn(SignInMethod.Guest)
@@ -379,11 +377,10 @@ class AuthenticationServiceImplTest {
         AuthenticationServiceImpl(
             store,
             tokens,
-            GuestSignIn(api, FIXED_CLOCK),
-            GoogleSignIn(identity, api, FIXED_CLOCK),
+            api,
             identity,
-            BackendLogout(api) { installationId },
-            guests,
+            { installationId },
+            FIXED_CLOCK,
             if (observers.isEmpty()) setOf(SessionObserver { observer.onUserChanged(it) }) else observers.toSet(),
             CoroutineScope(backgroundScope.coroutineContext + UnconfinedTestDispatcher(testScheduler)),
         )

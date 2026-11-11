@@ -5,13 +5,18 @@ import androidx.datastore.preferences.core.MutablePreferences
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
+import java.io.IOException
 import java.time.Clock
 import javax.inject.Inject
+import javax.inject.Qualifier
 import javax.inject.Singleton
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.first
 import me.dthuy.jobflow.domain.auth.UserId
+import timber.log.Timber
 
 private const val MILLIS_PER_SECOND = 1_000L
 
@@ -54,6 +59,11 @@ interface SessionStore {
 
     /** With [onlyIf], only while that refresh token is still the stored one. */
     suspend fun clear(onlyIf: String? = null)
+
+    /** Whether this install of the app has had its guest. Uninstalling is what resets it; signing out does not. */
+    suspend fun isGuestUsed(): Boolean
+
+    suspend fun markGuestUsed()
 }
 
 @Singleton
@@ -98,6 +108,12 @@ class DataStoreSessionStore @Inject constructor(@AuthStore private val store: Da
         store.tryEdit { if (onlyIf == null || it[REFRESH_TOKEN] == onlyIf) it.removeSession() }
     }
 
+    override suspend fun isGuestUsed(): Boolean = store.current()[GUEST_USED] == true
+
+    override suspend fun markGuestUsed() {
+        store.tryEdit { it[GUEST_USED] = true }
+    }
+
     private fun MutablePreferences.removeSession() {
         remove(USER_ID)
         remove(IS_GUEST)
@@ -112,5 +128,31 @@ class DataStoreSessionStore @Inject constructor(@AuthStore private val store: Da
         val ACCESS_TOKEN = stringPreferencesKey("access_token")
         val REFRESH_TOKEN = stringPreferencesKey("refresh_token")
         val EXPIRES_AT = longPreferencesKey("expires_at")
+
+        // Kept apart from the session's keys, so clearing a session leaves it.
+        val GUEST_USED = booleanPreferencesKey("guest_used")
     }
+}
+
+/** The file holding auth's own state. Left out of backup and device transfer (`data_extraction_rules.xml`). */
+@Qualifier
+@Retention(AnnotationRetention.BINARY)
+annotation class AuthStore
+
+/** A failed read answers as if nothing was stored: when unsure, never risk losing someone's identity. */
+internal suspend fun DataStore<Preferences>.current(): Preferences = data
+    .catch { error ->
+        if (error !is IOException) throw error
+        Timber.w(error, "Could not read auth state")
+        emit(emptyPreferences())
+    }
+    .first()
+
+/** Returns once the change is on disk, or false if it could not be written. */
+internal suspend fun DataStore<Preferences>.tryEdit(change: (MutablePreferences) -> Unit): Boolean = try {
+    edit(change)
+    true
+} catch (error: IOException) {
+    Timber.w(error, "Could not write auth state")
+    false
 }

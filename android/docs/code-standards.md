@@ -22,6 +22,8 @@
 - **Dependencies:** versions only in `gradle/libs.versions.toml`.
 - **File size:** split a ViewModel or screen that passes ~400 lines. Large ViewModels are the usual way a clean
   structure rots.
+- **Files:** closely related small types share one file named after the main type; a class with one caller and no
+  second implementation is private functions of that caller ([ADR 17](decisions/0017-group-closely-related-small-types-in-one-file.md)).
 
 ## How much structure per feature
 

@@ -3,6 +3,8 @@
 Status: Accepted (2026-11-06)
 
 Supersedes the guest, linking and session parts of [ADR 13](0013-keep-auth-self-contained-with-one-session-source.md).
+`GuestLedger` is now `SessionStore.isGuestUsed` and `markGuestUsed`, on the same `guest_used` key
+([ADR 17](0017-group-closely-related-small-types-in-one-file.md)).
 Its layers, vendor boundary, `SessionObserver` and the rule that a network failure never signs anyone out stay.
 
 ## Context

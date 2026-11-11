@@ -101,15 +101,12 @@ displays whether the user is a guest, it never authorizes with it. The reasons a
 |---|---|---|
 | `ui/auth/AuthViewModel.kt` | MVI. One per screen, holding only that screen's error and sign-in in progress | Knows Firebase or the API |
 | `ui/auth/GoogleCredentials.kt` | Shows Google's sheet, which needs an Activity, and returns an ID token | Holds session logic |
-| `domain/auth` | `AuthenticationService`, `Session`, `SignInMethod`, `AuthError`, `SessionObserver` | Knows Firebase or Android |
-| `data/auth/AuthenticationServiceImpl.kt` | The one source of the session and `isBusy`; runs commands one at a time on the app's scope; keeps a new session in one write; publishes it only after observers ran | Calls an SDK |
-| `data/auth/SignInStrategies.kt` | One strategy per method that gets a session from the backend, and the best-effort logout call | Keeps or publishes a session |
-| `data/auth/SessionStore.kt` | The backend's token pair, user id and expiry, in the auth DataStore | |
-| `data/auth/SessionTokens.kt` | Refreshes the access token before it ends and after a 401, one refresh at a time; a 401 from refresh ends the session | Signs out for a network failure or a 5xx |
-| `data/auth/IdentityProvider.kt` | The boundary with the identity vendor: Google's token in, the vendor's ID token out | Mentions Firebase |
+| `domain/auth/AuthenticationService.kt` | `AuthenticationService`, `Session`, `SignInMethod`, `AuthError`, `SessionObserver` | Knows Firebase or Android |
+| `data/auth/AuthenticationServiceImpl.kt` | The one source of the session and `isBusy`; runs commands one at a time on the app's scope; gets a session from the backend for each method, then keeps it in one write; publishes it only after observers ran; the best-effort logout call. Also `IdentityProvider` and `InstallationIdSource`, the boundary with the identity vendor: Google's token in, the vendor's ID token out | Calls an SDK or mentions Firebase |
+| `data/auth/SessionStore.kt` | The backend's token pair, user id and expiry, and whether this install had its guest, in the auth DataStore | |
+| `data/auth/SessionTokens.kt` | Refreshes the access token before it ends and after a 401, one refresh at a time; a 401 from refresh ends the session. `BearerTokenInterceptor` adds the access token, and `TokenAuthenticator` retries a 401 once with a refreshed one | Signs out for a network failure or a 5xx |
 | `data/auth/firebase/` | The only code that imports Firebase; it signs out of Firebase right after every sign-in | Holds product rules or a session |
-| `data/auth/AuthApi.kt` | `POST /auth/guest`, `/auth/sso`, `/auth/refresh`, `/auth/logout` | |
-| `data/auth/BearerToken.kt` | Adds the access token, and retries a 401 once with a refreshed one | |
+| `data/auth/AuthApi.kt` | `POST /auth/guest`, `/auth/sso`, `/auth/refresh`, `/auth/logout`, and what a failed call means for signing in | |
 
 ```mermaid
 sequenceDiagram
@@ -137,7 +134,7 @@ sequenceDiagram
 
 - `Session` is `Unknown` (not read from the device yet), `SignedOut`, `Guest` or `Member`. It is known offline, so
   navigation reads it.
-- A guest starts once per install (`GuestLedger`), through `POST /auth/guest`. After the install's guest only Google is left.
+- A guest starts once per install (`SessionStore.isGuestUsed`), through `POST /auth/guest`. After the install's guest only Google is left.
   Uninstalling resets it. This is a product rule, not abuse protection: the API's limits and Play Integrity stop scripts.
 - A guest has no sign-out, because it would lose their data. Before a guest signs in with Google, the screen says their data
   moves to the account they pick.

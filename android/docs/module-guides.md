@@ -23,7 +23,7 @@ The design is in [system architecture](system-architecture.md#authentication) an
 signed in. A screen that offers sign-in takes its own `AuthViewModel` and sends `AuthIntent.SignInWithGoogle` with
 `requestGoogleIdToken(context, webClientId)` to run, as `SettingsScreen` does. To clear data of your own when the user changes,
 implement `SessionObserver` and register it with `@IntoSet`, as `FeedSessionCleanup` does. To add a sign-in method, add it to
-`SignInMethod`, follow the compile error, write one more strategy in `SignInStrategies.kt`, and give `IdentityProvider` a method
+`SignInMethod`, follow the compile error, write one more private sign-in step in `AuthenticationServiceImpl.kt`, and give `IdentityProvider` a method
 that turns the new credential into the vendor's ID token.
 
 To reuse auth in another project, copy `domain/auth`, `data/auth`, `ui/auth`, `di/AuthModule.kt`, `di/AuthFirebaseModule.kt`,
