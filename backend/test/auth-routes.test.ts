@@ -7,7 +7,7 @@ import { ACCESS_TOKEN_AUDIENCE, ACCESS_TOKEN_ISSUER } from "../src/adapters/jwt-
 import { GUEST_MERGE_STEPS, type GuestMergeStep } from "../src/adapters/pg-user-repository.js";
 import { createPgUserRepository } from "../src/adapters/pg-user-repository.js";
 import { hashRefreshToken } from "../src/core/auth-service.js";
-import type { UserId } from "../src/core/identity.js";
+import { InvalidTokenError, type UserId } from "../src/core/identity.js";
 import { migrateUp } from "../src/db/migrate.js";
 import { createPool } from "../src/db/pool.js";
 import { createServer } from "../src/server.js";
@@ -532,6 +532,17 @@ describe("the auth routes, with real PostgreSQL and the app role", () => {
     for (const secret of ["secret-subject", "secret-bad-id-token", "secret-unknown-refresh", guest.tokens.refreshToken, guest.tokens.accessToken]) {
       expect(logs()).not.toContain(secret);
     }
+  });
+
+  it("logs why an ID token was refused, without the token", async () => {
+    const refusing = { verify: async () => Promise.reject(new InvalidTokenError("ERR_JWT_CLAIM_VALIDATION_FAILED aud")) };
+    const { server: logged, logLines } = await createTestServer({ pool, auth: createRealAuth(pool, { identities: refusing }) });
+    const response = await logged.inject({ method: "POST", url: "/api/v1/auth/sso", payload: { idToken: "secret-other-project" } });
+    await logged.close();
+    expect(response.statusCode).toBe(401);
+    expect(response.body).not.toContain("aud");
+    expect(logLines()).toContainEqual(expect.objectContaining({ msg: "token refused", reason: "ERR_JWT_CLAIM_VALIDATION_FAILED aud" }));
+    expect(JSON.stringify(logLines())).not.toContain("secret-other-project");
   });
 
   it("deleting a user takes its sessions, tokens and devices along, and a guest merged into it survives with no pointer", async () => {

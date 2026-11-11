@@ -23,7 +23,11 @@ async function answer<Result>(request: FastifyRequest, work: () => Promise<Resul
   try {
     return await work();
   } catch (error) {
-    if (error instanceof InvalidTokenError) throw new ApiError(401, "UNAUTHORIZED", "Sign in again.");
+    if (error instanceof InvalidTokenError) {
+      // The client gets no reason: telling a forger which check failed would help them.
+      request.log.info({ reason: error.reason }, "token refused");
+      throw new ApiError(401, "UNAUTHORIZED", "Sign in again.");
+    }
     if (error instanceof SignInRequiredError) throw new ApiError(403, "SIGN_IN_REQUIRED", "Sign in with Google to use this.");
     if (error instanceof AuthUnavailableError) {
       request.log.error({ err: error.cause }, "id token check unavailable");

@@ -27,6 +27,12 @@ const BAD_TOKEN_ERRORS = [
   errors.JWKSMultipleMatchingKeys
 ];
 
+/** jose's code and the claim it refused: enough to tell a token from another project from an expired one. */
+function refusal(error: errors.JOSEError): string {
+  const { claim } = error as { claim?: unknown };
+  return typeof claim === "string" ? `${error.code} ${claim}` : error.code;
+}
+
 /** An empty set says the key endpoint is wrong, not the token, so signing the user out would be wrong too. */
 function hasNoKeys(keys: JWTVerifyGetKey): boolean {
   const { jwks } = keys as { jwks?: () => { keys: unknown[] } | undefined };
@@ -54,13 +60,13 @@ export function createOidcIdentityVerifier({ issuer, audience, keys, isAnonymous
         }));
       } catch (error) {
         if (error instanceof errors.JWKSNoMatchingKey && hasNoKeys(keys)) throw new AuthUnavailableError(error);
-        if (BAD_TOKEN_ERRORS.some((type) => error instanceof type)) throw new InvalidTokenError();
+        if (BAD_TOKEN_ERRORS.some((type) => error instanceof type)) throw new InvalidTokenError(refusal(error as errors.JOSEError));
         throw new AuthUnavailableError(error);
       }
       const { sub, iat } = payload;
       // jose accepts a token issued in the future unless told its maximum age.
       if (!sub || sub.length > SUBJECT_MAX_CHARS || iat === undefined || iat > Date.now() / 1000 + CLOCK_TOLERANCE_SECONDS) {
-        throw new InvalidTokenError();
+        throw new InvalidTokenError("subject or iat out of range");
       }
       return { subject: sub, isAnonymous: isAnonymous(payload) };
     }

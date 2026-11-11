@@ -126,6 +126,15 @@ describe("the OIDC verifier", () => {
     await expect(verifier().verify(await build())).rejects.toBeInstanceOf(InvalidTokenError);
   });
 
+  it.each([
+    ["wrong audience", () => token({}, { audience: "other" }), "ERR_JWT_CLAIM_VALIDATION_FAILED aud"],
+    ["wrong issuer", () => token({}, { issuer: "https://securetoken.google.com/other" }), "ERR_JWT_CLAIM_VALIDATION_FAILED iss"],
+    ["expired", () => token({}, { iat: Math.floor(Date.now() / 1000) - 7200, exp: Math.floor(Date.now() / 1000) - 3600 }), "ERR_JWT_EXPIRED exp"],
+    ["empty subject", () => token({}, { subject: "" }), "subject or iat out of range"]
+  ] as const)("names why it refused %s, for the logs", async (_name, build, reason) => {
+    await expect(verifier().verify(await build())).rejects.toMatchObject({ reason });
+  });
+
   describe("when the keys cannot be read", () => {
     const failingKeys = (error: Error): JWTVerifyGetKey => async () => {
       throw error;

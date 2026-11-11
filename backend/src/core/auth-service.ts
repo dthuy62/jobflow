@@ -64,7 +64,7 @@ export function createAuthService({ identities, accessTokens, sessions, users, d
       const identity = await identities.verify(idToken);
       if (identity.isAnonymous) throw new SignInRequiredError();
       const { deleted, ...account } = await users.findOrCreateMember(identity.subject);
-      if (deleted) throw new InvalidTokenError();
+      if (deleted) throw new InvalidTokenError("deleted account");
       // Before the new session, so a failure here leaves nothing behind, and a retry merges again or answers the same.
       const guestMerged = guestRefreshToken !== undefined && (await users.mergeGuest(hashRefreshToken(guestRefreshToken), account.userId));
       const refreshToken = newRefreshToken();
