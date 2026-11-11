@@ -38,6 +38,9 @@ services:
       DATABASE_URL: postgres://jobflow_app:dev-only-app@postgres:5432/jobflow
       FIREBASE_PROJECT_ID: demo-jobflow
       JWT_SIGNING_KEYS: dev-1:dev-only-jwt-signing-key-0123456789abcdef
+    # For the docs at /docs, which only development serves.
+    volumes:
+      - ./contracts/openapi.json:/app/contracts/openapi.json:ro
     ports:
       - "127.0.0.1:8080:8080"
     depends_on:

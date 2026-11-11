@@ -7,6 +7,7 @@ import { registerAuth } from "./http/auth-plugin.js";
 import { clientErrorHandler, frameworkErrorHandler, registerErrorHandlers } from "./http/error-handler.js";
 import { guestLimit, registerIpLimit, registerUserLimit } from "./http/rate-limits.js";
 import { registerAuthRoutes } from "./http/routes/auth.js";
+import { registerDocsRoutes } from "./http/routes/docs.js";
 import { registerHealthRoutes } from "./http/routes/health.js";
 import { registerMeRoutes } from "./http/routes/me.js";
 import { serializeError } from "./logging.js";
@@ -74,6 +75,8 @@ export async function createServer(deps: ServerDeps): Promise<FastifyInstance> {
       "request"
     );
   });
+
+  if (config.env === "development") registerDocsRoutes(server);
 
   await server.register(
     async (scope) => {
