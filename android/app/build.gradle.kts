@@ -21,8 +21,8 @@ val devApiBaseUrl: String =
         .asText
         .map { text ->
             Properties().apply { load(text.reader()) }.getProperty("devApiBaseUrl")?.takeIf(String::isNotBlank)
-        }
-        .orNull ?: "http://10.0.2.2:8080"
+        }.orElse("http://10.0.2.2:8080")
+        .get()
 
 android {
     namespace = "me.dthuy.jobflow"
